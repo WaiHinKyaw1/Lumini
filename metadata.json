@@ -1,0 +1,8 @@
+{
+  "name": "Lumina AI Studio",
+  "description": "A high-performance AI content creation platform featuring video generation, image design, text authorship, and document analysis powered by Gemini.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
