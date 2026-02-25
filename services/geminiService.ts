@@ -3,7 +3,10 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } f
 
 // Standard client getter with fallback for build safety and provided user key
 const getAIClient = () => {
-  const key = (process.env.API_KEY || process.env.GEMINI_API_KEY || "AIzaSyBYPwvQeiYoz5bcrfIqVBSlQl1qytqqjwY").trim();
+  const key = (process.env.GEMINI_API_KEY || process.env.API_KEY || "").trim();
+  if (!key) {
+    throw new Error("Gemini API Key is missing. Please ensure GEMINI_API_KEY is set in the environment.");
+  }
   return new GoogleGenAI({ apiKey: key });
 };
 
@@ -68,7 +71,7 @@ export const generateVideo = async (prompt: string) => {
   const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
   if (!videoUri) throw new Error("Video generation failed");
 
-  const key = (process.env.API_KEY || process.env.GEMINI_API_KEY || "AIzaSyBYPwvQeiYoz5bcrfIqVBSlQl1qytqqjwY").trim();
+  const key = (process.env.GEMINI_API_KEY || process.env.API_KEY || "").trim();
   return `${videoUri}&key=${key}`;
 };
 
