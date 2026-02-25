@@ -1,14 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSpeech, playAudio } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType, GenerationResult } from '../types';
-import HistoryList from '../components/HistoryList';
+import { CREDIT_COSTS, ContentType } from '../types';
 
 interface VoiceoverProps {
   onSpendCredits: (amount: number) => boolean;
-  onSaveResult: (result: Omit<GenerationResult, 'id' | 'timestamp'>) => void;
-  history: GenerationResult[];
-  onDelete: (id: string) => void;
 }
 
 interface VoicePreset {
@@ -18,7 +14,7 @@ interface VoicePreset {
   icon: string;
 }
 
-const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, history, onDelete }) => {
+const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [text, setText] = useState('');
   const [characterId, setCharacterId] = useState('thiha_mm');
   
@@ -36,6 +32,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, his
   
   const audioCtxRef = useRef<AudioContext | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isMounted = useRef(true);
 
   const MAX_CHARS = 4500;
 
@@ -86,24 +83,11 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, his
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
+      isMounted.current = false;
       document.removeEventListener('mousedown', handleClickOutside);
       if (audioCtxRef.current) audioCtxRef.current.close();
     };
   }, []);
-
-  const handleHistorySelect = (item: GenerationResult) => {
-    if (item.content) setText(item.content); // Only stores partial content sometimes, but user can see preview
-    if (item.url) setAudioUrl(item.url);
-    if (item.metadata?.character) {
-        const char = characters.find(c => c.name === item.metadata.character);
-        if (char) setCharacterId(char.id);
-    }
-    if (item.metadata?.speed !== undefined) setVoiceSpeed(item.metadata.speed);
-    if (item.metadata?.pitch !== undefined) setVoicePitch(item.metadata.pitch);
-    
-    setIsChecked(true); // Assume historic items are valid
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   const handlePaste = async () => {
     try {
@@ -165,11 +149,21 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, his
         : `Hello! This is ${char.name}. How can I help you today?`;
       
       const blobUrl = await generateSpeech(sampleText, char.baseVoice, 0, 0);
-      const { ctx } = await playAudio(blobUrl, () => { setIsPreviewing(null); audioCtxRef.current = null; URL.revokeObjectURL(blobUrl); });
-      audioCtxRef.current = ctx;
+      if (isMounted.current) {
+        const { ctx } = await playAudio(blobUrl, () => { 
+            if (isMounted.current) {
+                setIsPreviewing(null); 
+                audioCtxRef.current = null; 
+            }
+            URL.revokeObjectURL(blobUrl); 
+        });
+        audioCtxRef.current = ctx;
+      }
     } catch (err: any) { 
-        setError("Preview failed."); 
-        setIsPreviewing(null); 
+        if (isMounted.current) {
+            setError("Preview failed."); 
+            setIsPreviewing(null); 
+        }
     }
   };
 
@@ -191,28 +185,23 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, his
     
     try {
       const blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch);
-      setAudioUrl(blobUrl);
-      onSaveResult({
-        type: ContentType.VOICEOVER,
-        prompt: `Voiceover: ${char?.name}`,
-        url: blobUrl,
-        content: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-        metadata: {
-            character: char?.name,
-            speed: voiceSpeed,
-            pitch: voicePitch
-        }
-      });
-    } catch (err: any) { setError(err.message || "Synthesis failed."); } 
-    finally { setIsProcessing(false); }
+      if (isMounted.current) {
+        setAudioUrl(blobUrl);
+      }
+    } catch (err: any) { 
+        if (isMounted.current) setError(err.message || "Synthesis failed."); 
+    } 
+    finally { 
+        if (isMounted.current) setIsProcessing(false); 
+    }
   };
 
   const selectedChar = characters.find(c => c.id === characterId);
 
   return (
-    <div className="max-w-5xl mx-auto pb-20">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-600/20">
+    <div className="max-w-4xl mx-auto pb-10">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-600/20">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
@@ -223,10 +212,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, his
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Main Interface */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="glass p-6 rounded-[2.5rem] border border-white/5 space-y-6 shadow-2xl relative overflow-hidden">
+        <div className="lg:col-span-8 space-y-3">
+          <div className="glass p-4 rounded-2xl border border-white/5 space-y-4 shadow-2xl relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
             
             <div className="relative z-10">
@@ -442,8 +431,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits, onSaveResult, his
           {error}
         </div>
       )}
-
-      <HistoryList history={history} onDelete={onDelete} onSelect={handleHistorySelect} />
     </div>
   );
 };

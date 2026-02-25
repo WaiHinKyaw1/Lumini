@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,6 +13,9 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const navItems = [
     { name: 'Dashboard', path: 'dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -29,7 +32,25 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
   const handleNavClick = (path: string) => {
     setPath(path);
     setIsSidebarOpen(false);
+    setSearchQuery('');
+    setIsSearchFocused(false);
   };
+
+  const filteredItems = searchQuery.trim() === '' 
+    ? [] 
+    : navItems.filter(item => 
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className="min-h-screen bg-paper dark:bg-obsidian text-slate-800 dark:text-zinc-100 transition-colors duration-300 flex flex-col font-sans">
@@ -52,6 +73,53 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
             </div>
             <span className="font-extrabold tracking-tighter text-base dark:text-white text-slate-900 hidden sm:block uppercase italic">Lumina Studio</span>
           </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex-1 max-w-md mx-4 relative hidden md:block" ref={searchRef}>
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className={`w-4 h-4 transition-colors ${isSearchFocused ? 'text-indigo-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search tools & features..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              className="w-full bg-gray-100 dark:bg-white/5 border border-transparent focus:border-indigo-500/50 focus:bg-white dark:focus:bg-zinc-900 rounded-xl py-1.5 pl-10 pr-4 text-[11px] font-bold uppercase tracking-tight outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600"
+            />
+          </div>
+
+          {/* Search Results Dropdown */}
+          {isSearchFocused && searchQuery.trim() !== '' && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              {filteredItems.length > 0 ? (
+                <div className="p-2 space-y-1">
+                  {filteredItems.map((item) => (
+                    <button
+                      key={item.path}
+                      onClick={() => handleNavClick(item.path)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-slate-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                        </svg>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest">{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-600">No tools found</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -140,7 +208,7 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
         </div>
       </aside>
 
-      <main className="flex-1 px-4 md:px-6 py-6 w-full max-w-7xl mx-auto transition-all">
+      <main className="flex-1 px-3 md:px-4 py-4 w-full max-w-7xl mx-auto transition-all">
         {children}
       </main>
 

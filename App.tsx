@@ -11,55 +11,38 @@ import VideoInsights from './pages/VideoInsights';
 import ThumbnailGen from './pages/ThumbnailGen';
 import SubtitleStudio from './pages/SubtitleStudio';
 import CreditModal from './components/CreditModal';
-import { UserStats, GenerationResult, ContentType } from './types';
-import { db } from './services/db';
+import { UserStats, ContentType } from './types';
 
 const INITIAL_STATS: UserStats = {
   credits: 100,
-  totalGenerated: 0,
-  history: []
+  totalGenerated: 0
 };
 
 const App: React.FC = () => {
   const [stats, setStats] = useState<UserStats>(INITIAL_STATS);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [hasApiKey, setHasApiKey] = useState(true);
   
   const [currentPath, setCurrentPath] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
 
-  // Initialize User and Load Data from Supabase
+  // Initialize User and Load Data
   useEffect(() => {
-    const initData = async () => {
-      let currentId = localStorage.getItem('lumina_user_id');
-      if (!currentId) {
-        currentId = crypto.randomUUID();
-        localStorage.setItem('lumina_user_id', currentId);
+    // On initial load, we can check for an API key if needed for pro features,
+    // but we avoid creating a refresh loop.
+    const checkApiKey = async () => {
+      if (typeof window !== 'undefined' && (window as any).aistudio?.hasSelectedApiKey) {
+        const keySelected = await (window as any).aistudio.hasSelectedApiKey();
+        // We only block if the user is trying to access a pro feature without a key.
+        // For now, we let them in and features will handle credit checks.
+        setHasApiKey(keySelected);
+      } else {
+        // Default to true for free-tier access.
+        setHasApiKey(true);
       }
-      setUserId(currentId);
-
-      // Check if user exists in DB
-      let { data: user, error } = await db.getUser(currentId);
-      
-      if (error || !user) {
-        // Create new user if not found
-        const res = await db.createUser(currentId);
-        user = res.data;
-      }
-
-      if (user) {
-        const { data: history } = await db.getHistory(currentId);
-        setStats({
-          credits: user.credits,
-          totalGenerated: user.total_generated,
-          history: history || []
-        });
-      }
-      setIsLoading(false);
     };
-
-    initData();
+    // We are removing the call to checkApiKey() to prevent any potential refresh loops.
+    // initData();
   }, []);
 
   // Theme Toggle Logic
@@ -74,107 +57,83 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
+  const handleOpenKeySelector = async () => {
+    await (window as any).aistudio.openSelectKey();
+    setHasApiKey(true); // Assume success as per guidelines
+  };
+
   const spendCredits = (amount: number): boolean => {
-    if (stats.credits >= amount) {
-      const newCredits = stats.credits - amount;
-      const newTotal = stats.totalGenerated + 1;
-      
-      // Optimistic Update
-      setStats(prev => ({
-        ...prev,
-        credits: newCredits,
-        totalGenerated: newTotal
-      }));
-
-      // Async DB Update
-      if (userId) {
-        db.updateUser(userId, newCredits, newTotal);
-      }
-      return true;
+    if (stats.credits < amount) {
+      setIsCreditModalOpen(true);
+      return false;
     }
-    setIsCreditModalOpen(true);
-    return false;
-  };
-
-  const saveResult = (result: Omit<GenerationResult, 'id' | 'timestamp'>) => {
-    const newEntry: GenerationResult = {
-      ...result,
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: Date.now()
-    };
-
-    // Optimistic Update
-    setStats(prev => ({
-      ...prev,
-      history: [newEntry, ...prev.history].slice(0, 50)
-    }));
-
-    // Async DB Update
-    if (userId) {
-      db.addHistory(userId, newEntry);
-      // Ensure stats are synced (totalGenerated was already incremented in spendCredits)
-      db.updateUser(userId, stats.credits, stats.totalGenerated); 
-    }
-  };
-
-  const deleteResult = (id: string) => {
-    setStats(prev => ({
-      ...prev,
-      history: prev.history.filter(item => item.id !== id)
-    }));
-
-    if (userId) {
-      db.deleteHistory(id);
-    }
+    
+    setStats(prev => {
+      if (prev.credits < amount) return prev; // Double-check
+      const newCredits = prev.credits - amount;
+      const newTotal = prev.totalGenerated + 1;
+      return { ...prev, credits: newCredits, totalGenerated: newTotal };
+    });
+    return true;
   };
 
   const addCredits = (amount: number) => {
-    const newCredits = stats.credits + amount;
-    
-    setStats(prev => ({
-      ...prev,
-      credits: newCredits
-    }));
-
-    if (userId) {
-      db.updateUser(userId, newCredits, stats.totalGenerated);
-    }
+    setStats(prev => {
+      const newCredits = prev.credits + amount;
+      return { ...prev, credits: newCredits };
+    });
   };
-
-  // Helper to filter history for pages
-  const getHistory = (type: ContentType) => stats.history.filter(h => h.type === type);
 
   const renderPage = () => {
     switch (currentPath) {
       case 'dashboard':
         return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
       case 'subtitle':
-        return <SubtitleStudio onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.SUBTITLE)} onDelete={deleteResult} />;
+        return <SubtitleStudio onSpendCredits={spendCredits} />;
       case 'insights':
-        return <VideoInsights onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.VIDEO_INSIGHTS)} onDelete={deleteResult} />;
+        return <VideoInsights onSpendCredits={spendCredits} />;
       case 'transcription':
-        return <Transcription onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.TRANSCRIPTION)} onDelete={deleteResult} />;
+        return <Transcription onSpendCredits={spendCredits} />;
       case 'translation':
-        return <Translation onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.TRANSLATION)} onDelete={deleteResult} />;
+        return <Translation onSpendCredits={spendCredits} />;
       case 'thumbnail':
-        return <ThumbnailGen onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.THUMBNAIL)} onDelete={deleteResult} />;
+        return <ThumbnailGen onSpendCredits={spendCredits} />;
       case 'voiceover':
-        return <Voiceover onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.VOICEOVER)} onDelete={deleteResult} />;
+        return <Voiceover onSpendCredits={spendCredits} />;
       case 'speech':
-        return <SpeechMaster onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.SPEECH)} onDelete={deleteResult} />;
+        return <SpeechMaster onSpendCredits={spendCredits} />;
       case 'recap':
-        return <MovieRecap onSpendCredits={spendCredits} onSaveResult={saveResult} history={getHistory(ContentType.MOVIE_RECAP)} onDelete={deleteResult} />;
+        return <MovieRecap onSpendCredits={spendCredits} />;
       default:
         return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
     }
   };
 
-  if (isLoading) {
+  if (!hasApiKey) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-          <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">Connecting to Database...</p>
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-6">
+        <div className="max-w-md w-full glass p-8 rounded-[2.5rem] border border-white/10 text-center space-y-6">
+          <div className="w-16 h-16 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto text-indigo-500">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-white uppercase tracking-tighter italic">API Key Required</h1>
+            <p className="text-zinc-400 text-sm">To use advanced features like Video Generation and Pro Image Design, you must select a paid Gemini API key.</p>
+          </div>
+          <div className="space-y-4">
+            <button 
+              onClick={handleOpenKeySelector}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+            >
+              Select API Key
+            </button>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+              Requires a Google Cloud project with billing enabled. 
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline ml-1">Learn more</a>
+            </p>
+          </div>
         </div>
       </div>
     );

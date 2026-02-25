@@ -20,43 +20,43 @@
     ];
 
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700">
         {/* Header Section */}
-        <header className="py-1">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-slate-900 dark:text-white mb-2">
+        <header className="py-0.5">
+          <h1 className="text-xl md:text-2xl font-black tracking-tighter text-slate-900 dark:text-white mb-1">
             Lumina <span className="gradient-text">Studio.</span>
           </h1>
-          <p className="text-slate-500 dark:text-zinc-500 text-xs md:text-sm font-medium leading-relaxed max-w-xl">
-            High-performance generative tools powered by Gemini.
+          <p className="text-slate-500 dark:text-zinc-500 text-[10px] font-medium leading-relaxed max-w-xl uppercase tracking-widest">
+            High-performance generative tools.
           </p>
         </header>
 
         {/* Stats Grid - Compacted */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <div className="glass p-4 rounded-xl relative overflow-hidden group hover:shadow-md transition-all">
-            <p className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Credits</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+          <div className="glass p-2 rounded-lg relative overflow-hidden group transition-all">
+            <p className="text-[8px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">Credits</p>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-2xl font-black text-slate-800 dark:text-white">{stats.credits}</h3>
-              <span className="text-indigo-500 dark:text-indigo-400 font-bold text-[10px]">CR</span>
+              <h3 className="text-lg font-black text-slate-800 dark:text-white">{stats.credits}</h3>
+              <span className="text-indigo-500 dark:text-indigo-400 font-bold text-[9px]">CR</span>
             </div>
           </div>
           
-          <div className="glass p-4 rounded-xl relative overflow-hidden group hover:shadow-md transition-all">
-            <p className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Generated</p>
+          <div className="glass p-2 rounded-lg relative overflow-hidden group transition-all">
+            <p className="text-[8px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">Generated</p>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-2xl font-black text-slate-800 dark:text-white">{stats.totalGenerated}</h3>
-              <span className="text-slate-400 dark:text-zinc-500 font-bold text-[10px]">Assets</span>
+              <h3 className="text-lg font-black text-slate-800 dark:text-white">{stats.totalGenerated}</h3>
+              <span className="text-slate-400 dark:text-zinc-500 font-bold text-[9px]">Assets</span>
             </div>
           </div>
 
-          <div className="glass p-4 rounded-xl flex items-center justify-between col-span-2 md:col-span-1">
+          <div className="glass p-2 rounded-lg flex items-center justify-between col-span-2 md:col-span-1">
             <div>
-              <p className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">Plan</p>
-              <h3 className="text-lg font-black text-slate-800 dark:text-white">Pro</h3>
+              <p className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-0.5">Plan</p>
+              <h3 className="text-sm font-black text-slate-800 dark:text-white">Pro</h3>
             </div>
             <button 
               onClick={onOpenCredits}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest shadow-md shadow-indigo-600/10 active:scale-95 transition-all"
             >
               Top Up
             </button>
@@ -64,44 +64,44 @@
         </div>
 
         {/* Tools Section - Compacted */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-zinc-600">Available Tools</h2>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-zinc-600">Available Tools</h2>
             <div className="h-px flex-1 bg-slate-200 dark:bg-white/5"></div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1.5">
             {quickActions.map((action) => (
               <button
                 key={action.path}
                 onClick={() => onAction(action.path)}
-                className="group glass p-4 rounded-xl text-left border border-transparent dark:border-white/5 hover:border-indigo-500/30 transition-all duration-300 hover:-translate-y-1 flex flex-col h-full bg-white/50 dark:bg-transparent"
+                className="group glass p-2.5 rounded-lg text-left border border-transparent dark:border-white/5 hover:border-indigo-500/30 transition-all duration-300 flex flex-col h-full bg-white/50 dark:bg-transparent"
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div className={`w-8 h-8 ${action.color} rounded-lg flex items-center justify-center shadow-lg group-hover:scale-105 transition-all`}>
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex justify-between items-start mb-1.5">
+                  <div className={`w-6 h-6 ${action.color} rounded-md flex items-center justify-center shadow-md group-hover:scale-105 transition-all`}>
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={action.icon} />
                     </svg>
                   </div>
                 </div>
                 
-                <h3 className="text-xs font-black text-slate-800 dark:text-white mb-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{action.title}</h3>
-                <p className="text-slate-500 dark:text-zinc-500 text-[10px] font-medium leading-tight mb-3 flex-1">{action.desc}</p>
+                <h3 className="text-[10px] font-black text-slate-800 dark:text-white mb-0.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{action.title}</h3>
+                <p className="text-slate-500 dark:text-zinc-500 text-[8px] font-medium leading-tight mb-1.5 flex-1">{action.desc}</p>
                 
                 <div className="flex items-center justify-between mt-auto">
-                  <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-600 bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 rounded-md">{action.cost} CR</span>
-                  <svg className="w-3 h-3 text-slate-300 dark:text-zinc-700 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 -translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  <span className="text-[8px] font-bold text-slate-400 dark:text-zinc-600 bg-slate-100 dark:bg-white/5 px-1 py-0.5 rounded-md">{action.cost} CR</span>
+                  <svg className="w-2.5 h-2.5 text-slate-300 dark:text-zinc-700 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                 </div>
               </button>
             ))}
           </div>
         </div>
         
-        <footer className="pt-6 flex gap-6 opacity-60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600">© 2025 Lumina Studio</p>
+        <footer className="pt-4 flex gap-4 opacity-40">
+          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600">© 2025 Lumina Studio</p>
         </footer>
       </div>
     );
   };
 
-  export default Dashboard;
+  export default React.memo(Dashboard);

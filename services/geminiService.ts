@@ -1,8 +1,8 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } from "@google/genai";
 
 // Standard client getter with fallback for build safety and provided user key
-const API_KEY = process.env.API_KEY || "AIzaSyCtAu8TYwzjyONUweconoSKKo59RviaqOA";
+const API_KEY = process.env.GEMINI_API_KEY || "AIzaSyBYPwvQeiYoz5bcrfIqVBSlQl1qytqqjwY";
 const getAIClient = () => new GoogleGenAI({ apiKey: API_KEY });
 
 export const generateText = async (prompt: string, systemInstruction: string) => {
@@ -13,6 +13,7 @@ export const generateText = async (prompt: string, systemInstruction: string) =>
     config: {
       systemInstruction,
       temperature: 0.7,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
     },
   });
   return response.text || "No response generated.";
@@ -31,7 +32,9 @@ export const generateImage = async (prompt: string, aspectRatio: "1:1" | "16:9" 
     model: 'gemini-2.5-flash-image',
     contents: { parts },
     config: {
-      imageConfig: { aspectRatio }
+      imageConfig: { 
+        aspectRatio,
+      }
     }
   });
 
@@ -50,7 +53,7 @@ export const generateVideo = async (prompt: string) => {
     prompt: prompt,
     config: {
       numberOfVideos: 1,
-      resolution: '1080p',
+      resolution: '720p',
       aspectRatio: '16:9'
     }
   });
@@ -93,7 +96,7 @@ export const analyzeDocument = async (
     },
     config: {
       systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
-      temperature: 0.4,
+      temperature: 0.2,
     }
   });
   
@@ -115,36 +118,12 @@ export const generateSpeech = async (
 ) => {
   const ai = getAIClient();
   
-  // Mapping -100% to 100% to multipliers (0.5x to 2.0x)
-  const speedVal = speedOffset >= 0 
-    ? 1.0 + (speedOffset / 100) 
-    : 1.0 + (speedOffset / 200);
-
-  const pitchLabel = pitchOffset === 0 ? 'natural' : pitchOffset > 0 ? 'bright' : 'deep';
-  
-  // Specific instruction based on the voice ID
-  let characterPersona = "Professional Studio Artist";
-  if (voice === 'Fenrir') characterPersona = "Thiha (Myanmar Masculine, Commanding & Powerful)";
-  if (voice === 'Kore') characterPersona = "Nilar (Myanmar Feminine, Sweet & Friendly)";
-  if (voice === 'Puck') characterPersona = "Min Khant (Myanmar Masculine, Energetic & Youthful)";
-  if (voice === 'Zephyr') characterPersona = "May Thu (Myanmar Feminine, Soft & Poetic)";
-
-  const enhancedText = `[TTS_CONFIG: SPEED=${speedVal.toFixed(2)}x, PITCH=${pitchLabel}, SHIFT=${pitchOffset}%]
-  [CHARACTER_PERSONA: ${characterPersona}]
-  SYSTEM_INSTRUCTION: You are ${characterPersona}. 
-  Deliver studio-grade, broadcast-quality audio. 
-  Maintain absolute clarity, sharp articulation, and natural Burmese (Myanmar) intonation. 
-  Ensure no syllables are slurred or lost.
-  The tone should strictly match the character's strength: 
-  - If Thiha: Use a broad, deep, authoritative voice.
-  - If Nilar: Use a clear, warm, pleasant voice.
-  - If Min Khant: Use a fast, spirited, modern voice.
-  - If May Thu: Use a gentle, soft, and expressive voice.
-  TEXT_TO_SPEAK: ${text}`;
+  // Clean text to ensure no prompt injection artifacts are spoken
+  const cleanText = text.trim();
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: enhancedText }] }],
+    contents: [{ parts: [{ text: cleanText }] }],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {

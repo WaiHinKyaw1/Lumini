@@ -14,20 +14,9 @@ export enum ContentType {
   DOCUMENT = 'DOCUMENT'
 }
 
-export interface GenerationResult {
-  id: string;
-  type: ContentType;
-  prompt?: string;
-  url?: string;
-  content?: string;
-  timestamp: number;
-  metadata?: any;
-}
-
 export interface UserStats {
   credits: number;
   totalGenerated: number;
-  history: GenerationResult[];
 }
 
 export interface CreditCosts {
