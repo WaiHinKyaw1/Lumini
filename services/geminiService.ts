@@ -2,8 +2,10 @@
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } from "@google/genai";
 
 // Standard client getter with fallback for build safety and provided user key
-const API_KEY = process.env.GEMINI_API_KEY || "AIzaSyBYPwvQeiYoz5bcrfIqVBSlQl1qytqqjwY";
-const getAIClient = () => new GoogleGenAI({ apiKey: API_KEY });
+const getAIClient = () => {
+  const key = (process.env.API_KEY || process.env.GEMINI_API_KEY || "AIzaSyBYPwvQeiYoz5bcrfIqVBSlQl1qytqqjwY").trim();
+  return new GoogleGenAI({ apiKey: key });
+};
 
 export const generateText = async (prompt: string, systemInstruction: string) => {
   const ai = getAIClient();
@@ -66,7 +68,8 @@ export const generateVideo = async (prompt: string) => {
   const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
   if (!videoUri) throw new Error("Video generation failed");
 
-  return `${videoUri}&key=${API_KEY}`;
+  const key = (process.env.API_KEY || process.env.GEMINI_API_KEY || "AIzaSyBYPwvQeiYoz5bcrfIqVBSlQl1qytqqjwY").trim();
+  return `${videoUri}&key=${key}`;
 };
 
 export const analyzeDocument = async (
@@ -121,18 +124,27 @@ export const generateSpeech = async (
   // Clean text to ensure no prompt injection artifacts are spoken
   const cleanText = text.trim();
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: cleanText }] }],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: voice },
+  let response;
+  try {
+    response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: cleanText }] }],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voice },
+          },
         },
       },
-    },
-  });
+    });
+  } catch (err: any) {
+    const errorMsg = err.message ? err.message.toUpperCase() : "";
+    if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
+      throw new Error("Network request failed. Please check your internet connection, disable any adblockers, or ensure your API key is valid and unrestricted.");
+    }
+    throw err;
+  }
 
   const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
   if (!base64Audio) throw new Error("No audio generated");

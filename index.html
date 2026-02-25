@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lumina AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Myanmar:wght@100;300;400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&family=Noto+Sans+Myanmar:wght@100;300;400;700;900&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -18,7 +18,7 @@
                         paper: '#f8fafc',
                     },
                     fontFamily: {
-                        sans: ['Inter', 'Noto Sans Myanmar', 'sans-serif'],
+                        sans: ['"Public Sans"', 'Noto Sans Myanmar', 'sans-serif'],
                     },
                 }
             }
@@ -26,7 +26,7 @@
     </script>
     <style>
         body { 
-            font-family: 'Inter', 'Noto Sans Myanmar', sans-serif;
+            font-family: 'Public Sans', 'Noto Sans Myanmar', sans-serif;
             -webkit-font-smoothing: antialiased;
             transition: background-color 0.3s ease, color 0.3s ease;
             line-height: 1.6;
@@ -81,11 +81,9 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-paper text-slate-800 dark:bg-obsidian dark:text-zinc-100 selection:bg-indigo-500/30">
     <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
-<script type="module" src="/index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

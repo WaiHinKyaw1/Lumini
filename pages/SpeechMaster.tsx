@@ -46,8 +46,13 @@ const SpeechMaster: React.FC<SpeechMasterProps> = ({ onSpendCredits }) => {
 
     setIsProcessing(true);
     try {
+      // Map custom names to valid base voices
+      let baseVoice = selectedVoice;
+      if (selectedVoice === 'Thiha') baseVoice = 'Fenrir';
+      if (selectedVoice === 'Nilar') baseVoice = 'Kore';
+
       // Default to 100% speed/pitch for master simple generation
-      const blobUrl = await generateSpeech(text, selectedVoice, 100, 100);
+      const blobUrl = await generateSpeech(text, baseVoice, 100, 100);
       setAudioUrl(blobUrl);
 
     } catch (err: any) {
