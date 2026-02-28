@@ -513,11 +513,22 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                return;
             }
 
-            // Stuck check for mobile
-            if (videoEl.currentTime === lastTime && !videoEl.paused && !videoEl.ended) {
+            // Aggressively ensure video is playing if it's paused and not ended
+            if (videoEl.paused && !videoEl.ended && videoEl.readyState >= 2) {
+                videoEl.play().catch(() => {});
+            }
+
+            // Stuck check: if time hasn't advanced
+            if (Math.abs(videoEl.currentTime - lastTime) < 0.001 && !videoEl.ended) {
                 stuckFrames++;
-                if (stuckFrames > 100) { // ~1.5-2 seconds
+                // If stuck for > 1 second (approx 60 frames), try to nudge
+                if (stuckFrames > 60) { 
+                    console.log("Video stuck, attempting to resume...");
                     videoEl.play().catch(() => {});
+                    // Small nudge to get it moving if it's a buffering issue
+                    if (videoEl.readyState >= 2) {
+                        videoEl.currentTime = Math.min(videoEl.currentTime + 0.1, totalDur);
+                    }
                     stuckFrames = 0;
                 }
             } else {
