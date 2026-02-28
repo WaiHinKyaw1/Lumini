@@ -364,8 +364,20 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const handleGenerate = async () => {
     if (!videoUrl || !videoRef.current) return;
     
-    if (videoFile && videoFile.size > 50 * 1024 * 1024) {
-      setError("Video is too large (Max 50MB). Please use a smaller file to prevent mobile browser crashes.");
+    // Check if the video element itself has an error
+    if (videoRef.current.error) {
+        setError(`Cannot generate: Video error - ${videoRef.current.error.message || "Format not supported"}`);
+        return;
+    }
+
+    // Check if video is ready
+    if (videoRef.current.readyState < 2) {
+        setError("Video is not ready. Please wait for it to load or try playing it first.");
+        return;
+    }
+    
+    if (videoFile && videoFile.size > 100 * 1024 * 1024) {
+      setError("Video is too large (Max 100MB). Please use a smaller file.");
       return;
     }
 
@@ -375,18 +387,24 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     setProgress(1); 
     setError(null);
     setIsPlaying(false);
-    videoRef.current.pause();
+    
+    // Use the existing, already-loaded video element
+    const videoEl = videoRef.current;
+    const originalTime = videoEl.currentTime;
+    const originalRate = videoEl.playbackRate;
+    
+    videoEl.pause();
     if (audioRef.current) audioRef.current.pause();
 
     let audioCtx: AudioContext | null = null;
-    let videoEl: HTMLVideoElement | null = null;
     let audioEl: HTMLAudioElement | null = null;
     let recorder: MediaRecorder | null = null;
     let processInterval: any = null;
     let watchdogInterval: any = null;
+
     try {
+        // 1. Setup Canvas
         const canvas = document.createElement('canvas');
-        // Reduced resolution to 480p to prevent mobile OOM crashes
         let w = 854, h = 480;
         if (aspectRatio === "9:16") { w = 480; h = 854; }
         else if (aspectRatio === "1:1") { w = 480; h = 480; }
@@ -396,53 +414,60 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) throw new Error("Canvas context failed");
 
+        // 2. Setup Audio Context
         audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 44100 });
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
         
         const destNode = audioCtx.createMediaStreamDestination();
-        let audioEl: HTMLAudioElement | null = null;
 
+        // 3. Setup Audio Element (if exists)
         if (audioUrl) {
            audioEl = new Audio(audioUrl);
            audioEl.crossOrigin = "anonymous";
            audioEl.playbackRate = audioSpeed; 
-           await new Promise(r => { 
-             audioEl!.oncanplaythrough = r; 
-             audioEl!.src = audioUrl; 
-             audioEl!.load();
+           await new Promise<void>((resolve) => { 
+             if (!audioEl) return resolve();
+             audioEl.oncanplaythrough = () => resolve();
+             audioEl.onerror = () => { console.warn("Audio load failed, skipping"); resolve(); };
+             audioEl.src = audioUrl; 
+             audioEl.load();
+             setTimeout(resolve, 5000); // Timeout for audio
            });
-           const source = audioCtx.createMediaElementSource(audioEl);
-           source.connect(destNode);
+           
+           // Connect audio to destination
+           if (audioEl.readyState >= 2) {
+               const source = audioCtx.createMediaElementSource(audioEl);
+               source.connect(destNode);
+           }
         }
 
-        const stream = canvas.captureStream(30);
+        // 4. Setup Stream & Recorder
+        const stream = canvas.captureStream(30); // Request 30 FPS
         if (audioUrl) {
             const audioTrack = destNode.stream.getAudioTracks()[0];
             if (audioTrack) stream.addTrack(audioTrack);
         }
         
         const chunks: Blob[] = [];
-        const supportedTypes = [
-            'video/mp4;codecs=avc1',
-            'video/mp4',
-            'video/webm;codecs=vp9',
-            'video/webm;codecs=h264',
-            'video/webm',
-            'video/quicktime'
-        ];
-        let mimeType = '';
-        for (const type of supportedTypes) {
-            if (MediaRecorder.isTypeSupported(type)) {
-                mimeType = type;
-                break;
+        
+        // Improved MimeType selection
+        let mimeType = "video/mp4;codecs=avc1.42E01E,mp4a.40.2";
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = "video/mp4";
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = "video/webm;codecs=vp9,opus";
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                     mimeType = "video/webm";
+                }
             }
         }
-        if (!mimeType) mimeType = 'video/webm'; // Fallback
         setOutputMimeType(mimeType);
 
         recorder = new MediaRecorder(stream, { 
             mimeType,
-            videoBitsPerSecond: 2500000 // 2.5 Mbps
+            videoBitsPerSecond: 8000000 // 8 Mbps
         });
         
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
@@ -462,70 +487,38 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
         recorder.onstop = finishGeneration;
 
-        // 3. Setup Hidden Video Element
-        videoEl = document.createElement('video');
-        videoEl.muted = true; // Required for autoplay
-        videoEl.playsInline = true;
-        videoEl.preload = 'auto';
-        videoEl.crossOrigin = 'anonymous';
-        videoEl.src = videoUrl;
-        
-        // Style to ensure it renders but is hidden
-        Object.assign(videoEl.style, {
-            position: 'fixed',
-            bottom: '0',
-            right: '0',
-            width: '10px',
-            height: '10px',
-            opacity: '0.01',
-            pointerEvents: 'none',
-            zIndex: '-1',
-        });
-        document.body.appendChild(videoEl);
-
-        // 4. Wait for Video Ready
-        await new Promise<void>((resolve, reject) => {
-            if (!videoEl) return reject("Video element missing");
-            const onCanPlay = () => {
-                videoEl?.removeEventListener('canplay', onCanPlay);
-                resolve();
-            };
-            videoEl.addEventListener('canplay', onCanPlay);
-            videoEl.addEventListener('error', (e) => reject(`Video load error: ${(e.target as any).error?.message}`));
-            if (videoEl.readyState >= 3) onCanPlay();
-            setTimeout(() => reject("Video load timeout (10s)"), 10000);
-        });
-
-        try {
-            await videoEl.play();
-        } catch (playErr) {
-            console.warn("Autoplay blocked, trying again after interaction", playErr);
-            // On some mobiles, we might need to wait or it might just work if triggered by click
-        }
-
+        // 5. Start Playback & Recording
+        videoEl.currentTime = 0;
         videoEl.playbackRate = videoSpeed;
+        
+        await videoEl.play();
         if (audioEl) {
-            try { await audioEl.play(); } catch(e) { console.warn("Audio play blocked", e); }
+            audioEl.play().catch(e => console.warn("Audio play error", e));
         }
         
-        // Start recorder with 1s chunks to ensure data flow
-        recorder.start(1000);
+        recorder.start(1000); 
 
-        const totalDur = videoEl.duration && !isNaN(videoEl.duration) ? videoEl.duration : (videoDuration || 1); 
-
+        const totalDur = videoEl.duration || (videoDuration || 1); 
         let lastTime = -1;
         let stuckCount = 0;
 
-        // 8. Processing Loop (using setInterval for stability over RAF)
-        // We draw at ~30fps
+        // 6. Processing Loop
         processInterval = setInterval(() => {
-            if (!isProcessing || !isMounted.current || !videoEl || !ctx) {
+            if (!isProcessing || !isMounted.current || !ctx) {
                 cleanup();
                 return;
             }
 
             // Draw Frame
             renderFrame(ctx, videoEl, w, h, videoEl.currentTime * 1000);
+
+            // Active Sync
+            if (audioEl && !audioEl.paused && !audioEl.ended && videoEl.readyState >= 2 && !videoEl.paused) {
+                 const expectedVideoTime = (audioEl.currentTime / audioSpeed) * videoSpeed;
+                 if (Math.abs(videoEl.currentTime - expectedVideoTime) > 0.3) {
+                      videoEl.currentTime = expectedVideoTime;
+                 }
+            }
 
             // Update Progress
             const currentProgress = Math.min(100, Math.floor((videoEl.currentTime / totalDur) * 100));
@@ -542,16 +535,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             }
         }, 33); // ~30 FPS
 
-        // 9. Watchdog for Stuck Video
+        // 7. Watchdog
         watchdogInterval = setInterval(() => {
-            if (!videoEl || !isProcessing) return;
+            if (!isProcessing) return;
             
-            // If time hasn't moved significantly
             if (Math.abs(videoEl.currentTime - lastTime) < 0.1 && !videoEl.paused && !videoEl.ended) {
                 stuckCount++;
-                if (stuckCount > 3) { // Stuck for ~3 seconds
+                if (stuckCount > 3) {
                     console.log("Watchdog: Video stuck, nudging...");
-                    videoEl.currentTime += 0.1; // Nudge forward
+                    videoEl.currentTime += 0.1;
                     videoEl.play().catch(() => {});
                     stuckCount = 0;
                 }
@@ -560,7 +552,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 lastTime = videoEl.currentTime;
             }
             
-            // Force play if paused
             if (videoEl.paused && !videoEl.ended && videoEl.readyState >= 2) {
                 videoEl.play().catch(() => {});
             }
@@ -569,24 +560,24 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     } catch (err: any) {
         console.error("Gen Error:", err);
         if (isMounted.current) {
-            setError("Generation Failed: " + err.message);
+            setError("Generation Failed: " + (err.message || "Unknown error"));
             setIsProcessing(false);
         }
-    } finally {
-        // Ensure cleanup runs if we exit early
-        if (!processInterval) cleanup();
+        cleanup();
     }
 
     function cleanup() {
         if (processInterval) clearInterval(processInterval);
         if (watchdogInterval) clearInterval(watchdogInterval);
         if (audioCtx && audioCtx.state !== 'closed') audioCtx.close();
+        
+        // Restore video state
         if (videoEl) {
             videoEl.pause();
-            videoEl.src = "";
-            videoEl.load();
-            if (document.body.contains(videoEl)) document.body.removeChild(videoEl);
+            videoEl.currentTime = originalTime;
+            videoEl.playbackRate = originalRate;
         }
+        
         if (audioEl) {
             audioEl.pause();
             audioEl.src = "";
