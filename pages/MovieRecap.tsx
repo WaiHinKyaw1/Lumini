@@ -380,6 +380,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
     let audioCtx: AudioContext | null = null;
     let videoEl: HTMLVideoElement | null = null;
+    let audioEl: HTMLAudioElement | null = null;
+    let recorder: MediaRecorder | null = null;
+    let processInterval: any = null;
+    let watchdogInterval: any = null;
     try {
         const canvas = document.createElement('canvas');
         // Reduced resolution to 480p to prevent mobile OOM crashes
@@ -436,51 +440,60 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         if (!mimeType) mimeType = 'video/webm'; // Fallback
         setOutputMimeType(mimeType);
 
-        const recorder = new MediaRecorder(stream, { mimeType });
+        recorder = new MediaRecorder(stream, { 
+            mimeType,
+            videoBitsPerSecond: 2500000 // 2.5 Mbps
+        });
+        
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-        recorder.onstop = () => {
-            if (!isMounted.current) return;
+        
+        const finishGeneration = () => {
+             if (!isMounted.current) return;
              if (chunks.length === 0) {
-                if (isMounted.current) {
-                   setError("Generation Stalled: No data recorded. Your browser might be blocking the recording process.");
-                   setIsProcessing(false);
-                }
-               return;
+                setError("Generation failed: No data recorded.");
+             } else {
+                 const blob = new Blob(chunks, { type: mimeType });
+                 const url = URL.createObjectURL(blob);
+                 setResultUrl(url);
              }
-             const blob = new Blob(chunks, { type: mimeType });
-             const url = URL.createObjectURL(blob);
-             if (isMounted.current) {
-                setResultUrl(url);
-                setIsProcessing(false);
-             }
-             if (audioCtx) audioCtx.close();
+             setIsProcessing(false);
+             cleanup();
         };
 
+        recorder.onstop = finishGeneration;
+
+        // 3. Setup Hidden Video Element
         videoEl = document.createElement('video');
-        videoEl.muted = true;
+        videoEl.muted = true; // Required for autoplay
         videoEl.playsInline = true;
         videoEl.preload = 'auto';
         videoEl.crossOrigin = 'anonymous';
         videoEl.src = videoUrl;
         
-        videoEl.style.position = 'fixed';
-        videoEl.style.bottom = '0';
-        videoEl.style.right = '0';
-        videoEl.style.width = '100px';
-        videoEl.style.height = '100px';
-        videoEl.style.opacity = '0.01';
-        videoEl.style.pointerEvents = 'none';
-        videoEl.style.zIndex = '1';
-        document.body.appendChild(videoEl); 
-        
-        await new Promise((resolve) => {
-            const onMeta = () => {
-                videoEl.removeEventListener('loadedmetadata', onMeta);
-                resolve(null);
+        // Style to ensure it renders but is hidden
+        Object.assign(videoEl.style, {
+            position: 'fixed',
+            bottom: '0',
+            right: '0',
+            width: '10px',
+            height: '10px',
+            opacity: '0.01',
+            pointerEvents: 'none',
+            zIndex: '-1',
+        });
+        document.body.appendChild(videoEl);
+
+        // 4. Wait for Video Ready
+        await new Promise<void>((resolve, reject) => {
+            if (!videoEl) return reject("Video element missing");
+            const onCanPlay = () => {
+                videoEl?.removeEventListener('canplay', onCanPlay);
+                resolve();
             };
-            videoEl.addEventListener('loadedmetadata', onMeta);
-            if (videoEl.readyState >= 1) onMeta();
-            setTimeout(onMeta, 3000); // Max wait 3s
+            videoEl.addEventListener('canplay', onCanPlay);
+            videoEl.addEventListener('error', (e) => reject(`Video load error: ${(e.target as any).error?.message}`));
+            if (videoEl.readyState >= 3) onCanPlay();
+            setTimeout(() => reject("Video load timeout (10s)"), 10000);
         });
 
         try {
@@ -495,66 +508,63 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             try { await audioEl.play(); } catch(e) { console.warn("Audio play blocked", e); }
         }
         
-        try {
-            recorder.start(200); 
-        } catch (recErr) {
-            console.error("Recorder start failed", recErr);
-            recorder.start(); // Try without timeslice
-        }
+        // Start recorder with 1s chunks to ensure data flow
+        recorder.start(1000);
 
         const totalDur = videoEl.duration && !isNaN(videoEl.duration) ? videoEl.duration : (videoDuration || 1); 
 
         let lastTime = -1;
-        let stuckFrames = 0;
+        let stuckCount = 0;
 
-        const processLoop = () => {
-            if (!isProcessing || !isMounted.current) {
-               if (document.body.contains(videoEl)) document.body.removeChild(videoEl);
-               return;
+        // 8. Processing Loop (using setInterval for stability over RAF)
+        // We draw at ~30fps
+        processInterval = setInterval(() => {
+            if (!isProcessing || !isMounted.current || !videoEl || !ctx) {
+                cleanup();
+                return;
             }
 
-            // Aggressively ensure video is playing if it's paused and not ended
+            // Draw Frame
+            renderFrame(ctx, videoEl, w, h, videoEl.currentTime * 1000);
+
+            // Update Progress
+            const currentProgress = Math.min(100, Math.floor((videoEl.currentTime / totalDur) * 100));
+            setProgress(Math.max(1, currentProgress));
+
+            // Check for completion
+            if (videoEl.ended || videoEl.currentTime >= totalDur) {
+                if (recorder && recorder.state === 'recording') {
+                    recorder.stop();
+                } else {
+                    finishGeneration();
+                }
+                cleanup();
+            }
+        }, 33); // ~30 FPS
+
+        // 9. Watchdog for Stuck Video
+        watchdogInterval = setInterval(() => {
+            if (!videoEl || !isProcessing) return;
+            
+            // If time hasn't moved significantly
+            if (Math.abs(videoEl.currentTime - lastTime) < 0.1 && !videoEl.paused && !videoEl.ended) {
+                stuckCount++;
+                if (stuckCount > 3) { // Stuck for ~3 seconds
+                    console.log("Watchdog: Video stuck, nudging...");
+                    videoEl.currentTime += 0.1; // Nudge forward
+                    videoEl.play().catch(() => {});
+                    stuckCount = 0;
+                }
+            } else {
+                stuckCount = 0;
+                lastTime = videoEl.currentTime;
+            }
+            
+            // Force play if paused
             if (videoEl.paused && !videoEl.ended && videoEl.readyState >= 2) {
                 videoEl.play().catch(() => {});
             }
-
-            // Stuck check: if time hasn't advanced
-            if (Math.abs(videoEl.currentTime - lastTime) < 0.001 && !videoEl.ended) {
-                stuckFrames++;
-                // If stuck for > 1 second (approx 60 frames), try to nudge
-                if (stuckFrames > 60) { 
-                    console.log("Video stuck, attempting to resume...");
-                    videoEl.play().catch(() => {});
-                    // Small nudge to get it moving if it's a buffering issue
-                    if (videoEl.readyState >= 2) {
-                        videoEl.currentTime = Math.min(videoEl.currentTime + 0.1, totalDur);
-                    }
-                    stuckFrames = 0;
-                }
-            } else {
-                stuckFrames = 0;
-            }
-            lastTime = videoEl.currentTime;
-
-            if (videoEl.ended || videoEl.currentTime >= totalDur) { 
-              setTimeout(() => {
-                if (recorder.state === 'recording') recorder.stop(); 
-                if (document.body.contains(videoEl)) document.body.removeChild(videoEl);
-                if (audioEl) audioEl.pause();
-              }, 500); 
-              return; 
-            }
-            
-            renderFrame(ctx, videoEl, w, h, videoEl.currentTime * 1000);
-            
-            const currentProgress = totalDur > 0 
-                ? Math.min(100, Math.floor((videoEl.currentTime / totalDur) * 100))
-                : 1;
-            setProgress(currentProgress > 0 ? currentProgress : 1);
-            
-            requestAnimationFrame(processLoop);
-        };
-        processLoop();
+        }, 1000);
 
     } catch (err: any) {
         console.error("Gen Error:", err);
@@ -563,11 +573,23 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             setIsProcessing(false);
         }
     } finally {
-        if (audioCtx && audioCtx.state !== 'closed') {
-            audioCtx.close();
+        // Ensure cleanup runs if we exit early
+        if (!processInterval) cleanup();
+    }
+
+    function cleanup() {
+        if (processInterval) clearInterval(processInterval);
+        if (watchdogInterval) clearInterval(watchdogInterval);
+        if (audioCtx && audioCtx.state !== 'closed') audioCtx.close();
+        if (videoEl) {
+            videoEl.pause();
+            videoEl.src = "";
+            videoEl.load();
+            if (document.body.contains(videoEl)) document.body.removeChild(videoEl);
         }
-        if (videoEl && document.body.contains(videoEl)) {
-            document.body.removeChild(videoEl);
+        if (audioEl) {
+            audioEl.pause();
+            audioEl.src = "";
         }
     }
   };
