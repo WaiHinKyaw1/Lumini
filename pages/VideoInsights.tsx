@@ -72,8 +72,8 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
     setResult(null);
 
     // Prevent mobile OOM crashes from huge base64 strings
-    if (file.size > 20 * 1024 * 1024) {
-      setError("File is too large (Max 20MB). Please use a smaller file to prevent mobile browser crashes.");
+    if (file.size > 50 * 1024 * 1024) {
+      setError("File is too large (Max 50MB). Please use a smaller file to prevent mobile browser crashes.");
       return;
     }
 

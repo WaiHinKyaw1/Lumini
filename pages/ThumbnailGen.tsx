@@ -52,7 +52,9 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
     });
   };
 
-  const containsMyanmar = (text: string) => /[\u1000-\u109F]/.test(text);
+  const containsMyanmar = (text: string) => /[\u1000-\u109F\uAA60-\uAA7F]/.test(text);
+
+  const isMyanmarText = containsMyanmar(topic) || containsMyanmar(titleText);
 
   const handleGenerate = async () => {
     if (!topic.trim()) return;
@@ -72,13 +74,14 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
 
     setIsGenerating(true);
     try {
-      const isMyanmar = containsMyanmar(topic) || containsMyanmar(titleText);
       const selectedStyle = styles.find(s => s.name === style);
       
       let thumbPrompt = `Professional YouTube Thumbnail for: "${topic}". Style: ${style}. Attributes: ${selectedStyle?.prompt}. Include a vibrant focal point, high-contrast text area, and viral appeal.`;
       
       if (titleText) {
-          const fontNote = isMyanmar ? "Use clean, bold Myanmar Unicode typography." : "Use bold, readable modern font.";
+          const fontNote = isMyanmarText 
+            ? "CRITICAL: Use high-quality, clean, bold Myanmar (Burmese) Unicode typography. Ensure characters are perfectly formed, properly spaced, and highly legible. The font must be a modern, thick sans-serif style suitable for thumbnails." 
+            : "Use bold, readable modern font.";
           thumbPrompt += ` The text "${titleText}" should be prominently displayed on the thumbnail. ${fontNote}`;
       }
       
@@ -91,11 +94,11 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
           thumbPrompt += " Use the provided image as the main reference or composition base.";
       }
 
-      if (isMyanmar) {
-          thumbPrompt += " Ensure all Myanmar characters are rendered according to Unicode standards without broken circles or overlapping glyphs.";
+      if (isMyanmarText) {
+          thumbPrompt += " IMPORTANT: The text is in Myanmar (Burmese) script. Render it using standard Unicode glyphs. Avoid any distortion, overlapping, or broken circles in the characters. The typography must be professional, clear, and follow standard Burmese Unicode rendering rules.";
       }
       
-      const hookSystemPrompt = isMyanmar 
+      const hookSystemPrompt = isMyanmarText 
         ? "You are a YouTube viral growth expert. Respond only in Burmese Unicode. Use natural, modern phrasing." 
         : "You are a YouTube viral growth expert.";
 
@@ -124,14 +127,14 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   return (
     <div className="max-w-5xl mx-auto pb-6">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center shadow-md shadow-amber-500/10">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z M4 13h16 M13 4v9 M4 9h9" />
           </svg>
         </div>
         <div>
-          <h1 className="text-base font-bold text-slate-900 dark:text-white">Thumbnail Studio</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[8px] font-bold uppercase tracking-widest">{CREDIT_COSTS[ContentType.THUMBNAIL]} Credits</p>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Thumbnail Studio</h1>
+          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Viral Design • {CREDIT_COSTS[ContentType.THUMBNAIL]} Credits</p>
         </div>
       </div>
 
@@ -159,13 +162,16 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
                 </div>
                 
                 <div className="flex-1 space-y-1">
-                     <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500">Thumbnail Title</label>
+                     <div className="flex justify-between items-center">
+                        <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500">Thumbnail Title</label>
+                        {isMyanmarText && <span className="text-[7px] font-black text-amber-500 uppercase tracking-widest animate-pulse">Unicode Active</span>}
+                     </div>
                      <input
                         type="text"
                         value={titleText}
                         onChange={(e) => setTitleText(e.target.value)}
                         placeholder="Title..."
-                        className="w-full h-9 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-2 text-[10px] font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 outline-none"
+                        className={`w-full h-9 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-2 text-[10px] font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 outline-none ${isMyanmarText ? 'tracking-normal' : ''}`}
                      />
                 </div>
             </div>
@@ -176,7 +182,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="Topic..."
-                className="w-full h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-2 text-[10px] text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 outline-none transition-all resize-none"
+                className={`w-full h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-2 text-[10px] text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 outline-none transition-all resize-none ${isMyanmarText ? 'tracking-normal' : ''}`}
               />
             </div>
 
@@ -217,7 +223,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
               <h3 className="text-[8px] font-black uppercase tracking-widest text-amber-500 mb-1">CTR Title Hooks</h3>
               <div className="space-y-1">
                 {hooks.map((hook, i) => (
-                  <div key={i} className="bg-slate-50 dark:bg-white/5 p-1 rounded-md text-[8px] font-bold text-slate-700 dark:text-zinc-300 border border-slate-100 dark:border-white/5">
+                  <div key={i} className={`bg-slate-50 dark:bg-white/5 p-1 rounded-md text-[8px] font-bold text-slate-700 dark:text-zinc-300 border border-slate-100 dark:border-white/5 ${isMyanmarText ? 'tracking-normal' : ''}`}>
                     {hook}
                   </div>
                 ))}

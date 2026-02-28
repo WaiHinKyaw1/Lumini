@@ -5,11 +5,15 @@ import Dashboard from './pages/Dashboard';
 import Transcription from './pages/Transcription';
 import Translation from './pages/Translation';
 import Voiceover from './pages/Voiceover';
-import SpeechMaster from './pages/SpeechMaster';
 import MovieRecap from './pages/MovieRecap';
 import VideoInsights from './pages/VideoInsights';
 import ThumbnailGen from './pages/ThumbnailGen';
 import SubtitleStudio from './pages/SubtitleStudio';
+import SocialGen from './pages/SocialGen';
+import AutoCaption from './pages/AutoCaption';
+import VideoTrimmer from './pages/VideoTrimmer';
+import AIAvatar from './pages/AIAvatar';
+import BrandKit from './pages/BrandKit';
 import CreditModal from './components/CreditModal';
 import { UserStats, ContentType } from './types';
 
@@ -100,10 +104,18 @@ const App: React.FC = () => {
         return <ThumbnailGen onSpendCredits={spendCredits} />;
       case 'voiceover':
         return <Voiceover onSpendCredits={spendCredits} />;
-      case 'speech':
-        return <SpeechMaster onSpendCredits={spendCredits} />;
       case 'recap':
         return <MovieRecap onSpendCredits={spendCredits} />;
+      case 'social':
+        return <SocialGen onSpendCredits={spendCredits} />;
+      case 'autocaption':
+        return <AutoCaption onSpendCredits={spendCredits} />;
+      case 'trimmer':
+        return <VideoTrimmer onSpendCredits={spendCredits} />;
+      case 'avatar':
+        return <AIAvatar onSpendCredits={spendCredits} />;
+      case 'brandkit':
+        return <BrandKit />;
       default:
         return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
     }

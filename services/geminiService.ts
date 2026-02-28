@@ -75,6 +75,51 @@ export const generateVideo = async (prompt: string) => {
   return `${videoUri}&key=${key}`;
 };
 
+export const generateSubtitles = async (
+  fileBase64: string, 
+  mimeType: string, 
+  language: string = 'BURMESE'
+) => {
+  const ai = getAIClient();
+  
+  const systemInstruction = `You are a professional media transcriptionist and subtitle editor. 
+Your task is to transcribe the provided audio/video file and generate a high-quality SubRip (.srt) subtitle file.
+
+STRICT RULES:
+1. Output ONLY the valid SRT content. No preamble, no markdown code blocks, no explanations.
+2. Use the format:
+   1
+   00:00:00,000 --> 00:00:04,000
+   Subtitle text here.
+
+3. Ensure timestamps are accurate to the audio.
+4. Target language: ${language}.
+5. If the audio is in a different language, translate it accurately to ${language}.
+6. Handle overlapping speech gracefully.`;
+
+  const prompt = "Transcribe this media file into a professional SRT subtitle file.";
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: {
+      parts: [
+        { inlineData: { data: fileBase64, mimeType } },
+        { text: prompt }
+      ]
+    },
+    config: {
+      systemInstruction,
+      temperature: 0.1,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+    }
+  });
+  
+  let result = response.text || "";
+  // Clean up any markdown artifacts if the model ignores instructions
+  result = result.replace(/```srt|```|```text/g, '').trim();
+  return result;
+};
+
 export const analyzeDocument = async (
   fileBase64: string, 
   mimeType: string, 
@@ -103,6 +148,7 @@ export const analyzeDocument = async (
     config: {
       systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
       temperature: 0.2,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
     }
   });
   

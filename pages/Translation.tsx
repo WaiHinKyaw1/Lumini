@@ -160,7 +160,7 @@ Translate the text into ${targetLang} following the order:
           </svg>
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tighter italic">Localization Engine</h1>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Localization Engine</h1>
           <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-black uppercase tracking-widest">Global Master Synchronization • {CREDIT_COSTS[ContentType.TRANSLATION]} Credits</p>
         </div>
       </div>
@@ -183,7 +183,7 @@ Translate the text into ${targetLang} following the order:
                 setIsChecked(false);
               }}
               placeholder="Paste master script for professional localization..."
-              className="w-full h-48 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none font-medium leading-[1.8]"
+              className="w-full h-48 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 text-[13px] text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none font-medium leading-[1.8]"
             />
 
             <div className="flex justify-between items-center px-2 pt-1">
@@ -223,7 +223,7 @@ Translate the text into ${targetLang} following the order:
                 </div>
                 <div className="flex-1">
                   <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Master Script</h4>
-                  <p className="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-tighter italic">Essential Localization</p>
+                  <p className="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-tighter">Essential Localization</p>
                 </div>
               </div>
 
@@ -255,9 +255,9 @@ Translate the text into ${targetLang} following the order:
             </div>
 
             {!isChecked ? (
-              <button onClick={handleCheck} className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.25em] shadow-2xl shadow-indigo-600/20 transition-all active:scale-[0.98]">Lock Synthesis Protocol</button>
+              <button onClick={handleCheck} className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.25em] shadow-2xl shadow-indigo-600/20 transition-all active:scale-[0.98]">Lock Synthesis Protocol</button>
             ) : (
-              <button onClick={handleTranslate} disabled={isProcessing} className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] transition-all shadow-2xl ${isProcessing ? 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'}`}>{isProcessing ? 'Decoding Neural Net...' : `Execute Studio Master`}</button>
+              <button onClick={handleTranslate} disabled={isProcessing} className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] transition-all shadow-2xl ${isProcessing ? 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'}`}>{isProcessing ? 'Decoding Neural Net...' : `Execute Studio Master`}</button>
             )}
           </div>
         </div>
@@ -272,7 +272,7 @@ Translate the text into ${targetLang} following the order:
                  </button>
             </div>
             <div className="mb-6">
-               <h3 className="text-lg font-black text-slate-900 dark:text-white mb-0.5 italic">Synthesis Complete</h3>
+               <h3 className="text-lg font-black text-slate-900 dark:text-white mb-0.5">Synthesis Complete</h3>
                <p className="text-slate-400 dark:text-zinc-500 text-[9px] font-black uppercase tracking-[0.4em]">Broadcast Grade Output Verified</p>
             </div>
             <div className="space-y-3">

@@ -196,10 +196,12 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
     const timeSec = timeMs / 1000;
     let scale = 1.0;
+    let isFreezeActive = false;
 
     if (freezeEnabled) {
       const cycleTime = timeSec % Math.max(0.1, freezeInterval);
       if (cycleTime < freezeDuration) {
+        isFreezeActive = true;
         const zoomProgress = cycleTime / freezeDuration;
         scale = 1.0 + (zoomProgress * 0.05); 
       }
@@ -228,6 +230,29 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     ctx.translate(-width/2, -height/2);
     ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
     ctx.restore();
+
+    // Visual indicator for freeze frame in preview
+    if (isFreezeActive && !isProcessing) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)';
+      ctx.lineWidth = 12;
+      ctx.strokeRect(0, 0, width, height);
+      
+      // Badge
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.9)';
+      const badgeW = 80;
+      const badgeH = 24;
+      ctx.beginPath();
+      ctx.roundRect(width - badgeW - 15, 15, badgeW, badgeH, 6);
+      ctx.fill();
+      
+      ctx.fillStyle = 'white';
+      ctx.font = '900 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FREEZE ACTIVE', width - badgeW/2 - 15, 15 + badgeH/2);
+      ctx.restore();
+    }
 
     if (blurEnabled) {
       const bY = (blurPosition / 100) * height;
@@ -556,14 +581,14 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   return (
     <div className="max-w-4xl mx-auto pb-6">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/10">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 21h16a1 1 0 001-1V4a1 1 0 00-1-1H4a1 1 0 00-1 1v16a1 1 0 001 1z" />
           </svg>
         </div>
         <div>
-          <h1 className="text-base font-bold text-slate-900 dark:text-white uppercase tracking-tighter italic">Recap Studio</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[8px] font-black tracking-widest uppercase">PRO SYNC • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} CREDITS</p>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Recap Studio</h1>
+          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-black tracking-widest uppercase">PRO SYNC • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} CREDITS</p>
         </div>
       </div>
 
@@ -678,7 +703,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
         {/* Preview Frame Section - COMPACTED SIZE: max-w-[220px] */}
         <div className="order-1 md:order-2 space-y-3">
-            <div className="max-w-[200px] mx-auto w-full flex flex-col items-center transition-all duration-300">
+            <div className="w-full flex flex-col items-center transition-all duration-300">
                 <div 
                   className="relative w-full bg-black rounded-xl overflow-hidden shadow-xl border border-slate-200 dark:border-white/10 group flex items-center justify-center transition-all duration-500 bg-midnight"
                   style={{ aspectRatio: aspectRatio.replace(':', '/') }}
@@ -737,8 +762,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 </div>
             </div>
             
-            <video ref={videoRef} src={videoUrl || ""} className="hidden" playsInline muted={true} onLoadedMetadata={onVideoLoaded} />
-            <audio ref={audioRef} src={audioUrl || ""} className="hidden" onLoadedMetadata={onAudioLoaded} />
+            <video ref={videoRef} src={videoUrl || null} className="hidden" playsInline muted={true} onLoadedMetadata={onVideoLoaded} />
+            <audio ref={audioRef} src={audioUrl || null} className="hidden" onLoadedMetadata={onAudioLoaded} />
             
             {resultUrl && (
                 <div className="glass p-4 rounded-xl border border-emerald-500/30 animate-in slide-in-from-bottom-4 max-w-md mx-auto shadow-2xl bg-emerald-500/5">
