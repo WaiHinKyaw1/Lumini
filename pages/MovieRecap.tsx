@@ -642,7 +642,28 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         videoEl.currentTime = 0;
         videoEl.playbackRate = videoSpeed;
         
-        await videoEl.play();
+        // Ensure video is ready to play
+        if (videoEl.readyState < 3) {
+            await new Promise<void>((resolve) => {
+                const onCanPlay = () => {
+                    videoEl.removeEventListener('canplaythrough', onCanPlay);
+                    resolve();
+                };
+                videoEl.addEventListener('canplaythrough', onCanPlay);
+                setTimeout(resolve, 3000); // Max wait 3s
+            });
+        }
+
+        try {
+            await videoEl.play();
+        } catch (e) {
+            console.warn("Autoplay blocked, attempting muted play", e);
+            videoEl.muted = true;
+            await videoEl.play().catch(err => {
+                throw new Error("Video playback failed. Please ensure the video is playable in your browser.");
+            });
+        }
+
         if (audioEl) {
             audioEl.play().catch(e => console.warn("Audio play error", e));
         }
@@ -650,6 +671,7 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         recorder.start(1000); 
 
         const totalDur = videoEl.duration || (videoDuration || 1); 
+        let lastProcessTime = -1;
         let lastTime = -1;
         let stuckCount = 0;
 
@@ -671,12 +693,19 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                  }
             }
 
+            // Manual advancement if stuck
+            if (videoEl.currentTime === lastProcessTime && !videoEl.paused && !videoEl.ended) {
+                videoEl.currentTime += 0.033; // ~1 frame nudge
+            }
+            lastProcessTime = videoEl.currentTime;
+
             // Update Progress
             const currentProgress = Math.min(100, Math.floor((videoEl.currentTime / totalDur) * 100));
             setProgress(Math.max(1, currentProgress));
 
             // Check for completion
             if (videoEl.ended || videoEl.currentTime >= totalDur) {
+                setProgress(100);
                 if (recorder && recorder.state === 'recording') {
                     recorder.stop();
                 } else {
