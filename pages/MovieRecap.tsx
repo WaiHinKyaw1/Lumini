@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import { CREDIT_COSTS, ContentType } from '../types';
 
 interface MovieRecapProps {
@@ -19,6 +20,12 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
+
+  // --- State: AI Generation ---
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [hasKey, setHasKey] = useState(false);
+  const [showAIPrompt, setShowAIPrompt] = useState(false);
 
   // --- State: Settings ---
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
@@ -53,6 +60,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const helperCanvasRef = useRef<HTMLCanvasElement | null>(null); 
   const animationFrameRef = useRef<number | null>(null);
+  const cachedFreezeFrame = useRef<ImageBitmap | null>(null);
+  const isCurrentlyFrozen = useRef<boolean>(false);
   const isMounted = useRef(true);
   
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +136,99 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     }
   };
 
+  // --- AI Video Generation ---
+  useEffect(() => {
+    const checkApiKey = async () => {
+      const selected = await (window as any).aistudio?.hasSelectedApiKey();
+      setHasKey(selected);
+    };
+    checkApiKey();
+  }, []);
+
+  const handleOpenKey = async () => {
+    await (window as any).aistudio?.openSelectKey();
+    setHasKey(true);
+  };
+
+  const generateAIVideo = async () => {
+    if (!aiPrompt.trim()) return;
+    setError(null);
+
+    if (!onSpendCredits(CREDIT_COSTS[ContentType.MOVIE_RECAP])) {
+      setError("Insufficient credits!");
+      return;
+    }
+
+    setIsGeneratingVideo(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: (process.env as any).API_KEY });
+      
+      const fullPrompt = `Create a cinematic movie recap video scene.
+
+The scene should feel alive and continuously moving.
+There must not be any frozen frames or still images.
+The motion should naturally continue from the first frame to the last frame.
+
+Characters should show subtle natural movement such as breathing, blinking, walking, or small body motion.
+The environment should also contain motion like wind, light flicker, background activity, or atmospheric movement.
+The camera should move slightly in a cinematic way such as a slow push in, pan, or tracking movement.
+
+The pacing of the visuals should naturally follow the narration.
+The scene should end smoothly without holding the final frame.
+Motion should continue until the video ends.
+
+Smooth cinematic motion at 24 or 30 frames per second.
+High quality lighting and realistic depth. ${aiPrompt}`;
+
+      let operation = await ai.models.generateVideos({
+        model: 'veo-3.1-fast-generate-preview',
+        prompt: fullPrompt,
+        config: {
+          numberOfVideos: 1,
+          resolution: '720p',
+          aspectRatio: aspectRatio === '9:16' ? '9:16' : '16:9'
+        }
+      });
+
+      // Poll for completion
+      while (!operation.done) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        operation = await ai.operations.getVideosOperation({ operation: operation });
+      }
+
+      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+      if (downloadLink) {
+        const response = await fetch(downloadLink, {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': (process.env as any).API_KEY,
+          },
+        });
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        
+        if (videoUrl) URL.revokeObjectURL(videoUrl);
+        setVideoFile(new File([blob], "ai_generated.mp4", { type: "video/mp4" }));
+        setVideoUrl(url);
+        setResultUrl(null);
+        setVideoSpeed(1.0);
+        setShowAIPrompt(false);
+      } else {
+        throw new Error("Failed to retrieve generated video.");
+      }
+
+    } catch (err: any) {
+      if (err.message?.includes("Requested entity was not found")) {
+        setHasKey(false);
+        setError("API Key session expired. Please re-select your key.");
+      } else {
+        setError(err.message || "Video generation failed");
+      }
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  };
+
   // --- Playback Logic ---
   const togglePlayback = () => {
     if (videoRef.current) {
@@ -169,12 +271,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     const onEnded = () => setIsPlaying(false);
     const onTimeUpdate = () => {
       if (video) setCurrentTime(video.currentTime);
-      if (video && audioRef.current && isPlaying && audioFile) {
-        const expectedAudioTime = (video.currentTime / videoSpeed) * audioSpeed;
-        if (Math.abs(audioRef.current.currentTime - expectedAudioTime) > 0.3) {
-           audioRef.current.currentTime = expectedAudioTime;
-        }
-      }
     };
     video?.addEventListener('ended', onEnded);
     video?.addEventListener('timeupdate', onTimeUpdate);
@@ -182,7 +278,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       video?.removeEventListener('ended', onEnded);
       video?.removeEventListener('timeupdate', onTimeUpdate);
     };
-  }, [isPlaying, videoSpeed, audioSpeed, audioFile]);
+  }, [isPlaying]);
 
   const renderFrame = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -204,7 +300,31 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         isFreezeActive = true;
         const zoomProgress = cycleTime / freezeDuration;
         scale = 1.0 + (zoomProgress * 0.05); 
+        
+        if (!isCurrentlyFrozen.current) {
+          isCurrentlyFrozen.current = true;
+          // Capture frame once when freeze starts, without blocking render
+          createImageBitmap(video).then(bitmap => {
+            cachedFreezeFrame.current = bitmap;
+          }).catch(e => console.error("Frame capture failed", e));
+        }
+      } else {
+        if (isCurrentlyFrozen.current) {
+          isCurrentlyFrozen.current = false;
+          if (cachedFreezeFrame.current) {
+            cachedFreezeFrame.current.close();
+            cachedFreezeFrame.current = null;
+          }
+        }
       }
+    } else {
+        if (isCurrentlyFrozen.current) {
+          isCurrentlyFrozen.current = false;
+          if (cachedFreezeFrame.current) {
+            cachedFreezeFrame.current.close();
+            cachedFreezeFrame.current = null;
+          }
+        }
     }
 
     if (video.videoWidth === 0 || video.videoHeight === 0) return;
@@ -228,7 +348,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     ctx.translate(width/2, height/2);
     ctx.scale(scale, scale);
     ctx.translate(-width/2, -height/2);
-    ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
+    
+    if (isFreezeActive && cachedFreezeFrame.current) {
+      ctx.drawImage(cachedFreezeFrame.current, offsetX, offsetY, drawW, drawH);
+    } else {
+      ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
+    }
+    
     ctx.restore();
 
     // Visual indicator for freeze frame in preview
@@ -310,12 +436,21 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   }, [blurEnabled, blurPosition, blurThickness, blurIntensity, freezeEnabled, freezeInterval, freezeDuration, logoImage, logoPosition, isProcessing]);
 
   useEffect(() => {
+    let handle: number;
     const loop = () => {
       if (previewCanvasRef.current && videoRef.current && videoRef.current.readyState >= 2) {
         const cvs = previewCanvasRef.current;
         const ctx = cvs.getContext('2d');
         const container = cvs.parentElement;
         if (!container) return;
+
+        // Sync Audio and Video
+        if (isPlaying && audioRef.current && audioFile && !isProcessing) {
+          const expectedVideoTime = (audioRef.current.currentTime / audioSpeed) * videoSpeed;
+          if (Math.abs(videoRef.current.currentTime - expectedVideoTime) > 0.1) {
+             videoRef.current.currentTime = expectedVideoTime;
+          }
+        }
 
         let w = 854, h = 480;
         if (aspectRatio === "9:16") { w = 480; h = 854; }
@@ -338,11 +473,27 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
         if (ctx) renderFrame(ctx, videoRef.current, w, h, videoRef.current.currentTime * 1000);
       }
-      animationFrameRef.current = requestAnimationFrame(loop);
+      
+      if (videoRef.current && 'requestVideoFrameCallback' in HTMLVideoElement.prototype && isPlaying && !isProcessing) {
+          handle = (videoRef.current as any).requestVideoFrameCallback(loop);
+      } else {
+          animationFrameRef.current = requestAnimationFrame(loop);
+      }
     };
-    loop();
-    return () => { if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); }
-  }, [aspectRatio, renderFrame]);
+    
+    if (videoRef.current && 'requestVideoFrameCallback' in HTMLVideoElement.prototype && isPlaying && !isProcessing) {
+        handle = (videoRef.current as any).requestVideoFrameCallback(loop);
+    } else {
+        animationFrameRef.current = requestAnimationFrame(loop);
+    }
+    
+    return () => { 
+        if (videoRef.current && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+            (videoRef.current as any).cancelVideoFrameCallback(handle);
+        }
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); 
+    }
+  }, [aspectRatio, renderFrame, isPlaying, isProcessing, audioFile, audioSpeed, videoSpeed]);
 
   // Cleanup object URLs to prevent memory leaks
   useEffect(() => {
@@ -641,6 +792,43 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 <input type="file" ref={videoInputRef} accept="video/*,.mp4,.mov,.mkv" onChange={handleVideoUpload} className="hidden" />
                 <input type="file" ref={audioInputRef} accept="audio/*,.mp3,.wav,.m4a" onChange={handleAudioUpload} className="hidden" />
                 <input type="file" ref={logoInputRef} accept="image/*,.png,.jpg,.jpeg" onChange={handleLogoUpload} className="hidden" />
+            </div>
+
+            {/* AI Video Generation Section */}
+            <div className="glass p-2.5 rounded-lg border border-white/5 space-y-2">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">AI Video Generation</h3>
+                    <button onClick={() => setShowAIPrompt(!showAIPrompt)} className="text-[7px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-400">
+                        {showAIPrompt ? 'Hide' : 'Generate Video'}
+                    </button>
+                </div>
+                
+                {showAIPrompt && (
+                    <div className="space-y-2 pt-1 animate-in slide-in-from-top-2">
+                        {!hasKey ? (
+                            <div className="text-center space-y-2 py-2">
+                                <p className="text-[8px] text-slate-500 dark:text-zinc-400 uppercase tracking-widest">API Key required for Veo generation</p>
+                                <button onClick={handleOpenKey} className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-[7px] font-black uppercase tracking-widest hover:bg-violet-500 transition-all">Select API Key</button>
+                            </div>
+                        ) : (
+                            <>
+                                <textarea 
+                                    value={aiPrompt} 
+                                    onChange={(e) => setAiPrompt(e.target.value)} 
+                                    placeholder="Describe your scene (e.g., A tense courtroom scene where the lawyer presents shocking evidence...)" 
+                                    className="w-full h-16 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-2 text-[10px] text-slate-700 dark:text-white placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                                />
+                                <button 
+                                    onClick={generateAIVideo} 
+                                    disabled={isGeneratingVideo || !aiPrompt.trim()} 
+                                    className={`w-full py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${isGeneratingVideo || !aiPrompt.trim() ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20'}`}
+                                >
+                                    {isGeneratingVideo ? 'Generating with Veo...' : 'Generate AI Video'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="glass p-2.5 rounded-lg border border-white/5 space-y-2">
