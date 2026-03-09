@@ -26,6 +26,29 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [hasKey, setHasKey] = useState(false);
   const [showAIPrompt, setShowAIPrompt] = useState(false);
+  const [veoMessageIndex, setVeoMessageIndex] = useState(0);
+
+  const VEO_MESSAGES = [
+    "Initializing Veo model...",
+    "Analyzing cinematic prompt...",
+    "Generating video frames...",
+    "Applying motion dynamics...",
+    "Rendering high-quality output...",
+    "This usually takes a few minutes...",
+    "Still working on your masterpiece...",
+    "Finalizing video..."
+  ];
+
+  useEffect(() => {
+    if (isGeneratingVideo) {
+      const interval = setInterval(() => {
+        setVeoMessageIndex((prev) => Math.min(prev + 1, VEO_MESSAGES.length - 1));
+      }, 15000); // Change message every 15 seconds
+      return () => clearInterval(interval);
+    } else {
+      setVeoMessageIndex(0);
+    }
+  }, [isGeneratingVideo]);
 
   // --- State: Settings ---
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
@@ -670,10 +693,16 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         
         recorder.start(1000); 
 
-        const totalDur = videoEl.duration || (videoDuration || 1); 
+        // Fix: Handle Infinity or invalid duration which causes progress to stay at 1%
+        let totalDur = videoEl.duration;
+        if (!isFinite(totalDur) || totalDur <= 0) {
+            totalDur = videoDuration || 1;
+        }
+        
         let lastProcessTime = -1;
         let lastTime = -1;
         let stuckCount = 0;
+        let internalStuckCount = 0;
 
         // 6. Processing Loop
         processInterval = setInterval(() => {
@@ -693,9 +722,16 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                  }
             }
 
-            // Manual advancement if stuck
-            if (videoEl.currentTime === lastProcessTime && !videoEl.paused && !videoEl.ended) {
-                videoEl.currentTime += 0.033; // ~1 frame nudge
+            // Manual advancement if stuck (more aggressive)
+            if (videoEl.currentTime <= lastProcessTime && !videoEl.ended) {
+                internalStuckCount++;
+                if (internalStuckCount > 5) { // ~165ms stuck
+                    videoEl.currentTime += 0.033;
+                    if (videoEl.paused) videoEl.play().catch(() => {});
+                    internalStuckCount = 0;
+                }
+            } else {
+                internalStuckCount = 0;
             }
             lastProcessTime = videoEl.currentTime;
 
@@ -937,8 +973,22 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                 </div>
             </div>
 
+            {isProcessing && (
+              <div className="space-y-1 mb-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[7px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Processing Frames</span>
+                  <span className="text-[7px] font-black text-indigo-600 dark:text-indigo-400 tabular-nums">{progress}%</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-white/5 rounded-full h-1 overflow-hidden">
+                  <div 
+                    className="bg-indigo-600 h-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(79,70,229,0.4)]"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className={`w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-zinc-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/10'}`}>
-                {isProcessing ? `SYNTHESIZING... ${progress}%` : 'Execute Synthesis'}
+                {isProcessing ? 'SYNTHESIZING...' : 'Execute Synthesis'}
             </button>
         </div>
 

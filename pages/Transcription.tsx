@@ -12,7 +12,27 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [messageIndex, setMessageIndex] = useState(0);
   const isMounted = React.useRef(true);
+
+  const MESSAGES = [
+    "Decoding media...",
+    "Analyzing speech patterns...",
+    "Transcribing content...",
+    "Refining text accuracy...",
+    "Almost there..."
+  ];
+
+  React.useEffect(() => {
+    if (isProcessing) {
+      const interval = setInterval(() => {
+        setMessageIndex((prev) => (prev + 1) % MESSAGES.length);
+      }, 4000);
+      return () => clearInterval(interval);
+    } else {
+      setMessageIndex(0);
+    }
+  }, [isProcessing]);
 
   React.useEffect(() => {
     return () => {
@@ -26,6 +46,88 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
       setResult(null);
       setError(null);
     }
+  };
+
+  const extractAudioFromVideo = async (videoFile: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          
+          // Convert to WAV
+          const numOfChan = audioBuffer.numberOfChannels;
+          const length = audioBuffer.length * numOfChan * 2 + 44;
+          const buffer = new ArrayBuffer(length);
+          const view = new DataView(buffer);
+          const channels = [];
+          let sample;
+          let offset = 0;
+          let pos = 0;
+
+          // write WAVE header
+          const setUint16 = (data: number) => {
+            view.setUint16(pos, data, true);
+            pos += 2;
+          };
+          const setUint32 = (data: number) => {
+            view.setUint32(pos, data, true);
+            pos += 4;
+          };
+          const writeString = (str: string) => {
+            for (let i = 0; i < str.length; i++) {
+              view.setUint8(pos++, str.charCodeAt(i));
+            }
+          };
+
+          writeString('RIFF');
+          setUint32(length - 8);
+          writeString('WAVE');
+          writeString('fmt ');
+          setUint32(16);
+          setUint16(1);
+          setUint16(numOfChan);
+          setUint32(audioBuffer.sampleRate);
+          setUint32(audioBuffer.sampleRate * 2 * numOfChan);
+          setUint16(numOfChan * 2);
+          setUint16(16);
+          writeString('data');
+          setUint32(length - pos - 4);
+
+          // write interleaved data
+          for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+            channels.push(audioBuffer.getChannelData(i));
+          }
+
+          while (offset < audioBuffer.length) {
+            for (let i = 0; i < numOfChan; i++) {
+              sample = Math.max(-1, Math.min(1, channels[i][offset]));
+              sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+              view.setInt16(pos, sample, true);
+              pos += 2;
+            }
+            offset++;
+          }
+
+          const blob = new Blob([buffer], { type: 'audio/wav' });
+          const base64Reader = new FileReader();
+          base64Reader.onload = () => resolve((base64Reader.result as string).split(',')[1]);
+          base64Reader.onerror = reject;
+          base64Reader.readAsDataURL(blob);
+          
+        } catch (err) {
+          reject(err);
+        } finally {
+          if (audioCtx.state !== 'closed') audioCtx.close();
+        }
+      };
+      
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(videoFile);
+    });
   };
 
   const handleProcess = async () => {
@@ -45,12 +147,31 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
 
     setIsProcessing(true);
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(file);
-      });
-      const base64 = await base64Promise;
+      let base64 = "";
+      let mimeType = file.type;
+      
+      // If it's a video, extract audio to speed up upload drastically
+      if (file.type.startsWith('video/')) {
+        try {
+          base64 = await extractAudioFromVideo(file);
+          mimeType = 'audio/wav';
+        } catch (e) {
+          console.warn("Audio extraction failed, falling back to full file upload", e);
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve) => {
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.readAsDataURL(file);
+          });
+          base64 = await base64Promise;
+        }
+      } else {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(file);
+        });
+        base64 = await base64Promise;
+      }
       
       const systemInstruction = "You are a professional Transcriber. Your goal is to convert audio/video speech into accurate text. Follow the user's formatting rules strictly.";
       const prompt = `Transcribe the audio content into PURE TRANSCRIPTION format.
@@ -60,7 +181,7 @@ Rules:
 - One sentence per line.
 - Output plain text only.`;
 
-      const textResult = await analyzeDocument(base64, file.type, prompt, systemInstruction);
+      const textResult = await analyzeDocument(base64, mimeType, prompt, systemInstruction);
       if (isMounted.current) {
         setResult(textResult);
       }
@@ -128,7 +249,7 @@ Rules:
         ) : isProcessing ? (
           <div className="py-6 text-center space-y-2">
             <div className="w-7 h-7 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
-            <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-widest">Decoding Audio...</p>
+            <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-widest animate-pulse">{MESSAGES[messageIndex]}</p>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

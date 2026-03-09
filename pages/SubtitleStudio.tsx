@@ -67,6 +67,88 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
     });
   };
 
+  const extractAudioFromVideo = async (videoFile: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          
+          // Convert to WAV
+          const numOfChan = audioBuffer.numberOfChannels;
+          const length = audioBuffer.length * numOfChan * 2 + 44;
+          const buffer = new ArrayBuffer(length);
+          const view = new DataView(buffer);
+          const channels = [];
+          let sample;
+          let offset = 0;
+          let pos = 0;
+
+          // write WAVE header
+          const setUint16 = (data: number) => {
+            view.setUint16(pos, data, true);
+            pos += 2;
+          };
+          const setUint32 = (data: number) => {
+            view.setUint32(pos, data, true);
+            pos += 4;
+          };
+          const writeString = (str: string) => {
+            for (let i = 0; i < str.length; i++) {
+              view.setUint8(pos++, str.charCodeAt(i));
+            }
+          };
+
+          writeString('RIFF');
+          setUint32(length - 8);
+          writeString('WAVE');
+          writeString('fmt ');
+          setUint32(16);
+          setUint16(1);
+          setUint16(numOfChan);
+          setUint32(audioBuffer.sampleRate);
+          setUint32(audioBuffer.sampleRate * 2 * numOfChan);
+          setUint16(numOfChan * 2);
+          setUint16(16);
+          writeString('data');
+          setUint32(length - pos - 4);
+
+          // write interleaved data
+          for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+            channels.push(audioBuffer.getChannelData(i));
+          }
+
+          while (offset < audioBuffer.length) {
+            for (let i = 0; i < numOfChan; i++) {
+              sample = Math.max(-1, Math.min(1, channels[i][offset]));
+              sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+              view.setInt16(pos, sample, true);
+              pos += 2;
+            }
+            offset++;
+          }
+
+          const blob = new Blob([buffer], { type: 'audio/wav' });
+          const base64Reader = new FileReader();
+          base64Reader.onload = () => resolve((base64Reader.result as string).split(',')[1]);
+          base64Reader.onerror = reject;
+          base64Reader.readAsDataURL(blob);
+          
+        } catch (err) {
+          reject(err);
+        } finally {
+          if (audioCtx.state !== 'closed') audioCtx.close();
+        }
+      };
+      
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(videoFile);
+    });
+  };
+
   const processFile = async (item: FileItem) => {
     if (item.file.size > 50 * 1024 * 1024) {
       throw new Error("File is too large (Max 50MB).");
@@ -81,8 +163,22 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
     );
 
     try {
-      const base64 = await fileToBase64(item.file);
-      const result = await generateSubtitles(base64, item.file.type, language);
+      let base64 = "";
+      let mimeType = item.file.type;
+      
+      if (item.file.type.startsWith('video/')) {
+        try {
+          base64 = await extractAudioFromVideo(item.file);
+          mimeType = 'audio/wav';
+        } catch (e) {
+          console.warn("Audio extraction failed, falling back to full file upload", e);
+          base64 = await fileToBase64(item.file);
+        }
+      } else {
+        base64 = await fileToBase64(item.file);
+      }
+      
+      const result = await generateSubtitles(base64, mimeType, language);
       
       if (!isMounted.current) return;
 
