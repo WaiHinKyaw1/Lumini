@@ -1,7 +1,8 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { generateImage, generateText } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 
 interface ThumbnailGenProps {
   onSpendCredits: (amount: number) => boolean;
@@ -16,7 +17,17 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [hooks, setHooks] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [useBrandKit, setUseBrandKit] = useState(false);
+  const [brandKit, setBrandKit] = useState<BrandKitData | null>(null);
   const isMounted = useRef(true);
+
+  useEffect(() => {
+    const kit = getBrandKit();
+    if (kit) {
+      setBrandKit(kit);
+      setUseBrandKit(true);
+    }
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -78,6 +89,10 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
       
       let thumbPrompt = `Professional YouTube Thumbnail for: "${topic}". Style: ${style}. Attributes: ${selectedStyle?.prompt}. Include a vibrant focal point, high-contrast text area, and viral appeal.`;
       
+      if (useBrandKit && brandKit) {
+          thumbPrompt += ` IMPORTANT: Use the brand colors: Primary (${brandKit.primaryColor}), Secondary (${brandKit.secondaryColor}). The brand name is "${brandKit.brandName}". Use a font style similar to "${brandKit.fontFamily}". The overall aesthetic should be consistent with this brand kit.`;
+      }
+
       if (titleText) {
           const fontNote = isMyanmarText 
             ? "CRITICAL: Use high-quality, clean, bold Myanmar (Burmese) Unicode typography. Ensure characters are perfectly formed, properly spaced, and highly legible. The font must be a modern, thick sans-serif style suitable for thumbnails." 
@@ -204,6 +219,21 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
                 ))}
               </div>
             </div>
+
+            {brandKit && (
+              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: brandKit.primaryColor }}></div>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-600 dark:text-zinc-400">Use Brand Kit: {brandKit.brandName}</span>
+                </div>
+                <button 
+                  onClick={() => setUseBrandKit(!useBrandKit)}
+                  className={`w-8 h-4 rounded-full transition-all relative ${useBrandKit ? 'bg-amber-500' : 'bg-slate-300 dark:bg-white/10'}`}
+                >
+                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useBrandKit ? 'right-0.5' : 'left-0.5'}`}></div>
+                </button>
+              </div>
+            )}
 
             <button
               onClick={handleGenerate}

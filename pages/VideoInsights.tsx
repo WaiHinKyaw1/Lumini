@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { analyzeDocument } from '../services/geminiService';
+import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
 
 interface VideoInsightsProps {
@@ -25,6 +25,7 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
   const [recapType, setRecapType] = useState<RecapType>('DEFAULT');
   
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
@@ -112,10 +113,16 @@ Instructions:
 3. Use engaging and culturally relevant phrasing for ${targetLang}.
 4. Provide the result in a clean script format.`;
 
-      const analysis = await analyzeDocument(base64, file.type, prompt, systemInstruction);
-      if (isMounted.current) {
-        setResult(analysis);
-      }
+      let fullRecap = "";
+      setProgress(10);
+      await analyzeDocumentStream(base64, file.type, prompt, systemInstruction, (chunk) => {
+        fullRecap += chunk;
+        setProgress(prev => Math.min(prev + 5, 95));
+        if (isMounted.current) {
+          setResult(fullRecap);
+        }
+      });
+      setProgress(100);
 
     } catch (err: any) {
       if (isMounted.current) {
@@ -279,7 +286,14 @@ Instructions:
                 : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 active:scale-95'
             }`}
           >
-            {isProcessing ? 'Analyzing Media...' : !file ? 'Select File First' : 'Generate Master Script'}
+            {isProcessing ? (
+              <div className="space-y-1">
+                <div>Analyzing Media... {progress}%</div>
+                <div className="w-full bg-slate-200 dark:bg-white/10 rounded-full h-1">
+                  <div className="bg-indigo-600 h-1 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                </div>
+              </div>
+            ) : !file ? 'Select File First' : 'Generate Master Script'}
           </button>
           
           {file && (

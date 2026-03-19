@@ -155,6 +155,48 @@ export const analyzeDocument = async (
   return response.text || "The AI was unable to generate a result.";
 };
 
+export const analyzeDocumentStream = async (
+  fileBase64: string, 
+  mimeType: string, 
+  prompt: string, 
+  systemInstruction: string,
+  onChunk: (chunk: string) => void,
+  audioBase64?: string, 
+  audioMimeType?: string
+) => {
+  const ai = getAIClient();
+  
+  const parts: any[] = [
+    { inlineData: { data: fileBase64, mimeType } },
+  ];
+
+  if (audioBase64 && audioMimeType) {
+    parts.push({ inlineData: { data: audioBase64, mimeType: audioMimeType } });
+  }
+
+  parts.push({ text: prompt });
+
+  const responseStream = await ai.models.generateContentStream({
+    model: 'gemini-3-flash-preview',
+    contents: {
+      parts: parts
+    },
+    config: {
+      systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
+      temperature: 0.2,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+    }
+  });
+  
+  let fullText = "";
+  for await (const chunk of responseStream) {
+    const text = chunk.text || "";
+    fullText += text;
+    onChunk(text);
+  }
+  return fullText;
+};
+
 // Helper to write string to DataView
 function writeString(view: DataView, offset: number, string: string) {
   for (let i = 0; i < string.length; i++) {
@@ -172,48 +214,70 @@ export const generateSpeech = async (
   
   // Clean text to ensure no prompt injection artifacts are spoken
   const cleanText = text.trim();
-
-  let response;
-  try {
-    response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: cleanText }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: voice },
-          },
-        },
-      },
-    });
-  } catch (err: any) {
-    const errorMsg = err.message ? err.message.toUpperCase() : "";
-    if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
-      throw new Error("Network request failed. Please check your internet connection, disable any adblockers, or ensure your API key is valid and unrestricted.");
-    }
-    throw err;
+  
+  // Chunking to prevent quality degradation on long texts
+  const CHUNK_SIZE = 1000;
+  const chunks: string[] = [];
+  for (let i = 0; i < cleanText.length; i += CHUNK_SIZE) {
+    chunks.push(cleanText.slice(i, i + CHUNK_SIZE));
   }
 
-  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!base64Audio) throw new Error("No audio generated");
+  const allBytes: Uint8Array[] = [];
+  let totalLength = 0;
 
-  const binaryString = atob(base64Audio);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+  for (const chunk of chunks) {
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: chunk }] }],
+        config: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: voice },
+            },
+          },
+        },
+      });
+    } catch (err: any) {
+      const errorMsg = err.message ? err.message.toUpperCase() : "";
+      if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
+        throw new Error("Network request failed. Please check your internet connection, disable any adblockers, or ensure your API key is valid and unrestricted.");
+      }
+      throw err;
+    }
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Audio) throw new Error("No audio generated for chunk");
+
+    const binaryString = atob(base64Audio);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    allBytes.push(bytes);
+    totalLength += len;
+  }
+
+  // Concatenate all bytes
+  const finalBytes = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const bytes of allBytes) {
+    finalBytes.set(bytes, offset);
+    offset += bytes.length;
   }
   
   const sampleRate = 24000;
   const numChannels = 1;
   const bitsPerSample = 16;
   
-  const buffer = new ArrayBuffer(44 + bytes.length);
+  const buffer = new ArrayBuffer(44 + finalBytes.length);
   const view = new DataView(buffer);
   
   writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + bytes.length, true);
+  view.setUint32(4, 36 + finalBytes.length, true);
   writeString(view, 8, 'WAVE');
   writeString(view, 12, 'fmt ');
   view.setUint32(16, 16, true);
@@ -224,10 +288,10 @@ export const generateSpeech = async (
   view.setUint16(32, numChannels * (bitsPerSample / 8), true);
   view.setUint16(34, bitsPerSample, true);
   writeString(view, 36, 'data');
-  view.setUint32(40, bytes.length, true);
+  view.setUint32(40, finalBytes.length, true);
   
   const audioDataView = new Uint8Array(buffer, 44);
-  audioDataView.set(bytes);
+  audioDataView.set(finalBytes);
   
   const blob = new Blob([buffer], { type: 'audio/wav' });
   return URL.createObjectURL(blob);

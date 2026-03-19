@@ -18,6 +18,12 @@ export enum ContentType {
   DOCUMENT = 'DOCUMENT'
 }
 
+export interface User {
+  id: string;
+  email?: string;
+  name?: string;
+}
+
 export interface UserStats {
   credits: number;
   totalGenerated: number;

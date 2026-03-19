@@ -673,18 +673,19 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                     resolve();
                 };
                 videoEl.addEventListener('canplaythrough', onCanPlay);
+                // Also resolve if it's already loaded enough
+                if (videoEl.readyState >= 3) resolve();
                 setTimeout(resolve, 3000); // Max wait 3s
             });
         }
 
         try {
+            // Ensure video is muted for autoplay
+            videoEl.muted = true;
             await videoEl.play();
         } catch (e) {
-            console.warn("Autoplay blocked, attempting muted play", e);
-            videoEl.muted = true;
-            await videoEl.play().catch(err => {
-                throw new Error("Video playback failed. Please ensure the video is playable in your browser.");
-            });
+            console.error("Video playback failed:", e);
+            throw new Error("Video playback failed. Please ensure the video is playable in your browser.");
         }
 
         if (audioEl) {

@@ -112,4 +112,4 @@ const CreditModal: React.FC<CreditModalProps> = ({ isOpen, onClose, onAddCredits
   );
 };
 
-export default CreditModal;
+export default React.memo(CreditModal);

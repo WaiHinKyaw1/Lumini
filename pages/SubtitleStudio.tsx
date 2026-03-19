@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSubtitles } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 
 interface SubtitleStudioProps {
   onSpendCredits: (amount: number) => boolean;
@@ -21,7 +22,17 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
   const [isProcessingAll, setIsProcessingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [brandKit, setBrandKit] = useState<BrandKitData | null>(null);
+  const [useBrandStyling, setUseBrandStyling] = useState(false);
   const isMounted = useRef(true);
+
+  useEffect(() => {
+    const kit = getBrandKit();
+    if (kit) {
+      setBrandKit(kit);
+      setUseBrandStyling(true);
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -308,6 +319,24 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
             >
               {isProcessingAll ? 'Processing Queue...' : 'Start Transcription'}
             </button>
+
+            {brandKit && (
+              <div className="mt-4 p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Brand Styling</span>
+                  <button 
+                    onClick={() => setUseBrandStyling(!useBrandStyling)}
+                    className={`w-8 h-4 rounded-full transition-all relative ${useBrandStyling ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-white/10'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useBrandStyling ? 'right-0.5' : 'left-0.5'}`}></div>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: brandKit.primaryColor }}></div>
+                  <span className="text-[8px] font-bold text-slate-600 dark:text-zinc-400">{brandKit.brandName} Kit Active</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Queue List */}
@@ -409,6 +438,29 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
                   <span className="text-[10px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-widest">Editing: {selectedItem.file.name}</span>
                   <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">SRT Generated Successfully</span>
                 </div>
+                
+                {useBrandStyling && brandKit && (
+                  <div className="mb-4 p-4 bg-black rounded-xl border border-white/10 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
+                    <div className="relative z-10 flex flex-col items-center justify-center h-24 text-center">
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2 font-black">Styled Preview</p>
+                      <div 
+                        className="px-4 py-2 rounded-lg shadow-2xl transform transition-transform group-hover:scale-110"
+                        style={{ 
+                          backgroundColor: `${brandKit.primaryColor}CC`, 
+                          color: 'white',
+                          fontFamily: brandKit.font,
+                          border: `1px solid ${brandKit.secondaryColor}`
+                        }}
+                      >
+                        <span className="text-sm font-bold drop-shadow-md">
+                          {selectedItem.result.split('\n').find(line => line.trim() && !line.includes('-->') && !/^\d+$/.test(line)) || "Sample Subtitle Text"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <textarea
                   value={selectedItem.result}
                   onChange={(e) => handleResultChange(selectedItem.id, e.target.value)}

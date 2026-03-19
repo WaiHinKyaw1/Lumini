@@ -9,9 +9,10 @@ interface LayoutProps {
   isDarkMode: boolean;
   toggleTheme: () => void;
   onOpenCredits: () => void;
+  onLogout: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits }) => {
+const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -31,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
     { name: 'Transcription', path: 'transcription', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
     { name: 'Voiceover', path: 'voiceover', icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z' },
     { name: 'Brand Kit', path: 'brandkit', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+    { name: 'Profile', path: 'profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
   ];
 
   const handleNavClick = (path: string) => {
@@ -127,6 +129,14 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
         </div>
 
         <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setPath('profile')}
+              className={`p-1.5 rounded-full transition-colors ${currentPath === 'profile' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </button>
             <button onClick={toggleTheme} className="p-1.5 rounded-full bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-white/10">
                {isDarkMode ? (
                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
@@ -207,6 +217,12 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
                  </button>
                </div>
              </div>
+             <button 
+              onClick={onLogout}
+              className="w-full py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-rose-500/20"
+             >
+               Exit Studio
+             </button>
              <p className="text-[9px] text-center text-slate-400 dark:text-zinc-600 font-bold uppercase tracking-widest">Lumina Studio v2.5</p>
           </div>
         </div>
@@ -218,6 +234,6 @@ const Layout: React.FC<LayoutProps> = ({ children, credits, currentPath, setPath
 
     </div>
   );
-};
+});
 
 export default Layout;

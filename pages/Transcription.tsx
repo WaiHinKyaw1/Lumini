@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { analyzeDocument } from '../services/geminiService';
+import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
 
 interface TranscriptionProps {
@@ -10,6 +10,7 @@ interface TranscriptionProps {
 const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [messageIndex, setMessageIndex] = useState(0);
@@ -181,10 +182,16 @@ Rules:
 - One sentence per line.
 - Output plain text only.`;
 
-      const textResult = await analyzeDocument(base64, mimeType, prompt, systemInstruction);
-      if (isMounted.current) {
-        setResult(textResult);
-      }
+      let fullTranscription = "";
+      setProgress(10);
+      await analyzeDocumentStream(base64, mimeType, prompt, systemInstruction, (chunk) => {
+        fullTranscription += chunk;
+        setProgress(prev => Math.min(prev + 5, 95));
+        if (isMounted.current) {
+          setResult(fullTranscription);
+        }
+      });
+      setProgress(100);
 
     } catch (err: any) {
       if (isMounted.current) {
@@ -248,7 +255,9 @@ Rules:
           </div>
         ) : isProcessing ? (
           <div className="py-6 text-center space-y-2">
-            <div className="w-7 h-7 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
+            <div className="w-full bg-slate-200 dark:bg-white/10 rounded-full h-2">
+              <div className="bg-indigo-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+            </div>
             <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-widest animate-pulse">{MESSAGES[messageIndex]}</p>
           </div>
         ) : (
