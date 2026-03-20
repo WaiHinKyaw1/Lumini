@@ -51,8 +51,15 @@ const App: React.FC = () => {
   // API Key Check
   useEffect(() => {
     const checkKey = async () => {
+      // Check for AI Studio key selector first
       const hasKey = await (window as any).aistudio?.hasSelectedApiKey?.();
-      setHasApiKey(!!hasKey);
+      if (hasKey) {
+        setHasApiKey(true);
+      } else {
+        // Fallback to checking environment variable for deployed apps
+        const envKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+        setHasApiKey(!!envKey);
+      }
     };
     checkKey();
   }, []);
