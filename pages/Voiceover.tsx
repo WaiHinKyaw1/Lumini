@@ -27,38 +27,38 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isMounted = useRef(true);
 
-  const MAX_CHARS = 4500;
+  const MAX_CHARS = 15000;
 
   const characters = [
     { 
       id: 'thiha_mm', 
-      name: 'THIHA (သီဟ)', 
+      name: 'THIHA', 
       baseVoice: 'Fenrir', 
       desc: 'Powerful & Commanding',
       bio: 'ဩဇာရှိသောအသံ - သတင်း၊ ကြေညာချက်များနှင့် အစီအစဉ်များအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ စကားပြောပြတ်သားပြီး ခန့်ညားသောပုံစံဖြစ်သည်။' 
     },
     { 
       id: 'nilar_mm', 
-      name: 'NILAR (နီလာ)', 
+      name: 'NILAR', 
       baseVoice: 'Kore', 
       desc: 'Sweet & Natural',
       bio: 'ချိုသာကြည်လင်သောအသံ - Vlog၊ ပုံပြင်များနှင့် နေ့စဉ်စကားပြောများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ နားထောင်ရသူကို စိတ်အေးချမ်းစေသည့်ပုံစံဖြစ်သည်။'
     },
     { 
       id: 'minkhant_mm', 
-      name: 'MIN KHANT (မင်းခန့်)', 
+      name: 'MIN KHANT', 
       baseVoice: 'Puck', 
       desc: 'Energetic & Youthful',
       bio: 'တက်ကြွသောအသံ - Review၊ နည်းပညာအကြောင်းအရာများနှင့် လူငယ်အကြိုက် ဗီဒီယိုများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်ဆန်ပြီး လန်းဆန်းသောပုံစံဖြစ်သည်။'
     },
     { 
       id: 'maythu_mm', 
-      name: 'MAY THU (မေသူ)', 
+      name: 'MAY THU', 
       baseVoice: 'Zephyr', 
       desc: 'Soft & Poetic',
       bio: 'နူးညံ့သိမ်မွေ့သောအသံ - ကဗျာ၊ စာပေနှင့် စိတ်ခံစားမှုအသားပေး အကြောင်းအရာများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အပြောညင်သာပြီး ထိရှလွယ်သောပုံစံဖြစ်သည်။'
     },
-    { id: 'charon_main', name: 'CHARON (Global)', baseVoice: 'Charon', desc: 'Deep & Formal', bio: 'High-fidelity deep male voice for global content.' },
+    { id: 'charon_main', name: 'CHARON', baseVoice: 'Charon', desc: 'Deep & Formal', bio: 'High-fidelity deep male voice for global content.' },
   ];
 
   useEffect(() => {
@@ -162,8 +162,14 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     setIsProcessing(true);
     const char = characters.find(c => c.id === characterId);
     
+    // Create a voice map for multi-voice tagging
+    const voiceMap: Record<string, string> = {};
+    characters.forEach(c => {
+      voiceMap[c.name] = c.baseVoice;
+    });
+
     try {
-      const blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch);
+      const blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap);
       if (isMounted.current) {
         setAudioUrl(blobUrl);
       }
@@ -239,7 +245,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         {/* Input Area */}
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-600">Input Script</label>
+            <div className="flex items-center gap-2">
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-600">Input Script</label>
+              <div className="group relative">
+                <svg className="w-3 h-3 text-slate-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-900 text-[8px] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                  Use tags like <span className="text-indigo-400">[NILAR]</span> or <span className="text-indigo-400">[THIHA]</span> to switch voices in the same script.
+                </div>
+              </div>
+            </div>
             <div className="flex gap-2">
               <button onClick={handlePaste} className="text-[8px] font-black text-slate-400 hover:text-indigo-500 uppercase tracking-widest transition-colors">Paste</button>
               <button onClick={handleClear} className="text-[8px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Clear</button>

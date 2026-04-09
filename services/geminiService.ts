@@ -206,60 +206,95 @@ function writeString(view: DataView, offset: number, string: string) {
 
 export const generateSpeech = async (
   text: string, 
-  voice: string = 'Kore', 
+  defaultVoice: string = 'Kore', 
   speedOffset: number = 0, 
-  pitchOffset: number = 0
+  pitchOffset: number = 0,
+  voiceMap?: Record<string, string>
 ) => {
   const ai = getAIClient();
-  
-  // Clean text to ensure no prompt injection artifacts are spoken
   const cleanText = text.trim();
   
-  // Chunking to prevent quality degradation on long texts
-  const CHUNK_SIZE = 1000;
-  const chunks: string[] = [];
-  for (let i = 0; i < cleanText.length; i += CHUNK_SIZE) {
-    chunks.push(cleanText.slice(i, i + CHUNK_SIZE));
+  // Parse for multi-voice tags: [Name] text
+  // If no tags found, treat the whole text as one segment with defaultVoice
+  const segments: { voice: string; text: string }[] = [];
+  const tagRegex = /\[([^\]]+)\]/g;
+  let lastIndex = 0;
+  let match;
+  let currentVoice = defaultVoice;
+
+  const getVoice = (name: string) => {
+    if (!voiceMap) return name;
+    // Try to find a match in the voice map (case-insensitive)
+    const key = Object.keys(voiceMap).find(k => k.toLowerCase() === name.toLowerCase() || name.toLowerCase().includes(k.toLowerCase()));
+    return key ? voiceMap[key] : name;
+  };
+
+  while ((match = tagRegex.exec(cleanText)) !== null) {
+    const textBefore = cleanText.slice(lastIndex, match.index).trim();
+    if (textBefore) {
+      segments.push({ voice: currentVoice, text: textBefore });
+    }
+    currentVoice = getVoice(match[1]);
+    lastIndex = tagRegex.lastIndex;
   }
 
-  const allBytes: Uint8Array[] = [];
-  let totalLength = 0;
+  const remainingText = cleanText.slice(lastIndex).trim();
+  if (remainingText) {
+    segments.push({ voice: currentVoice, text: remainingText });
+  }
 
-  for (const chunk of chunks) {
-    let response;
+  // If no tags were found at all, segments will be empty or just have one entry
+  if (segments.length === 0) {
+    segments.push({ voice: defaultVoice, text: cleanText });
+  }
+
+  // Further chunk segments if they are too long (> 1000 chars)
+  const finalChunks: { voice: string; text: string }[] = [];
+  for (const seg of segments) {
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < seg.text.length; i += CHUNK_SIZE) {
+      finalChunks.push({ voice: seg.voice, text: seg.text.slice(i, i + CHUNK_SIZE) });
+    }
+  }
+
+  // Parallel processing for all chunks
+  const chunkPromises = finalChunks.map(async (chunk) => {
     try {
-      response = await ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: chunk }] }],
+        contents: [{ parts: [{ text: chunk.text }] }],
         config: {
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: voice },
+              prebuiltVoiceConfig: { voiceName: chunk.voice },
             },
           },
         },
       });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Audio) throw new Error("No audio generated for chunk");
+
+      const binaryString = atob(base64Audio);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
     } catch (err: any) {
+      console.error(`Chunk generation failed for voice ${chunk.voice}:`, err);
       const errorMsg = err.message ? err.message.toUpperCase() : "";
       if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
-        throw new Error("Network request failed. Please check your internet connection, disable any adblockers, or ensure your API key is valid and unrestricted.");
+        throw new Error("Network request failed. Please check your internet connection.");
       }
       throw err;
     }
+  });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("No audio generated for chunk");
-
-    const binaryString = atob(base64Audio);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    allBytes.push(bytes);
-    totalLength += len;
-  }
+  const allBytes = await Promise.all(chunkPromises);
+  const totalLength = allBytes.reduce((acc, bytes) => acc + bytes.length, 0);
 
   // Concatenate all bytes
   const finalBytes = new Uint8Array(totalLength);

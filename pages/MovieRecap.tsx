@@ -627,21 +627,28 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         const chunks: Blob[] = [];
         
         // Improved MimeType selection
-        let mimeType = "video/mp4;codecs=avc1.42E01E,mp4a.40.2";
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = "video/mp4";
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = "video/webm;codecs=vp9,opus";
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                     mimeType = "video/webm";
-                }
+        const types = [
+            "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+            "video/mp4",
+            "video/webm;codecs=vp9,opus",
+            "video/webm;codecs=vp8,opus",
+            "video/webm"
+        ];
+        
+        let mimeType = "";
+        for (const t of types) {
+            if (MediaRecorder.isTypeSupported(t)) {
+                mimeType = t;
+                break;
             }
         }
+        
+        if (!mimeType) throw new Error("No supported video mimeType found for recording.");
         setOutputMimeType(mimeType);
 
         recorder = new MediaRecorder(stream, { 
             mimeType,
-            videoBitsPerSecond: 8000000 // 8 Mbps
+            videoBitsPerSecond: 5000000 // 5 Mbps (more compatible than 8)
         });
         
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
@@ -649,7 +656,7 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         const finishGeneration = () => {
              if (!isMounted.current) return;
              if (chunks.length === 0) {
-                setError("Generation failed: No data recorded.");
+                setError("Generation failed: No data recorded. Please try again.");
              } else {
                  const blob = new Blob(chunks, { type: mimeType });
                  const url = URL.createObjectURL(blob);
@@ -673,26 +680,26 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                     resolve();
                 };
                 videoEl.addEventListener('canplaythrough', onCanPlay);
-                // Also resolve if it's already loaded enough
                 if (videoEl.readyState >= 3) resolve();
-                setTimeout(resolve, 3000); // Max wait 3s
+                setTimeout(resolve, 5000); // Increased wait
             });
         }
 
         try {
-            // Ensure video is muted for autoplay
             videoEl.muted = true;
             await videoEl.play();
         } catch (e) {
             console.error("Video playback failed:", e);
-            throw new Error("Video playback failed. Please ensure the video is playable in your browser.");
+            throw new Error("Video playback failed. Please ensure the video is playable.");
         }
 
         if (audioEl) {
             audioEl.play().catch(e => console.warn("Audio play error", e));
         }
         
-        recorder.start(1000); 
+        // Small delay before starting recorder to ensure first frame is drawn
+        await new Promise(resolve => setTimeout(resolve, 100));
+        recorder.start(); // Start without interval for better compatibility with short videos
 
         // Fix: Handle Infinity or invalid duration which causes progress to stay at 1%
         let totalDur = videoEl.duration;
@@ -1054,8 +1061,15 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                 </div>
             </div>
             
-            <video ref={videoRef} src={videoUrl || null} className="hidden" playsInline muted={true} onLoadedMetadata={onVideoLoaded} />
-            <audio ref={audioRef} src={audioUrl || null} className="hidden" onLoadedMetadata={onAudioLoaded} />
+        <video 
+          ref={videoRef} 
+          src={videoUrl || null} 
+          className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none" 
+          playsInline 
+          muted={true} 
+          onLoadedMetadata={onVideoLoaded} 
+        />
+        <audio ref={audioRef} src={audioUrl || null} className="hidden" onLoadedMetadata={onAudioLoaded} />
             
             {resultUrl && (
                 <div className="glass p-4 rounded-xl border border-emerald-500/30 animate-in slide-in-from-bottom-4 max-w-md mx-auto shadow-2xl bg-emerald-500/5">
