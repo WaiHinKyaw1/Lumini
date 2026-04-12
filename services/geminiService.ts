@@ -259,38 +259,61 @@ export const generateSpeech = async (
 
   // Parallel processing for all chunks
   const chunkPromises = finalChunks.map(async (chunk) => {
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: chunk.text }] }],
-        config: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: chunk.voice },
+    let attempt = 0;
+    const MAX_RETRIES = 3;
+
+    while (attempt <= MAX_RETRIES) {
+      try {
+        const response = await ai.models.generateContent({
+          model: "gemini-1.5-flash",
+          contents: [{ parts: [{ text: chunk.text }] }],
+          config: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: chunk.voice },
+              },
             },
           },
-        },
-      });
+        });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!base64Audio) throw new Error("No audio generated for chunk");
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!base64Audio) throw new Error("No audio generated for chunk");
 
-      const binaryString = atob(base64Audio);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+        const binaryString = atob(base64Audio);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // If chunk has a WAV header, strip it
+        let audioData = bytes;
+        if (bytes.length > 44 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF') {
+          audioData = bytes.slice(44);
+        }
+        
+        return audioData;
+      } catch (err: any) {
+        const errorMsg = err.message ? err.message.toUpperCase() : "";
+        const isQuotaError = errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("QUOTA EXCEEDED");
+        
+        if (isQuotaError && attempt < MAX_RETRIES) {
+          attempt++;
+          const delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000;
+          console.warn(`Quota exceeded for voice ${chunk.voice}, retrying in ${delay}ms... (Attempt ${attempt})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        console.error(`Chunk generation failed for voice ${chunk.voice}:`, err);
+        if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
+          throw new Error("Network request failed. Please check your internet connection.");
+        }
+        throw err;
       }
-      return bytes;
-    } catch (err: any) {
-      console.error(`Chunk generation failed for voice ${chunk.voice}:`, err);
-      const errorMsg = err.message ? err.message.toUpperCase() : "";
-      if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
-        throw new Error("Network request failed. Please check your internet connection.");
-      }
-      throw err;
     }
+    throw new Error("Max retries exceeded for audio generation.");
   });
 
   const allBytes = await Promise.all(chunkPromises);
