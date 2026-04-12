@@ -265,7 +265,7 @@ export const generateSpeech = async (
     while (attempt <= MAX_RETRIES) {
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-1.5-flash",
+          model: "gemini-2.5-flash-preview-tts",
           contents: [{ parts: [{ text: chunk.text }] }],
           config: {
             responseModalities: ["AUDIO"],
