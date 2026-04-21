@@ -206,59 +206,22 @@ function writeString(view: DataView, offset: number, string: string) {
 
 export const generateSpeech = async (
   text: string, 
-  defaultVoice: string = 'Kore', 
+  voice: string = 'Kore', 
   speedOffset: number = 0, 
   pitchOffset: number = 0,
-  voiceMap?: Record<string, string>
+  _voiceMap?: any
 ) => {
   const ai = getAIClient();
   const cleanText = text.trim();
-  
-  // Parse for multi-voice tags: [Name] text
-  // If no tags found, treat the whole text as one segment with defaultVoice
-  const segments: { voice: string; text: string }[] = [];
-  const tagRegex = /\[([^\]]+)\]/g;
-  let lastIndex = 0;
-  let match;
-  let currentVoice = defaultVoice;
 
-  const getVoice = (name: string) => {
-    if (!voiceMap) return name;
-    // Try to find a match in the voice map (case-insensitive)
-    const key = Object.keys(voiceMap).find(k => k.toLowerCase() === name.toLowerCase() || name.toLowerCase().includes(k.toLowerCase()));
-    return key ? voiceMap[key] : name;
-  };
-
-  while ((match = tagRegex.exec(cleanText)) !== null) {
-    const textBefore = cleanText.slice(lastIndex, match.index).trim();
-    if (textBefore) {
-      segments.push({ voice: currentVoice, text: textBefore });
-    }
-    currentVoice = getVoice(match[1]);
-    lastIndex = tagRegex.lastIndex;
+  // Chunking to prevent quality loss while maintaining large generation limit
+  const CHUNK_SIZE = 3000;
+  const chunks: string[] = [];
+  for (let i = 0; i < cleanText.length; i += CHUNK_SIZE) {
+    chunks.push(cleanText.slice(i, i + CHUNK_SIZE));
   }
-
-  const remainingText = cleanText.slice(lastIndex).trim();
-  if (remainingText) {
-    segments.push({ voice: currentVoice, text: remainingText });
-  }
-
-  // If no tags were found at all, segments will be empty or just have one entry
-  if (segments.length === 0) {
-    segments.push({ voice: defaultVoice, text: cleanText });
-  }
-
-  // Further chunk segments if they are too long (> 1000 chars)
-  const finalChunks: { voice: string; text: string }[] = [];
-  for (const seg of segments) {
-    const CHUNK_SIZE = 1000;
-    for (let i = 0; i < seg.text.length; i += CHUNK_SIZE) {
-      finalChunks.push({ voice: seg.voice, text: seg.text.slice(i, i + CHUNK_SIZE) });
-    }
-  }
-
   // Parallel processing for all chunks
-  const chunkPromises = finalChunks.map(async (chunk) => {
+  const chunkPromises = chunks.map(async (textChunk) => {
     let attempt = 0;
     const MAX_RETRIES = 3;
 
@@ -266,12 +229,12 @@ export const generateSpeech = async (
       try {
         const response = await ai.models.generateContent({
           model: "gemini-2.5-flash-preview-tts",
-          contents: [{ parts: [{ text: chunk.text }] }],
+          contents: [{ parts: [{ text: textChunk }] }],
           config: {
             responseModalities: ["AUDIO"],
             speechConfig: {
               voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: chunk.voice },
+                prebuiltVoiceConfig: { voiceName: voice },
               },
             },
           },
@@ -306,7 +269,7 @@ export const generateSpeech = async (
           continue;
         }
 
-        console.error(`Chunk generation failed for voice ${chunk.voice}:`, err);
+        console.error(`Chunk generation failed:`, err);
         if (errorMsg.includes("LOAD FAILED") || errorMsg.includes("FAILED TO FETCH")) {
           throw new Error("Network request failed. Please check your internet connection.");
         }
