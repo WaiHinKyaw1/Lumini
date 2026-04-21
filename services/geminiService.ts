@@ -215,7 +215,7 @@ export const generateSpeech = async (
   const cleanText = text.trim();
 
   // Chunking to prevent quality loss while maintaining large generation limit
-  const CHUNK_SIZE = 3000;
+  const CHUNK_SIZE = 1500;
   const chunks: string[] = [];
   for (let i = 0; i < cleanText.length; i += CHUNK_SIZE) {
     chunks.push(cleanText.slice(i, i + CHUNK_SIZE));
