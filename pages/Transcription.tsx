@@ -206,75 +206,75 @@ Rules:
 
   return (
     <div className="max-w-xl mx-auto pb-6">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Transcript Master</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Media to Text • {CREDIT_COSTS[ContentType.TRANSCRIPTION]} Credits</p>
+          <h1 className="movie-h2 !text-xl !mb-0 uppercase tracking-tighter">Transcript Master</h1>
+          <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Media to Text • {CREDIT_COSTS[ContentType.TRANSCRIPTION]} Credits</p>
         </div>
       </div>
 
-      <div className="glass p-3 rounded-xl border border-white/5 space-y-3">
+      <div className="glass p-6 rounded-2xl border border-white/5 space-y-6">
         {!result && !isProcessing ? (
           <div className="text-center">
             <input type="file" onChange={handleFileChange} accept="video/*,audio/*,.mp4,.mov,.mkv,.mp3,.wav,.m4a" className="hidden" id="trans-upload" />
             <label
               htmlFor="trans-upload"
-              className={`flex flex-col items-center justify-center gap-1.5 p-4 border border-dashed rounded-lg transition-all cursor-pointer ${
+              className={`flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed rounded-2xl transition-all cursor-pointer ${
                 file 
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' 
-                  : 'border-slate-300 dark:border-white/10 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-white/5'
+                  ? 'border-accent bg-accent/5' 
+                  : 'border-white/10 hover:border-accent/40 hover:bg-white/5'
               }`}
             >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${file ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600' : 'bg-slate-100 dark:bg-white/5 text-slate-400'}`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file ? 'bg-accent/20 text-accent' : 'bg-white/5 text-zinc-500'}`}>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
               </div>
-              <div className="space-y-0.5">
-                <h3 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tight">{file ? 'File Locked' : 'Drop Media'}</h3>
-                <p className="text-[8px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-widest truncate max-w-[200px]">{file ? file.name : 'MP3, MP4, WAV'}</p>
+              <div className="space-y-1">
+                <h3 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">{file ? 'File Locked' : 'Drop Media'}</h3>
+                <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500 truncate max-w-[200px]">{file ? file.name : 'MP3, MP4, WAV'}</p>
               </div>
             </label>
 
             <button
               onClick={handleProcess}
               disabled={!file}
-              className={`w-full mt-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg ${
+              className={`w-full mt-6 py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-xl ${
                 file 
-                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 active:scale-95' 
-                  : 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
+                  ? 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]' 
+                  : 'bg-white/5 text-zinc-600 cursor-not-allowed'
               }`}
             >
               Execute Transcription
             </button>
           </div>
         ) : isProcessing ? (
-          <div className="py-6 text-center space-y-2">
-            <div className="w-full bg-slate-200 dark:bg-white/10 rounded-full h-2">
-              <div className="bg-indigo-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+          <div className="py-12 text-center space-y-4">
+            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-accent h-full rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(225,29,72,0.4)]" style={{ width: `${progress}%` }}></div>
             </div>
-            <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-widest animate-pulse">{MESSAGES[messageIndex]}</p>
+            <p className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 animate-pulse">{MESSAGES[messageIndex]}</p>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-white/5">
-              <div className="flex items-center gap-1.5">
-                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                 <h3 className="text-[9px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Transcript Output</h3>
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                 <h3 className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">Transcript Output</h3>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => {setResult(null); setFile(null);}} className="text-[8px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Discard</button>
-                <button onClick={() => navigator.clipboard.writeText(result || '')} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest">Copy Result</button>
+              <div className="flex gap-4">
+                <button onClick={() => {setResult(null); setFile(null);}} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors !mb-0">Discard</button>
+                <button onClick={() => navigator.clipboard.writeText(result || '')} className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 !mb-0">Copy Result</button>
               </div>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 max-h-[350px] overflow-y-auto text-[13px] leading-[1.6] text-slate-600 dark:text-zinc-300 font-medium custom-scrollbar">
+            <div className="p-4 rounded-xl bg-black/40 border border-white/5 max-h-[400px] overflow-y-auto movie-body !text-[14px] leading-[1.8] text-zinc-300 custom-scrollbar">
               {result?.split('\n').map((line, i) => (
-                <p key={i} className="mb-2 last:mb-0">{line}</p>
+                <p key={i} className="mb-4 last:mb-0">{line}</p>
               ))}
             </div>
           </div>

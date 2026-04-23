@@ -185,55 +185,55 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
   return (
     <div className="max-w-xl mx-auto pb-6">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Voiceover Studio</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
+          <h1 className="movie-h2 !text-xl !mb-0 uppercase tracking-tighter">Voiceover Studio</h1>
+          <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
         </div>
       </div>
 
-      <div className="glass p-3 rounded-xl border border-white/5 space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="glass p-6 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Talent Selection */}
         <div className="relative z-30" ref={dropdownRef}>
-          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-600 mb-1 block">Voice Model</label>
+          <label className="movie-meta !text-[9px] uppercase tracking-[0.2em] !mb-2 block">Voice Model</label>
           <button 
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl hover:border-indigo-500/50 transition-all"
+            className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl hover:border-accent/50 transition-all"
           >
             <div className="flex flex-col items-start text-left">
-              <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{selectedChar?.name}</span>
-              <span className="text-[8px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest mt-0.5">{selectedChar?.desc}</span>
+              <span className="movie-h2 !text-sm !mb-0 uppercase tracking-widest">{selectedChar?.name}</span>
+              <span className="movie-meta !text-[10px] !mb-0 uppercase mt-0.5">{selectedChar?.desc}</span>
             </div>
-            <svg className={`w-3 h-3 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            <svg className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-[#1a1b1e] border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
-              <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1.5 space-y-1">
+            <div className="absolute left-0 right-0 mt-2 bg-midnight border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+              <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-2 space-y-1">
                 {characters.map((char) => (
                   <div
                     key={char.id}
                     onClick={() => { setCharacterId(char.id); setIsDropdownOpen(false); }}
-                    className={`flex items-center justify-between p-2 rounded-lg transition-all cursor-pointer ${
-                      characterId === char.id ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-zinc-300'
+                    className={`flex items-center justify-between p-3 rounded-lg transition-all cursor-pointer ${
+                      characterId === char.id ? 'bg-accent/10 text-accent' : 'hover:bg-white/5 text-zinc-300'
                     }`}
                   >
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-black uppercase tracking-widest">{char.name}</span>
-                      <span className="text-[7px] font-bold uppercase text-slate-500 dark:text-zinc-500 tracking-widest mt-0.5">{char.desc}</span>
+                      <span className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">{char.name}</span>
+                      <span className="movie-meta !text-[9px] !mb-0 uppercase mt-0.5">{char.desc}</span>
                     </div>
                     <button
                       onClick={(e) => handlePreview(e, char.id)}
-                      className={`p-1.5 rounded-md transition-all ${
-                        isPreviewing === char.id ? 'bg-rose-500 text-white animate-pulse' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-zinc-400 hover:bg-indigo-500 hover:text-white dark:hover:bg-indigo-500'
+                      className={`p-2 rounded-md transition-all ${
+                        isPreviewing === char.id ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/10 text-zinc-400 hover:bg-accent hover:text-white'
                       }`}
                     >
-                      {isPreviewing === char.id ? '...' : <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
+                      {isPreviewing === char.id ? '...' : <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
                     </button>
                   </div>
                 ))}
@@ -243,67 +243,67 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         </div>
 
         {/* Input Area */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-600">Input Script</label>
+              <label className="movie-meta !text-[9px] uppercase tracking-[0.2em]">Input Script</label>
               <div className="group relative">
-                <svg className="w-3 h-3 text-slate-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-900 text-[8px] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  Use tags like <span className="text-indigo-400">[NILAR]</span> or <span className="text-indigo-400">[THIHA]</span> to switch voices in the same script.
+                <svg className="w-4 h-4 text-slate-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-midnight text-[9px] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 pointer-events-none z-50">
+                  Use tags like <span className="text-accent">[NILAR]</span> or <span className="text-accent">[THIHA]</span> to switch voices in the same script.
                 </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={handlePaste} className="text-[8px] font-black text-slate-400 hover:text-indigo-500 uppercase tracking-widest transition-colors">Paste</button>
-              <button onClick={handleClear} className="text-[8px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Clear</button>
+            <div className="flex gap-4">
+              <button onClick={handlePaste} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors !mb-0">Paste</button>
+              <button onClick={handleClear} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-colors !mb-0">Clear</button>
             </div>
           </div>
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value.slice(0, MAX_CHARS)); setIsChecked(false); }}
             placeholder="Enter your script here..."
-            className="w-full h-40 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-[13px] text-slate-900 dark:text-zinc-100 focus:border-indigo-500 outline-none transition-all resize-none leading-relaxed"
+            className="w-full h-48 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-4 movie-body !text-[14px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all resize-none leading-relaxed"
           />
-          <div className="text-[8px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest text-right">
+          <div className="movie-meta !text-[10px] text-zinc-500 uppercase tracking-widest text-right !mb-0">
             {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
           </div>
         </div>
 
         {/* Parameters */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-2">
             <div className="flex justify-between">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600">Velocity</label>
-              <span className="text-[9px] font-black text-indigo-500">{voiceSpeed}%</span>
+              <label className="movie-meta !text-[10px] uppercase tracking-widest">Velocity</label>
+              <span className="movie-meta !text-[10px] text-accent !mb-0">{voiceSpeed}%</span>
             </div>
             <input 
               type="range" min="-100" max="100" step="1" value={voiceSpeed} 
               onChange={(e) => setVoiceSpeed(parseInt(e.target.value))}
-              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-600"
+              className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex justify-between">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600">Pitch</label>
-              <span className="text-[9px] font-black text-indigo-500">{voicePitch}%</span>
+              <label className="movie-meta !text-[10px] uppercase tracking-widest">Pitch</label>
+              <span className="movie-meta !text-[10px] text-accent !mb-0">{voicePitch}%</span>
             </div>
             <input 
               type="range" min="-100" max="100" step="1" value={voicePitch} 
               onChange={(e) => setVoicePitch(parseInt(e.target.value))}
-              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-600"
+              className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
         </div>
 
-        <div className="pt-1">
+        <div className="pt-2">
           <button
             onClick={isChecked ? handleGenerate : handleCheck}
             disabled={isChecked && isProcessing}
-            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg ${
+            className={`w-full py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-xl ${
               !isChecked 
-                ? 'bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900'
-                : isProcessing ? 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-zinc-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 active:scale-95'
+                ? 'bg-zinc-100 hover:bg-zinc-200 text-midnight dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'
+                : isProcessing ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
             }`}
           >
             {isProcessing ? 'Synthesizing...' : isChecked ? 'Generate Audio' : 'Verify Script'}
@@ -312,25 +312,25 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       </div>
 
       {audioUrl && !isProcessing && (
-        <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="glass p-3 rounded-xl border border-emerald-500/30 flex items-center gap-4">
+        <div className="mt-6 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="glass p-4 rounded-2xl border border-emerald-500/30 flex items-center gap-6">
             <button 
               onClick={togglePlayback} 
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'}`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10'}`}
             >
               {isPlaying ? (
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
               ) : (
-                <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
               )}
             </button>
             <div className="flex-1">
-              <h4 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tight">Output.wav</h4>
-              <p className="text-[8px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-widest">{voiceSpeed}% Vel • {voicePitch}% Ptch</p>
+              <h4 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">Synthesis Output</h4>
+              <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">{voiceSpeed}% Vel • {voicePitch}% Ptch</p>
             </div>
-            <div className="flex gap-2">
-              <a href={audioUrl} download="lumina_voiceover.wav" className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all">Export</a>
-              <button onClick={() => setAudioUrl(null)} className="text-[8px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Discard</button>
+            <div className="flex gap-4">
+              <a href={audioUrl} download="lumina_voiceover.wav" className="px-5 py-2.5 bg-accent hover:bg-accent-hover text-white rounded-xl movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95">Export</a>
+              <button onClick={() => setAudioUrl(null)} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-colors !mb-0">Discard</button>
             </div>
           </div>
         </div>

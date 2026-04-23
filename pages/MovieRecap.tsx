@@ -829,29 +829,29 @@ High quality lighting and realistic depth. ${aiPrompt}`;
   return (
     <div className="max-w-4xl mx-auto pb-6">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
+        <div className="w-7 h-7 bg-accent rounded-lg flex items-center justify-center shadow-lg shadow-accent/20">
           <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 21h16a1 1 0 001-1V4a1 1 0 00-1-1H4a1 1 0 00-1 1v16a1 1 0 001 1z" />
           </svg>
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Recap Studio</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-black tracking-widest uppercase">PRO SYNC • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} CREDITS</p>
+          <h1 className="movie-h1 !mb-0 uppercase tracking-tighter">Recap Studio</h1>
+          <p className="movie-meta !text-[10px] !mb-0 uppercase">PRO SYNC • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} CREDITS</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div className="order-2 md:order-1 space-y-2">
-            <div className="glass p-2.5 rounded-lg border border-white/5 space-y-2">
-                <h3 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Assets</h3>
-                <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => videoInputRef.current?.click()} className={`p-1.5 rounded-lg border border-dashed flex flex-col items-center gap-1 transition-all ${videoFile ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-300 dark:border-white/20 hover:border-slate-400 dark:hover:border-white/40'}`}>
-                        <svg className={`w-3.5 h-3.5 ${videoFile ? 'text-indigo-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        <span className={`text-[7px] font-bold uppercase truncate max-w-full ${videoFile ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>{videoFile ? 'Video Ready' : 'Add Video'}</span>
+        <div className="order-2 md:order-1 space-y-4">
+            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
+                <h3 className="movie-meta uppercase tracking-[0.2em]">Assets</h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <button onClick={() => videoInputRef.current?.click()} className={`p-4 rounded-lg border border-dashed flex flex-col items-center gap-2 transition-all ${videoFile ? 'border-accent bg-accent/10' : 'border-slate-300 dark:border-white/20 hover:border-slate-400 dark:hover:border-white/40'}`}>
+                        <svg className={`w-5 h-5 ${videoFile ? 'text-accent' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <span className={`movie-meta !text-[10px] uppercase truncate max-w-full !mb-0 ${videoFile ? 'text-accent' : 'text-slate-500'}`}>{videoFile ? 'Video Ready' : 'Add Video'}</span>
                     </button>
-                    <button onClick={() => audioInputRef.current?.click()} className={`p-1.5 rounded-lg border border-dashed flex flex-col items-center gap-1 transition-all ${audioFile ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-slate-300 dark:border-white/20 hover:border-slate-400 dark:hover:border-white/40'}`}>
-                        <svg className={`w-3.5 h-3.5 ${audioFile ? 'text-emerald-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                        <span className={`text-[7px] font-bold uppercase truncate max-w-full ${audioFile ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>{audioFile ? 'Audio Ready' : 'Add Audio'}</span>
+                    <button onClick={() => audioInputRef.current?.click()} className={`p-4 rounded-lg border border-dashed flex flex-col items-center gap-2 transition-all ${audioFile ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-slate-300 dark:border-white/20 hover:border-slate-400 dark:hover:border-white/40'}`}>
+                        <svg className={`w-5 h-5 ${audioFile ? 'text-emerald-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                        <span className={`movie-meta !text-[10px] uppercase truncate max-w-full !mb-0 ${audioFile ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>{audioFile ? 'Audio Ready' : 'Add Audio'}</span>
                     </button>
                 </div>
                 <div className="pt-0.5">
@@ -868,20 +868,20 @@ High quality lighting and realistic depth. ${aiPrompt}`;
             </div>
 
             {/* AI Video Generation Section */}
-            <div className="glass p-2.5 rounded-lg border border-white/5 space-y-2">
+            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">AI Video Generation</h3>
-                    <button onClick={() => setShowAIPrompt(!showAIPrompt)} className="text-[7px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-400">
+                    <h3 className="movie-meta uppercase tracking-[0.2em] !mb-0">AI Video Generation</h3>
+                    <button onClick={() => setShowAIPrompt(!showAIPrompt)} className="movie-meta !text-[10px] uppercase text-accent hover:text-accent-hover !mb-0">
                         {showAIPrompt ? 'Hide' : 'Generate Video'}
                     </button>
                 </div>
                 
                 {showAIPrompt && (
-                    <div className="space-y-2 pt-1 animate-in slide-in-from-top-2">
+                    <div className="space-y-4 pt-1 animate-in slide-in-from-top-2">
                         {!hasKey ? (
-                            <div className="text-center space-y-2 py-2">
-                                <p className="text-[8px] text-slate-500 dark:text-zinc-400 uppercase tracking-widest">API Key required for Veo generation</p>
-                                <button onClick={handleOpenKey} className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-[7px] font-black uppercase tracking-widest hover:bg-violet-500 transition-all">Select API Key</button>
+                            <div className="text-center space-y-4 py-2">
+                                <p className="movie-meta uppercase tracking-widest !mb-0">API Key required for Veo generation</p>
+                                <button onClick={handleOpenKey} className="px-4 py-2 bg-accent text-white rounded-lg movie-meta !text-[10px] uppercase hover:bg-accent-hover transition-all shadow-lg shadow-accent/20">Select API Key</button>
                             </div>
                         ) : (
                             <>
@@ -889,12 +889,12 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                                     value={aiPrompt} 
                                     onChange={(e) => setAiPrompt(e.target.value)} 
                                     placeholder="Describe your scene (e.g., A tense courtroom scene where the lawyer presents shocking evidence...)" 
-                                    className="w-full h-16 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-2 text-[10px] text-slate-700 dark:text-white placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                                    className="w-full h-20 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-3 movie-body !mb-0 outline-none focus:ring-1 focus:ring-accent resize-none placeholder:text-zinc-600"
                                 />
                                 <button 
                                     onClick={generateAIVideo} 
                                     disabled={isGeneratingVideo || !aiPrompt.trim()} 
-                                    className={`w-full py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${isGeneratingVideo || !aiPrompt.trim() ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20'}`}
+                                    className={`w-full py-2 rounded-lg movie-meta !text-[10px] uppercase transition-all !mb-0 ${isGeneratingVideo || !aiPrompt.trim() ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/20'}`}
                                 >
                                     {isGeneratingVideo ? 'Generating with Veo...' : 'Generate AI Video'}
                                 </button>
@@ -904,10 +904,10 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                 )}
             </div>
 
-            <div className="glass p-2.5 rounded-lg border border-white/5 space-y-2">
+            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Canvas</h3>
-                    <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 outline-none text-slate-700 dark:text-white cursor-pointer">
+                    <h3 className="movie-meta uppercase tracking-[0.2em] !mb-0">Canvas</h3>
+                    <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md movie-meta !text-[10px] uppercase px-2 py-1 outline-none cursor-pointer !mb-0">
                         <option value="16:9">YouTube (16:9)</option>
                         <option value="9:16">TikTok (9:16)</option>
                         <option value="1:1">Square (1:1)</option>
@@ -915,87 +915,87 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                     </select>
                 </div>
                 
-                <div className="py-1 border-b border-slate-200 dark:border-white/5">
-                     <div className="flex items-center justify-between mb-1">
-                         <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-zinc-400">Freeze Effect</span>
-                         <input type="checkbox" checked={freezeEnabled} onChange={e => setFreezeEnabled(e.target.checked)} className="accent-indigo-500 w-3 h-3" />
+                <div className="py-2 border-b border-white/5">
+                     <div className="flex items-center justify-between mb-2">
+                         <span className="movie-meta uppercase !mb-0">Freeze Effect</span>
+                         <input type="checkbox" checked={freezeEnabled} onChange={e => setFreezeEnabled(e.target.checked)} className="accent-accent w-4 h-4" />
                      </div>
                      {freezeEnabled && (
-                        <div className="grid grid-cols-2 gap-2 pl-2 mt-1 pb-1 border-l-2 border-indigo-500/30">
+                        <div className="grid grid-cols-2 gap-4 pl-4 mt-2 pb-2 border-l-2 border-accent/30">
                             <div>
-                                <div className="flex justify-between text-[6px] text-slate-500 mb-0.5 font-black uppercase tracking-widest"><span>Interval</span><span>{freezeInterval}s</span></div>
-                                <input type="range" min="1" max="15" step="1" value={freezeInterval} onChange={(e) => setFreezeInterval(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
+                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Interval</span><span>{freezeInterval}s</span></div>
+                                <input type="range" min="1" max="15" step="1" value={freezeInterval} onChange={(e) => setFreezeInterval(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
                             </div>
                             <div>
-                                <div className="flex justify-between text-[6px] text-slate-500 mb-0.5 font-black uppercase tracking-widest"><span>Duration</span><span>{freezeDuration}s</span></div>
-                                <input type="range" min="0.5" max="5" step="0.5" value={freezeDuration} onChange={(e) => setFreezeDuration(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
+                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Duration</span><span>{freezeDuration}s</span></div>
+                                <input type="range" min="0.5" max="5" step="0.5" value={freezeDuration} onChange={(e) => setFreezeDuration(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
                             </div>
                         </div>
                      )}
                 </div>
 
-                <div className="py-0.5">
-                     <div className="flex items-center gap-1.5">
-                         <div className="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></div>
-                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Branding Position</span>
+                <div className="py-1">
+                     <div className="flex items-center gap-2 mb-2">
+                         <div className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse"></div>
+                         <span className="movie-meta uppercase !mb-0">Branding Position</span>
                      </div>
-                     <div className="grid grid-cols-2 gap-1 mt-1">
+                     <div className="grid grid-cols-2 gap-2 mt-2">
                         {['Top Right', 'Bottom Right', 'Top Left', 'Bottom Left'].map(pos => (
-                            <button key={pos} onClick={() => setLogoPosition(pos)} className={`py-0.5 rounded-md border text-[6px] font-black uppercase tracking-widest transition-all ${logoPosition === pos ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm' : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-500'}`}>{pos}</button>
+                            <button key={pos} onClick={() => setLogoPosition(pos)} className={`py-1.5 rounded-md border movie-meta !text-[9px] uppercase transition-all !mb-0 ${logoPosition === pos ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20' : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-500'}`}>{pos}</button>
                         ))}
                      </div>
                 </div>
             </div>
 
             {/* Precision Sync Section */}
-            <div className="glass p-2.5 rounded-lg border border-white/5 space-y-2">
+            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-[8px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Timing Sync</h3>
+                    <h3 className="movie-h2 uppercase !mb-0">Timing Sync</h3>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
-                    <div className="space-y-1 p-1.5 bg-slate-50 dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/5">
-                        <div className="flex justify-between items-center mb-0.5">
-                            <label className="text-[7px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">Video</label>
-                            <span className="text-[6px] font-black text-slate-400 uppercase">{formatDurationFull(videoDuration)}</span>
+                <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 rounded-lg border border-white/5">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="movie-meta uppercase tracking-widest !mb-0">Video</label>
+                            <span className="movie-meta !text-[10px] !mb-0">{formatDurationFull(videoDuration)}</span>
                         </div>
-                        <input type="number" step="0.0001" value={videoSpeed} onChange={e => setVideoSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-md py-1 px-1.5 text-[9px] font-black text-indigo-600 dark:text-indigo-400 text-center outline-none focus:ring-1 focus:ring-indigo-500" />
-                        <div className="flex flex-col items-center pt-0.5">
-                             <span className="text-[6px] font-black text-slate-400 uppercase tracking-tighter">Output</span>
-                             <span className="text-[8px] font-mono font-black text-indigo-500 tabular-nums">{formatDurationFull(videoOutputDur)}</span>
+                        <input type="number" step="0.0001" value={videoSpeed} onChange={e => setVideoSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-white/10 rounded-md py-2 px-3 text-sm font-bold text-accent text-center outline-none focus:ring-1 focus:ring-accent" />
+                        <div className="flex flex-col items-center pt-1">
+                             <span className="movie-meta !text-[10px] uppercase !mb-0">Output</span>
+                             <span className="text-sm font-mono font-black text-accent tabular-nums">{formatDurationFull(videoOutputDur)}</span>
                         </div>
-                        <button onClick={handleAutoSyncVideo} className="w-full mt-1 py-1 rounded-md bg-indigo-600 text-white text-[7px] font-black uppercase tracking-widest hover:bg-indigo-500 shadow-sm transition-all active:scale-95">Sync to Audio</button>
+                        <button onClick={handleAutoSyncVideo} className="w-full mt-2 py-2 rounded-md bg-accent text-white movie-meta !text-[10px] uppercase hover:bg-accent-hover shadow-lg shadow-accent/20 transition-all active:scale-95">Sync to Audio</button>
                     </div>
                     
-                    <div className="space-y-1 p-1.5 bg-slate-50 dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/5">
-                        <div className="flex justify-between items-center mb-0.5">
-                             <label className="text-[7px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">Audio</label>
-                             <span className="text-[6px] font-black text-slate-400 uppercase">{formatDurationFull(audioDuration)}</span>
+                    <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 rounded-lg border border-white/5">
+                        <div className="flex justify-between items-center mb-1">
+                             <label className="movie-meta uppercase tracking-widest !mb-0">Audio</label>
+                             <span className="movie-meta !text-[10px] !mb-0">{formatDurationFull(audioDuration)}</span>
                         </div>
-                         <input type="number" step="0.0001" value={audioSpeed} onChange={e => setAudioSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-md py-1 px-1.5 text-[9px] font-black text-rose-500 dark:text-rose-400 text-center outline-none focus:ring-1 focus:ring-rose-500" />
-                         <div className="flex flex-col items-center pt-0.5">
-                             <span className="text-[6px] font-black text-slate-400 uppercase tracking-tighter">Output</span>
-                             <span className="text-[8px] font-mono font-black text-rose-500 tabular-nums">{formatDurationFull(audioOutputDur)}</span>
+                         <input type="number" step="0.0001" value={audioSpeed} onChange={e => setAudioSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-white/10 rounded-md py-2 px-3 text-sm font-bold text-zinc-400 text-center outline-none focus:ring-1 focus:ring-zinc-400" />
+                         <div className="flex flex-col items-center pt-1">
+                             <span className="movie-meta !text-[10px] uppercase !mb-0">Output</span>
+                             <span className="text-sm font-mono font-black text-zinc-400 tabular-nums">{formatDurationFull(audioOutputDur)}</span>
                         </div>
-                        <button onClick={handleAutoSyncAudio} className="w-full mt-1 py-1 rounded-md bg-rose-600 text-white text-[7px] font-black uppercase tracking-widest hover:bg-rose-500 shadow-sm transition-all active:scale-95">Sync to Video</button>
+                        <button onClick={handleAutoSyncAudio} className="w-full mt-2 py-2 rounded-md bg-zinc-800 text-white movie-meta !text-[10px] uppercase hover:bg-zinc-700 shadow-sm transition-all active:scale-95">Sync to Video</button>
                     </div>
                 </div>
             </div>
 
             {isProcessing && (
-              <div className="space-y-1 mb-2">
+              <div className="space-y-2 mb-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-[7px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Processing Frames</span>
-                  <span className="text-[7px] font-black text-indigo-600 dark:text-indigo-400 tabular-nums">{progress}%</span>
+                  <span className="movie-meta uppercase tracking-widest text-accent !mb-0">Processing Frames</span>
+                  <span className="movie-meta !text-[10px] text-accent tabular-nums !mb-0">{progress}%</span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-white/5 rounded-full h-1 overflow-hidden">
+                <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
                   <div 
-                    className="bg-indigo-600 h-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(79,70,229,0.4)]"
+                    className="bg-accent h-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(225,29,72,0.4)]"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
             )}
-            <button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className={`w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-zinc-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/10'}`}>
+            <button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className={`w-full py-3 rounded-lg movie-meta !text-[11px] uppercase transition-all shadow-xl active:scale-95 !mb-0 ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'}`}>
                 {isProcessing ? 'SYNTHESIZING...' : 'Execute Synthesis'}
             </button>
         </div>
@@ -1032,29 +1032,29 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                 </div>
 
                 {/* Blur Strip Controls - COMPACTED */}
-                <div className="w-full glass p-2.5 rounded-lg border border-white/5 mt-2 space-y-2">
-                    <div className="flex items-center justify-between mb-0.5">
-                         <div className="flex items-center gap-1">
-                             <div className="w-2.5 h-2.5 bg-indigo-600 rounded flex items-center justify-center">
-                                 <svg className="w-1.5 h-1.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                <div className="w-full glass p-3 rounded-lg border border-white/5 mt-4 space-y-4">
+                    <div className="flex items-center justify-between mb-1">
+                         <div className="flex items-center gap-2">
+                             <div className="w-3 h-3 bg-accent rounded flex items-center justify-center">
+                                 <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 6h16M4 12h16M4 18h16" /></svg>
                              </div>
-                             <span className="text-[7px] font-black uppercase tracking-widest text-slate-800 dark:text-white">Blur Overlay Strip</span>
+                             <span className="movie-meta uppercase !mb-0 tracking-widest">Blur Overlay Strip</span>
                          </div>
-                         <input type="checkbox" checked={blurEnabled} onChange={e => setBlurEnabled(e.target.checked)} className="accent-indigo-500 w-2.5 h-2.5" />
+                         <input type="checkbox" checked={blurEnabled} onChange={e => setBlurEnabled(e.target.checked)} className="accent-accent w-4 h-4" />
                     </div>
                     {blurEnabled && (
-                        <div className="space-y-2 pt-0.5">
+                        <div className="space-y-4 pt-1">
                             <div>
-                                <div className="flex justify-between text-[6px] text-slate-400 mb-0.5 font-black uppercase tracking-widest"><span>Vertical Pos</span><span>{blurPosition}%</span></div>
-                                <input type="range" min="0" max="100" value={blurPosition} onChange={(e) => setBlurPosition(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
+                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Vertical Pos</span><span>{blurPosition}%</span></div>
+                                <input type="range" min="0" max="100" value={blurPosition} onChange={(e) => setBlurPosition(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
                             </div>
                             <div>
-                                <div className="flex justify-between text-[6px] text-slate-400 mb-0.5 font-black uppercase tracking-widest"><span>Thickness</span><span>{blurThickness}%</span></div>
-                                <input type="range" min="5" max="50" value={blurThickness} onChange={(e) => setBlurThickness(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
+                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Thickness</span><span>{blurThickness}%</span></div>
+                                <input type="range" min="5" max="50" value={blurThickness} onChange={(e) => setBlurThickness(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
                             </div>
                             <div>
-                                <div className="flex justify-between text-[6px] text-slate-400 mb-0.5 font-black uppercase tracking-widest"><span>Intensity</span><span>{blurIntensity}px</span></div>
-                                <input type="range" min="0" max="80" value={blurIntensity} onChange={(e) => setBlurIntensity(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
+                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Intensity</span><span>{blurIntensity}px</span></div>
+                                <input type="range" min="0" max="80" value={blurIntensity} onChange={(e) => setBlurIntensity(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
                             </div>
                         </div>
                     )}
@@ -1072,18 +1072,18 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         <audio ref={audioRef} src={audioUrl || null} className="hidden" onLoadedMetadata={onAudioLoaded} />
             
             {resultUrl && (
-                <div className="glass p-4 rounded-xl border border-emerald-500/30 animate-in slide-in-from-bottom-4 max-w-md mx-auto shadow-2xl bg-emerald-500/5">
-                    <div className="flex justify-between items-center mb-3">
+                <div className="glass p-5 rounded-xl border border-accent/20 animate-in slide-in-from-bottom-4 max-w-md mx-auto shadow-2xl bg-accent/5">
+                    <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
-                           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                           <h3 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Generation Complete</h3>
+                           <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+                           <h3 className="movie-h2 uppercase tracking-widest !mb-0">Generation Complete</h3>
                         </div>
                         <div className="flex gap-2">
-                            <a href={resultUrl} download={`recap_final.${outputMimeType.includes('mp4') ? 'mp4' : 'webm'}`} className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95 shadow-lg shadow-emerald-600/20">Download Video</a>
+                            <a href={resultUrl} download={`recap_final.${outputMimeType.includes('mp4') ? 'mp4' : 'webm'}`} className="px-4 py-2 rounded-lg bg-accent text-white movie-meta !text-[10px] uppercase hover:bg-accent-hover transition-all active:scale-95 shadow-lg shadow-accent/20">Download Video</a>
                         </div>
                     </div>
                     <video src={resultUrl} controls className="w-full rounded-xl bg-black shadow-2xl border border-white/5" />
-                    <button onClick={() => setResultUrl(null)} className="w-full mt-3 text-[8px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Discard & Create New</button>
+                    <button onClick={() => setResultUrl(null)} className="w-full mt-4 movie-meta uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors">Discard & Create New</button>
                 </div>
             )}
             

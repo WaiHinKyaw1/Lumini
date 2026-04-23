@@ -153,26 +153,26 @@ Translate the text into ${targetLang} following the order:
   return (
     <div className="max-w-4xl mx-auto pb-6">
       
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.516a3.303 3.303 0 01-3.352-3.352c0-1.85 1.502-3.352 3.352-3.352s3.352 1.502 3.352 3.352-1.502 3.352-3.352 3.352z" />
           </svg>
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Localization Engine</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-black uppercase tracking-widest">Global Master Synchronization • {CREDIT_COSTS[ContentType.TRANSLATION]} Credits</p>
+          <h1 className="movie-h2 !text-xl !mb-0 uppercase tracking-tighter">Localization Engine</h1>
+          <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Global Master Synchronization • {CREDIT_COSTS[ContentType.TRANSLATION]} Credits</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-7 space-y-2">
-          <div className="glass p-3 rounded-xl border border-white/5 space-y-2 shadow-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-7 space-y-4">
+          <div className="glass p-6 rounded-2xl border border-white/5 space-y-4 shadow-xl">
             <div className="flex justify-between items-center">
-              <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Source Master Script</label>
+              <label className="block movie-meta !text-[10px] uppercase tracking-[0.2em] !mb-0">Source Master Script</label>
               <div className="flex gap-4 px-1">
-                <button onClick={handlePaste} className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] hover:opacity-70 transition-opacity">Paste</button>
-                <button onClick={handleClear} className="text-[8px] font-black text-rose-500 uppercase tracking-[0.2em] hover:opacity-70 transition-opacity">Clear</button>
+                <button onClick={handlePaste} className="movie-meta !text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors !mb-0">Paste</button>
+                <button onClick={handleClear} className="movie-meta !text-[10px] uppercase tracking-widest text-rose-500 hover:text-rose-400 transition-colors !mb-0">Clear</button>
               </div>
             </div>
 
@@ -183,28 +183,28 @@ Translate the text into ${targetLang} following the order:
                 setIsChecked(false);
               }}
               placeholder="Paste master script for professional localization..."
-              className="w-full h-48 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-4 text-[13px] text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none font-medium leading-[1.8]"
+              className="w-full h-64 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-2xl p-6 movie-body !text-[14px] text-slate-900 dark:text-white focus:ring-2 focus:ring-accent outline-none transition-all resize-none leading-relaxed"
             />
 
-            <div className="flex justify-between items-center px-2 pt-1">
-              <span className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{sourceText.length.toLocaleString()} Chars Buffer</span>
+            <div className="flex justify-between items-center px-2 pt-2">
+              <span className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 !mb-0">{sourceText.length.toLocaleString()} Chars Buffer</span>
               <div className="flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>
-                 <span className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">System Ready</span>
+                 <div className="w-2 h-2 bg-accent rounded-full animate-pulse shadow-[0_0_8px_rgba(225,29,72,0.4)]"></div>
+                 <span className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 !mb-0">System Ready</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-5 space-y-3">
-          <div className="glass p-4 rounded-[1.5rem] border border-white/5 space-y-4 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="lg:col-span-5 space-y-4">
+          <div className="glass p-6 rounded-2xl border border-white/5 space-y-6 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-3xl pointer-events-none"></div>
             <div>
-              <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500 mb-2 px-1">Target Localization</label>
+              <label className="block movie-meta !text-[10px] uppercase tracking-[0.2em] !mb-3 px-1">Target Localization</label>
               <select
                 value={targetLang}
                 onChange={(e) => setTargetLang(e.target.value)}
-                className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer shadow-inner"
+                className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 movie-meta !text-[11px] uppercase tracking-widest outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer shadow-inner !mb-0"
               >
                 <option value="BURMESE">Burmese (Myanmar)</option>
                 <option value="ENGLISH">English (US/UK)</option>
@@ -215,67 +215,67 @@ Translate the text into ${targetLang} following the order:
               </select>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500 px-1 mb-0.5">Production Modules</label>
-              <div className="flex items-center gap-3 p-2.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-lg">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+            <div className="space-y-3">
+              <label className="block movie-meta !text-[10px] uppercase tracking-[0.2em] px-1 !mb-1">Production Modules</label>
+              <div className="flex items-center gap-4 p-3 rounded-xl border border-accent/20 bg-accent/5">
+                <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center text-white shadow-lg shadow-accent/20">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Master Script</h4>
-                  <p className="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-tighter">Essential Localization</p>
+                  <h4 className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">Master Script</h4>
+                  <p className="movie-meta !text-[9px] text-accent uppercase tracking-widest !mb-0">Essential Localization</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setIncludeDeepMeaning(!includeDeepMeaning)}
-                className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group ${includeDeepMeaning ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl' : 'bg-white/5 border-white/5 text-slate-500 dark:text-zinc-400 hover:border-indigo-500/40'}`}
+                className={`w-full flex items-center gap-4 p-3 rounded-xl border transition-all text-left group ${includeDeepMeaning ? 'bg-accent border-accent text-white shadow-xl shadow-accent/20' : 'bg-white/5 border-white/5 text-zinc-500 hover:border-accent/40'}`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${includeDeepMeaning ? 'bg-white/10' : 'bg-slate-200 dark:bg-white/10 group-hover:scale-105'}`}>
-                  {includeDeepMeaning ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-zinc-600 rounded-full"></div>}
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${includeDeepMeaning ? 'bg-white/10' : 'bg-white/5 group-hover:scale-105'}`}>
+                  {includeDeepMeaning ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : <div className="w-2 h-2 bg-white/10 rounded-full"></div>}
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest">Deep Meaning</h4>
-                  <p className={`text-[8px] font-bold uppercase tracking-tighter ${includeDeepMeaning ? 'text-indigo-100' : 'text-slate-500 opacity-60'}`}>Neural Cultural Insights</p>
+                  <h4 className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">Deep Meaning</h4>
+                  <p className={`movie-meta !text-[9px] uppercase tracking-widest !mb-0 ${includeDeepMeaning ? 'text-zinc-200' : 'text-zinc-600'}`}>Neural Cultural Insights</p>
                 </div>
               </button>
 
               <button
                 onClick={() => setIncludeHooks(!includeHooks)}
-                className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group ${includeHooks ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl' : 'bg-white/5 border-white/5 text-slate-500 dark:text-zinc-400 hover:border-indigo-500/40'}`}
+                className={`w-full flex items-center gap-4 p-3 rounded-xl border transition-all text-left group ${includeHooks ? 'bg-accent border-accent text-white shadow-xl shadow-accent/20' : 'bg-white/5 border-white/5 text-zinc-500 hover:border-accent/40'}`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${includeHooks ? 'bg-white/10' : 'bg-slate-200 dark:bg-white/10 group-hover:scale-105'}`}>
-                  {includeHooks ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-zinc-600 rounded-full"></div>}
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${includeHooks ? 'bg-white/10' : 'bg-white/5 group-hover:scale-105'}`}>
+                  {includeHooks ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : <div className="w-2 h-2 bg-white/10 rounded-full"></div>}
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest">Viral Hooks</h4>
-                  <p className={`text-[8px] font-bold uppercase tracking-tighter ${includeHooks ? 'text-indigo-100' : 'text-slate-500 opacity-60'}`}>CTR Optimized Titles</p>
+                  <h4 className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">Viral Hooks</h4>
+                  <p className={`movie-meta !text-[9px] uppercase tracking-widest !mb-0 ${includeHooks ? 'text-zinc-200' : 'text-zinc-600'}`}>CTR Optimized Titles</p>
                 </div>
               </button>
             </div>
 
             {!isChecked ? (
-              <button onClick={handleCheck} className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.25em] shadow-2xl shadow-indigo-600/20 transition-all active:scale-[0.98]">Lock Synthesis Protocol</button>
+              <button onClick={handleCheck} className="w-full py-4 rounded-xl bg-midnight text-white border border-white/10 hover:bg-zinc-800 movie-meta !text-[12px] uppercase tracking-[0.25em] shadow-2xl transition-all active:scale-[0.98]">Lock Synthesis Protocol</button>
             ) : (
-              <button onClick={handleTranslate} disabled={isProcessing} className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] transition-all shadow-2xl ${isProcessing ? 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'}`}>{isProcessing ? 'Decoding Neural Net...' : `Execute Studio Master`}</button>
+              <button onClick={handleTranslate} disabled={isProcessing} className={`w-full py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.25em] transition-all shadow-2xl ${isProcessing ? 'bg-white/5 text-zinc-600' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'}`}>{isProcessing ? 'Decoding Neural Net...' : `Execute Studio Master`}</button>
             )}
           </div>
         </div>
       </div>
 
       {translatedText && !isProcessing && (
-        <div className="mt-6 animate-in zoom-in-95 duration-500">
-          <div className="glass rounded-[2rem] p-6 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-6 flex gap-3">
-                 <button onClick={handleCopy} className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all font-black text-[9px] uppercase tracking-widest shadow-xl ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95'}`}>
+        <div className="mt-8 animate-in zoom-in-95 duration-500">
+          <div className="glass rounded-[2.5rem] p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 flex gap-4">
+                 <button onClick={handleCopy} className={`flex items-center gap-3 px-6 py-2.5 rounded-xl transition-all movie-meta !text-[10px] uppercase tracking-widest shadow-xl !mb-0 ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-accent text-white hover:bg-accent-hover active:scale-95'}`}>
                     {copySuccess ? 'Copied Master' : 'Copy All Data'}
                  </button>
             </div>
-            <div className="mb-6">
-               <h3 className="text-lg font-black text-slate-900 dark:text-white mb-0.5">Synthesis Complete</h3>
-               <p className="text-slate-400 dark:text-zinc-500 text-[9px] font-black uppercase tracking-[0.4em]">Broadcast Grade Output Verified</p>
+            <div className="mb-8">
+               <h3 className="movie-h2 !text-xl !mb-1 uppercase tracking-tighter">Synthesis Complete</h3>
+               <p className="movie-meta !text-[10px] uppercase tracking-[0.4em] text-zinc-500 !mb-0">Broadcast Grade Output Verified</p>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {renderResult()}
             </div>
           </div>

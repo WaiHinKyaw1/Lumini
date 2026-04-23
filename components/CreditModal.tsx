@@ -38,55 +38,55 @@ const CreditModal: React.FC<CreditModalProps> = ({ isOpen, onClose, onAddCredits
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-3xl animate-in fade-in duration-500">
       <div className="absolute inset-0" onClick={onClose}></div>
-      <div className="bg-[#09090b] w-full max-w-4xl rounded-[32px] border border-white/10 shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-300">
+      <div className="bg-[#0A0A0A] w-full max-w-4xl rounded-[40px] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,1)] overflow-hidden relative animate-in zoom-in-95 duration-500">
         
         {/* Background Ambient Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-80 bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-80 bg-accent/5 rounded-full blur-[120px] pointer-events-none"></div>
 
         {/* Header */}
-        <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.01] relative z-10">
+        <div className="p-8 md:p-12 border-b border-white/5 flex justify-between items-center bg-white/[0.01] relative z-10">
           <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">Credit Store</h2>
-            <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-1">Refuel your creative engine</p>
+            <h2 className="movie-h1 !text-4xl !mb-0 uppercase tracking-tighter">Credit Matrix</h2>
+            <p className="movie-meta !text-[11px] !mb-0 uppercase tracking-[0.4em] text-accent/80 mt-2 font-black">Refuel your creative architecture</p>
           </div>
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          <button onClick={onClose} className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-accent/10 flex items-center justify-center text-zinc-600 hover:text-accent transition-all border border-white/5 hover:border-accent/20">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         {/* Packs Grid */}
-        <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+        <div className="p-8 md:p-12 grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
           {packs.map((pack) => (
             <button
               key={pack.name}
               onClick={() => { onAddCredits(pack.amount); onClose(); }}
-              className="group relative p-6 rounded-[24px] border border-white/5 bg-[#121214] hover:border-white/20 transition-all hover:-translate-y-2 overflow-hidden text-left flex flex-col h-full hover:shadow-2xl hover:shadow-indigo-500/10"
+              className="group relative p-8 rounded-[32px] border border-white/5 bg-black hover:border-accent/30 transition-all hover:-translate-y-2 overflow-hidden text-left flex flex-col h-full hover:shadow-[0_20px_50px_rgba(225,29,72,0.15)]"
             >
               {pack.popular && (
-                <div className="absolute top-0 right-0 bg-white text-black text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-xl">
-                  Best Value
+                <div className="absolute top-0 right-0 bg-accent text-white movie-meta !text-[9px] !mb-0 uppercase tracking-widest px-4 py-2 rounded-bl-2xl font-black shadow-lg">
+                  Optimal Choice
                 </div>
               )}
               
-              <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${pack.color} opacity-0 group-hover:opacity-10 blur-3xl rounded-full -mr-8 -mt-8 transition-opacity duration-700`}></div>
+              <div className={`absolute top-0 right-0 w-48 h-48 bg-accent opacity-0 group-hover:opacity-10 blur-[60px] rounded-full -mr-12 -mt-12 transition-opacity duration-1000`}></div>
               
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${pack.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:scale-110 transition-transform duration-500`}>
-                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={pack.icon} /></svg>
+              <div className={`w-14 h-14 rounded-2xl bg-accent flex items-center justify-center text-white shadow-[0_0_20px_rgba(225,29,72,0.4)] mb-8 group-hover:scale-110 transition-transform duration-700`}>
+                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={pack.icon} /></svg>
               </div>
 
-              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1 italic">{pack.name}</h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-3xl font-black text-white tracking-tighter">{pack.amount}</span>
-                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">CR</span>
+              <h3 className="movie-h2 !text-xl !mb-0 uppercase tracking-tight mb-2 text-white group-hover:text-accent transition-colors">{pack.name}</h3>
+              <div className="flex items-baseline gap-2 mb-8">
+                <span className="movie-h1 !text-5xl !mb-0 tracking-tighter">{pack.amount}</span>
+                <span className="movie-meta !text-[10px] text-accent uppercase tracking-widest font-black !mb-0">CR UNITS</span>
               </div>
 
-              <div className="mt-auto pt-4 border-t border-white/5 w-full">
-                 <div className={`w-full py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] text-center transition-all ${
+              <div className="mt-auto pt-6 border-t border-white/5 w-full">
+                 <div className={`w-full py-3.5 rounded-2xl movie-meta !text-[11px] uppercase tracking-[0.3em] text-center transition-all border shadow-lg !mb-0 font-black ${
                    pack.cost === 'CLAIM FREE' 
-                     ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black' 
-                     : 'bg-white/5 text-zinc-400 group-hover:bg-white group-hover:text-black'
+                     ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-black' 
+                     : 'bg-white/5 border-white/10 text-zinc-500 group-hover:bg-white group-hover:text-black group-hover:border-white'
                  }`}>
                     {pack.cost}
                  </div>
@@ -96,15 +96,15 @@ const CreditModal: React.FC<CreditModalProps> = ({ isOpen, onClose, onAddCredits
         </div>
         
         {/* Footer */}
-        <div className="p-5 bg-zinc-950/50 border-t border-white/5 flex justify-center items-center gap-6 relative z-10">
-           <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-              <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">Secure Stripe Encryption</span>
+        <div className="p-8 bg-black/40 border-t border-white/5 flex justify-center items-center gap-10 relative z-10">
+           <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              <span className="movie-meta !text-[10px] text-zinc-600 uppercase tracking-widest !mb-0 font-black">Secure Stripe Logic Matrix</span>
            </div>
-           <div className="h-4 w-px bg-white/10"></div>
-           <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">Instant Activation</span>
+           <div className="h-6 w-px bg-white/10"></div>
+           <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              <span className="movie-meta !text-[10px] text-zinc-600 uppercase tracking-widest !mb-0 font-black">Instant Unit Deployment</span>
            </div>
         </div>
       </div>

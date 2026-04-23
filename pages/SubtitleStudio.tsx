@@ -253,51 +253,51 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
   return (
     <div className="max-w-6xl mx-auto pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 border-b border-slate-200 dark:border-white/10 pb-6">
+      <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-cyan-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-cyan-600/20">
+          <div className="w-12 h-12 bg-accent text-white rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Subtitle Studio</h1>
-            <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-bold uppercase tracking-widest mt-1">AI Transcription & SRT Generator • {CREDIT_COSTS[ContentType.SUBTITLE]} Credits</p>
+            <h1 className="movie-h1 !text-2xl !mb-0 uppercase tracking-tighter">Subtitle Studio</h1>
+            <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">AI Transcription & SRT Generator • {CREDIT_COSTS[ContentType.SUBTITLE]} Credits</p>
           </div>
         </div>
         
-        <div className="hidden md:flex items-center gap-3 bg-white dark:bg-white/5 px-4 py-2 rounded-lg border border-slate-200 dark:border-white/10 shadow-sm">
-            <div className={`w-2 h-2 rounded-full ${isProcessingAll ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-            <span className="text-[10px] font-bold text-slate-600 dark:text-zinc-400 uppercase tracking-widest">{isProcessingAll ? 'Processing' : 'System Ready'}</span>
+        <div className="hidden md:flex items-center gap-3 bg-white/5 px-4 py-2 rounded-lg border border-white/10 shadow-sm">
+            <div className={`w-2 h-2 rounded-full ${isProcessingAll ? 'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.4)]' : 'bg-emerald-500'}`}></div>
+            <span className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-400 !mb-0">{isProcessingAll ? 'Processing' : 'System Ready'}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Panel: Upload & Queue */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-xl">
-            <h3 className="text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0l-4-4m4 4V4" /></svg>
+          <div className="glass p-6 rounded-2xl border border-white/5 space-y-4 shadow-xl">
+            <h3 className="movie-meta !text-[10px] text-zinc-300 uppercase tracking-widest !mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0l-4-4m4 4V4" /></svg>
               Upload Media
             </h3>
             
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-32 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-500/5 transition-all group"
+              className="w-full h-32 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-accent hover:bg-accent/5 transition-all group"
             >
-              <svg className="w-8 h-8 mb-2 text-slate-400 group-hover:text-cyan-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-8 h-8 mb-2 text-zinc-600 group-hover:text-accent transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <span className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">Drop video or audio here</span>
+              <span className="movie-meta !text-[10px] uppercase text-zinc-500 tracking-widest !mb-0">Drop video or audio here</span>
               <input type="file" ref={fileInputRef} accept="video/*,audio/*" onChange={handleFileUpload} multiple className="hidden" />
             </div>
 
             <div className="mt-6">
-              <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest mb-2 block">Target Language</label>
+              <label className="movie-meta !text-[10px] text-zinc-500 uppercase tracking-widest px-1 !mb-2 block">Target Language</label>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all appearance-none cursor-pointer"
+                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 movie-meta !text-[11px] uppercase tracking-widest outline-none focus:ring-2 focus:ring-accent transition-all appearance-none cursor-pointer !mb-0"
               >
                 <option value="BURMESE">Burmese (မြန်မာ)</option>
                 <option value="ENGLISH">English</option>
@@ -311,47 +311,47 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
             <button
               onClick={handleBatchProcess}
               disabled={isProcessingAll || queue.filter(i => i.status === 'pending').length === 0}
-              className={`w-full mt-6 py-4 rounded-xl text-xs font-bold uppercase tracking-[0.2em] transition-all shadow-lg ${
+              className={`w-full mt-6 py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-lg ${
                 isProcessingAll || queue.filter(i => i.status === 'pending').length === 0
-                  ? 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'
-                  : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/20'
+                  ? 'bg-white/5 text-zinc-600 cursor-not-allowed'
+                  : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'
               }`}
             >
               {isProcessingAll ? 'Processing Queue...' : 'Start Transcription'}
             </button>
 
             {brandKit && (
-              <div className="mt-4 p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+              <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/10 text-zinc-500">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Brand Styling</span>
+                  <span className="movie-meta !text-[9px] uppercase tracking-widest !mb-0">Brand Styling</span>
                   <button 
                     onClick={() => setUseBrandStyling(!useBrandStyling)}
-                    className={`w-8 h-4 rounded-full transition-all relative ${useBrandStyling ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-white/10'}`}
+                    className={`w-8 h-4 rounded-full transition-all relative ${useBrandStyling ? 'bg-accent' : 'bg-white/10'}`}
                   >
                     <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useBrandStyling ? 'right-0.5' : 'left-0.5'}`}></div>
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: brandKit.primaryColor }}></div>
-                  <span className="text-[8px] font-bold text-slate-600 dark:text-zinc-400">{brandKit.brandName} Kit Active</span>
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: brandKit.primaryColor }}></div>
+                  <span className="movie-meta !text-[8px] uppercase tracking-widest !mb-0">{brandKit.brandName} Kit Active</span>
                 </div>
               </div>
             )}
           </div>
 
           {/* Queue List */}
-          <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-xl">
+          <div className="glass p-6 rounded-2xl border border-white/5 space-y-4 shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-widest">Queue ({queue.length})</h3>
+              <h3 className="movie-meta text-zinc-300 uppercase tracking-widest !mb-0">Queue ({queue.length})</h3>
               {queue.length > 0 && (
-                <button onClick={clearQueue} className="text-[10px] font-bold text-rose-500 hover:text-rose-400 uppercase tracking-widest transition-colors">Clear</button>
+                <button onClick={clearQueue} className="movie-meta !text-[10px] text-rose-500 hover:text-rose-400 uppercase tracking-widest transition-colors !mb-0">Clear</button>
               )}
             </div>
             
             <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
               {queue.length === 0 ? (
                 <div className="text-center py-10">
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-600 uppercase tracking-widest">No files in queue</p>
+                  <p className="movie-meta !text-[10px] text-zinc-700 uppercase tracking-widest !mb-0">No files in queue</p>
                 </div>
               ) : (
                 queue.map((item) => (
@@ -360,14 +360,14 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
                     onClick={() => setSelectedItemId(item.id)}
                     className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
                       selectedItemId === item.id 
-                        ? 'bg-cyan-50 dark:bg-cyan-500/10 border-cyan-500/50' 
-                        : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
+                        ? 'bg-accent/10 border-accent/50' 
+                        : 'bg-black/20 border-white/5 hover:border-white/10'
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                       item.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : 
                       item.status === 'failed' ? 'bg-rose-500/10 text-rose-500' :
-                      item.status === 'processing' ? 'bg-cyan-500/10 text-cyan-500' : 'bg-slate-200 dark:bg-white/5 text-slate-400'
+                      item.status === 'processing' ? 'bg-accent/10 text-accent' : 'bg-white/5 text-zinc-600'
                     }`}>
                       {item.status === 'processing' ? (
                         <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -378,12 +378,12 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-bold text-slate-900 dark:text-white truncate uppercase tracking-tight">{item.file.name}</p>
-                      <p className="text-[8px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-widest mt-0.5">{item.status}</p>
+                      <p className="movie-meta !text-[10px] text-white truncate uppercase tracking-tight !mb-0">{item.file.name}</p>
+                      <p className="movie-meta !text-[8px] text-zinc-500 uppercase tracking-widest mt-0.5 !mb-0">{item.status}</p>
                     </div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); removeFile(item.id); }}
-                      className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                      className="p-1 text-zinc-600 hover:text-rose-500 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -396,16 +396,16 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
 
         {/* Right Panel: Preview & Edit */}
         <div className="lg:col-span-8">
-          <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-xl h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-widest flex items-center gap-2">
-                <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+          <div className="glass p-8 rounded-2xl border border-white/5 h-full flex flex-col shadow-xl">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="movie-meta text-zinc-300 uppercase tracking-widest flex items-center gap-2 !mb-0">
+                <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                 SRT Preview & Editor
               </h3>
               {selectedItem?.status === 'completed' && (
                 <button 
                   onClick={() => downloadSRT(selectedItem)}
-                  className="px-4 py-2 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-zinc-200 text-white dark:text-slate-900 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 shadow-md"
+                  className="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white rounded-xl movie-meta !text-[11px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-xl shadow-accent/20 !mb-0 active:scale-95"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Download SRT
@@ -415,37 +415,37 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
 
             {!selectedItem ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50">
-                <svg className="w-16 h-16 mb-4 text-slate-200 dark:text-white/5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-20 h-20 mb-6 text-zinc-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-xs font-bold text-slate-400 dark:text-zinc-600 uppercase tracking-widest">Select a file from the queue to view subtitles</p>
+                <p className="movie-meta !text-[12px] text-zinc-600 uppercase tracking-widest !mb-0">Select a file from the queue to view subtitles</p>
               </div>
             ) : selectedItem.status === 'processing' ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center">
-                <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest animate-pulse">Transcribing media content...</p>
-                <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-2 uppercase tracking-widest">This may take a minute for larger files</p>
+                <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin mb-6 shadow-[0_0_15px_rgba(225,29,72,0.3)]"></div>
+                <p className="movie-meta !text-[12px] text-zinc-400 uppercase tracking-widest animate-pulse !mb-0">Transcribing media content...</p>
+                <p className="movie-meta !text-[10px] text-zinc-600 mt-2 uppercase tracking-widest !mb-0">This may take a minute for larger files</p>
               </div>
             ) : selectedItem.status === 'failed' ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center text-rose-500">
-                <svg className="w-12 h-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-xs font-bold uppercase tracking-widest">Transcription Failed</p>
-                <p className="text-[10px] mt-2 opacity-70 uppercase tracking-widest">{selectedItem.error}</p>
+                <svg className="w-16 h-16 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="movie-meta !text-[14px] uppercase tracking-widest !mb-0">Transcription Failed</p>
+                <p className="movie-meta !text-[12px] mt-2 opacity-70 uppercase tracking-widest !mb-0">{selectedItem.error}</p>
               </div>
             ) : selectedItem.result ? (
               <div className="flex-1 flex flex-col">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-widest">Editing: {selectedItem.file.name}</span>
-                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">SRT Generated Successfully</span>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="movie-meta !text-[10px] text-zinc-500 uppercase tracking-widest !mb-0">Editing: {selectedItem.file.name}</span>
+                  <span className="movie-meta !text-[10px] text-emerald-500 uppercase tracking-widest !mb-0">SRT Generated Successfully</span>
                 </div>
                 
                 {useBrandStyling && brandKit && (
-                  <div className="mb-4 p-4 bg-black rounded-xl border border-white/10 relative overflow-hidden group">
+                  <div className="mb-6 p-6 bg-black rounded-2xl border border-white/10 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
-                    <div className="relative z-10 flex flex-col items-center justify-center h-24 text-center">
-                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2 font-black">Styled Preview</p>
+                    <div className="relative z-10 flex flex-col items-center justify-center h-28 text-center">
+                      <p className="movie-meta !text-[10px] text-white/30 uppercase tracking-widest mb-4 !mb-4">Styled Preview</p>
                       <div 
-                        className="px-4 py-2 rounded-lg shadow-2xl transform transition-transform group-hover:scale-110"
+                        className="px-6 py-3 rounded-xl shadow-2xl transform transition-transform group-hover:scale-105"
                         style={{ 
                           backgroundColor: `${brandKit.primaryColor}CC`, 
                           color: 'white',
@@ -453,7 +453,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
                           border: `1px solid ${brandKit.secondaryColor}`
                         }}
                       >
-                        <span className="text-sm font-bold drop-shadow-md">
+                        <span className="movie-body !text-[16px] font-bold drop-shadow-md !leading-tight block">
                           {selectedItem.result.split('\n').find(line => line.trim() && !line.includes('-->') && !/^\d+$/.test(line)) || "Sample Subtitle Text"}
                         </span>
                       </div>
@@ -464,13 +464,13 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
                 <textarea
                   value={selectedItem.result}
                   onChange={(e) => handleResultChange(selectedItem.id, e.target.value)}
-                  className="flex-1 w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-5 text-sm font-mono text-slate-900 dark:text-zinc-100 focus:ring-2 focus:ring-cyan-500 outline-none transition-all resize-none leading-relaxed"
+                  className="flex-1 w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl p-6 movie-body !text-[14px] !font-mono text-slate-900 dark:text-zinc-100 focus:ring-2 focus:ring-accent outline-none transition-all resize-none leading-relaxed"
                   spellCheck={false}
                 />
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50">
-                <p className="text-xs font-bold text-slate-400 dark:text-zinc-600 uppercase tracking-widest">Ready to process transcription</p>
+                <p className="movie-meta !text-[12px] text-zinc-700 uppercase tracking-widest !mb-0">Ready to process transcription</p>
               </div>
             )}
           </div>
@@ -478,8 +478,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
       </div>
 
       {error && (
-        <div className="mt-6 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 p-4 rounded-xl text-rose-600 dark:text-rose-400 text-[10px] font-bold uppercase tracking-widest text-center flex items-center justify-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="mt-8 bg-rose-500/10 border border-rose-500/20 p-5 rounded-2xl text-rose-500 movie-meta !text-[12px] uppercase tracking-widest text-center flex items-center justify-center gap-3 !mb-0">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {error}
         </div>
       )}

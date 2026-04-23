@@ -149,65 +149,65 @@ Instructions:
 
   return (
     <div className="max-w-xl mx-auto pb-6">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">AI Recapper</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Viral Scripts • {CREDIT_COSTS[ContentType.VIDEO_INSIGHTS]} Credits</p>
+          <h1 className="movie-h2 !text-xl !mb-0 uppercase tracking-tighter">AI Recapper</h1>
+          <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Viral Scripts • {CREDIT_COSTS[ContentType.VIDEO_INSIGHTS]} Credits</p>
         </div>
       </div>
 
-      <div className="glass p-3 rounded-xl border border-white/5 space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="glass p-6 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 shadow-2xl">
         <div 
           onClick={() => fileInputRef.current?.click()}
-          className={`relative group border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-all ${
+          className={`relative group border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
             file 
-              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' 
-              : 'border-slate-300 dark:border-white/10 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-white/5'
+              ? 'border-accent bg-accent/5' 
+              : 'border-white/10 hover:border-accent/40 hover:bg-white/5'
           }`}
         >
           {file ? (
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            <div className="flex items-center justify-center gap-4">
+              <div className="w-12 h-12 bg-accent shadow-[0_0_15px_rgba(225,29,72,0.3)] rounded-xl flex items-center justify-center text-white">
                 {file.type.startsWith('video') ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
                 )}
               </div>
               <div className="text-left overflow-hidden">
-                <p className="text-[8px] font-black uppercase tracking-widest text-indigo-500 dark:text-indigo-400">{file.type.startsWith('video') ? 'Video' : 'Audio'} Selected</p>
-                <h3 className="text-xs font-bold text-slate-800 dark:text-white truncate max-w-[200px]">{file.name}</h3>
-                <span className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono">{duration}</span>
+                <p className="movie-meta !text-[10px] uppercase tracking-[0.2em] text-accent animate-pulse !mb-0">{file.type.startsWith('video') ? 'Video' : 'Audio'} Analysis Active</p>
+                <h3 className="movie-body !text-[14px] font-bold text-white truncate max-w-[200px] !mb-0">{file.name}</h3>
+                <span className="movie-meta !text-[10px] text-zinc-500 font-mono !mb-0">{duration}</span>
               </div>
             </div>
           ) : (
-            <div className="space-y-1.5">
-              <div className="w-8 h-8 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center mx-auto text-slate-400 dark:text-zinc-500 group-hover:text-indigo-500 group-hover:scale-110 transition-all">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+            <div className="space-y-3">
+              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto text-zinc-600 group-hover:text-accent group-hover:scale-110 transition-all shadow-inner">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               </div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500">Click to Upload Video or Audio</p>
-              <p className="text-[7px] font-bold text-slate-500 uppercase">MP4, MOV, MP3, WAV, etc.</p>
+              <p className="movie-meta !text-[11px] uppercase tracking-[0.25em] text-zinc-500 !mb-0 px-2">Inject Media Stream</p>
+              <p className="movie-meta !text-[9px] text-zinc-700 uppercase tracking-widest !mb-0">RAW MATRIX DATA • MP4, WAV, MOV</p>
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="video/*,audio/*,.mp4,.mov,.mkv,.mp3,.wav,.m4a" onChange={handleFileChange} className="hidden" />
         </div>
 
-        <div className="space-y-2">
-          <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-600 mb-0.5 block">Content Type</label>
-          <div className="grid grid-cols-2 gap-1.5">
+        <div className="space-y-3">
+          <label className="movie-meta !text-[10px] uppercase tracking-[0.3em] text-zinc-600 px-1 !mb-0">Content Archetype</label>
+          <div className="grid grid-cols-2 gap-2">
             {recapOptions.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setRecapType(option.id)}
-                className={`py-2 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all ${
+                className={`py-3 rounded-xl border movie-meta !text-[10px] uppercase tracking-widest transition-all shadow-lg !mb-0 ${
                   recapType === option.id 
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-md' 
-                    : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 hover:border-indigo-400'
+                    ? 'bg-accent border-accent text-white shadow-accent/20' 
+                    : 'bg-transparent border-white/5 text-zinc-500 hover:bg-white/5'
                 }`}
               >
                 {option.title}
@@ -216,36 +216,36 @@ Instructions:
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600 mb-1.5 block">Target Language</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="movie-meta !text-[10px] uppercase tracking-[0.3em] text-zinc-600 px-1 !mb-0">Linguistic Output</label>
             <select
               value={targetLang}
               onChange={(e) => setTargetLang(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 movie-body !text-[14px] text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer shadow-inner"
             >
-              <option value="BURMESE">Burmese</option>
-              <option value="ENGLISH">English</option>
-              <option value="THAI">Thai</option>
-              <option value="CHINESE">Chinese</option>
-              <option value="JAPANESE">Japanese</option>
-              <option value="KOREAN">Korean</option>
-              <option value="SPANISH">Spanish</option>
-              <option value="FRENCH">French</option>
+              <option value="BURMESE">BURMESE UNICODE</option>
+              <option value="ENGLISH">ENGLISH (GLOBAL)</option>
+              <option value="THAI">THAI AUTO</option>
+              <option value="CHINESE">CHINESE (NON-TRAD)</option>
+              <option value="JAPANESE">JAPANESE (JP)</option>
+              <option value="KOREAN">KOREAN (KR)</option>
+              <option value="SPANISH">SPANISH (LATIN)</option>
+              <option value="FRENCH">FRENCH (EU)</option>
             </select>
           </div>
 
-          <div>
-             <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600 mb-1.5 block">Perspective</label>
-             <div className="grid grid-cols-2 gap-1.5">
+          <div className="space-y-2">
+             <label className="movie-meta !text-[10px] uppercase tracking-[0.3em] text-zinc-600 px-1 !mb-0">Perspective Shift</label>
+             <div className="grid grid-cols-2 gap-2">
                {(['1ST PERSON', '3RD PERSON'] as Perspective[]).map((p) => (
                  <button
                    key={p}
                    onClick={() => setPerspective(p)}
-                   className={`py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wide border transition-all ${
+                   className={`py-3 rounded-xl movie-meta !text-[10px] uppercase tracking-wide border transition-all !mb-0 ${
                      perspective === p 
-                       ? 'bg-indigo-600 border-indigo-500 text-white shadow-md' 
-                       : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-400 dark:text-zinc-500 hover:border-indigo-400 dark:hover:border-white/30'
+                       ? 'bg-accent border-accent text-white shadow-accent/20 shadow-lg' 
+                       : 'bg-transparent border-white/5 text-zinc-500 hover:bg-white/5'
                    }`}
                  >
                    {p}
@@ -255,17 +255,17 @@ Instructions:
           </div>
         </div>
 
-        <div>
-          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-600 mb-1.5 block">Tone Style</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+        <div className="space-y-3">
+          <label className="movie-meta !text-[10px] uppercase tracking-[0.3em] text-zinc-600 px-1 !mb-0">Emotional Spectrum</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {tones.map((t) => (
               <button
                 key={t}
                 onClick={() => setTone(t)}
-                className={`py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider border transition-all ${
+                className={`py-3 rounded-xl movie-meta !text-[10px] uppercase tracking-wider border transition-all !mb-0 ${
                   tone === t 
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-md' 
-                    : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-400 dark:text-zinc-500 hover:border-indigo-400 dark:hover:border-white/30'
+                    ? 'bg-accent border-accent text-white shadow-accent/20 shadow-lg' 
+                    : 'bg-transparent border-white/5 text-zinc-500 hover:bg-white/5'
                 }`}
               >
                 {t}
@@ -274,55 +274,55 @@ Instructions:
           </div>
         </div>
 
-        <div className="pt-1">
+        <div className="pt-2">
           <button
             onClick={handleProcess}
             disabled={!file || isProcessing}
-            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg ${
+            className={`w-full py-4 rounded-xl movie-meta !text-[13px] uppercase tracking-[0.25em] transition-all shadow-2xl ${
               isProcessing 
-                ? 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-zinc-600 cursor-not-allowed' 
+                ? 'bg-white/5 text-zinc-600 cursor-not-allowed' 
                 : !file 
-                ? 'bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-zinc-600 cursor-not-allowed' 
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20 active:scale-95'
+                ? 'bg-white/5 text-zinc-800 cursor-not-allowed border border-white/5' 
+                : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-95'
             }`}
           >
             {isProcessing ? (
-              <div className="space-y-1">
-                <div>Analyzing Media... {progress}%</div>
-                <div className="w-full bg-slate-200 dark:bg-white/10 rounded-full h-1">
-                  <div className="bg-indigo-600 h-1 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+              <div className="space-y-3">
+                <div className="animate-pulse">DECODING STREAM... {progress}%</div>
+                <div className="w-full bg-white/5 rounded-full h-1 shadow-inner overflow-hidden">
+                  <div className="bg-accent h-full shadow-[0_0_8px_rgba(225,29,72,0.6)] transition-all duration-300" style={{ width: `${progress}%` }}></div>
                 </div>
               </div>
-            ) : !file ? 'Select File First' : 'Generate Master Script'}
+            ) : !file ? 'Awaiting Data Module' : 'Execute Script Synthesis'}
           </button>
           
           {file && (
-             <button onClick={reset} className="w-full mt-2 text-[8px] font-black text-slate-400 dark:text-zinc-600 uppercase tracking-widest hover:text-rose-500 transition-colors">
-               Reset Form
+             <button onClick={reset} className="w-full mt-4 movie-meta !text-[10px] text-zinc-700 hover:text-accent uppercase tracking-[0.3em] transition-colors !mb-0">
+               RESET MODULE
              </button>
           )}
         </div>
       </div>
 
       {result && !isProcessing && (
-        <div className="mt-6 animate-in slide-in-from-bottom-6 duration-700">
-          <div className="glass p-4 rounded-xl border border-white/10 shadow-2xl">
-            <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100 dark:border-white/5">
-               <div>
-                  <h3 className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-0.5">Generated Result</h3>
-                  <h2 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{recapType} Master Script</h2>
+        <div className="mt-8 animate-in slide-in-from-bottom-6 duration-700">
+          <div className="glass p-8 rounded-2xl border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-center mb-6 pb-6 border-b border-white/5">
+               <div className="space-y-1">
+                  <h3 className="movie-meta !text-[10px] text-accent uppercase tracking-[0.3em] !mb-0">Synthesis Result</h3>
+                  <h2 className="movie-h2 !text-lg uppercase tracking-tight !mb-0">{recapType} Master Script</h2>
                </div>
                <button 
                 onClick={() => navigator.clipboard.writeText(result)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
+                className="flex items-center gap-2 px-5 py-3 bg-accent/10 text-accent hover:bg-accent hover:text-white rounded-xl movie-meta !text-[10px] uppercase tracking-widest transition-all shadow-lg !mb-0 border border-accent/20"
                >
-                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                 Copy Master
+                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                 COPY STREAM
                </button>
             </div>
-            <div className="prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-zinc-300 font-medium leading-[1.6] max-h-[400px] overflow-y-auto pr-2 custom-scrollbar text-[13px]">
+            <div className="prose prose-sm dark:prose-invert max-w-none text-zinc-300 movie-body !text-[14px] leading-[1.8] max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
               {result.split('\n').map((line, i) => (
-                <p key={i} className="mb-2 whitespace-pre-wrap">{line}</p>
+                <p key={i} className="mb-4 whitespace-pre-wrap">{line}</p>
               ))}
             </div>
           </div>
@@ -330,8 +330,8 @@ Instructions:
       )}
 
       {error && (
-        <div className="mt-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
-          <p className="text-rose-500 dark:text-rose-400 text-[11px] font-bold">{error}</p>
+        <div className="mt-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center shadow-lg animate-in fade-in">
+          <p className="movie-meta !text-[11px] text-rose-500 uppercase tracking-widest !mb-0">{error}</p>
         </div>
       )}
     </div>
