@@ -184,7 +184,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
     setIsGeneratingVideo(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: (process.env as any).API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const fullPrompt = `Create a cinematic movie recap video scene.
 
@@ -204,7 +204,7 @@ Smooth cinematic motion at 24 or 30 frames per second.
 High quality lighting and realistic depth. ${aiPrompt}`;
 
       let operation = await ai.models.generateVideos({
-        model: 'veo-3.1-fast-generate-preview',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: fullPrompt,
         config: {
           numberOfVideos: 1,
@@ -213,20 +213,24 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         }
       });
 
-      // Poll for completion
-      while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        operation = await ai.operations.getVideosOperation({ operation: operation });
-      }
+        // Poll for completion
+        const pollVideosOperation = async (op: any) => {
+          return await ai.operations.getVideosOperation({ operation: op });
+        };
 
-      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-      if (downloadLink) {
-        const response = await fetch(downloadLink, {
-          method: 'GET',
-          headers: {
-            'x-goog-api-key': (process.env as any).API_KEY,
-          },
-        });
+        while (!operation.done) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          operation = await pollVideosOperation(operation);
+        }
+
+        const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+        if (downloadLink) {
+          const response = await fetch(downloadLink, {
+            method: 'GET',
+            headers: {
+              'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+            },
+          });
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         
@@ -480,8 +484,14 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         else if (aspectRatio === "1:1") { w = 480; h = 480; }
         else if (aspectRatio === "4:5") { w = 480; h = 600; }
         
+        // Fix: Limit the maximum height of the preview box for portrait ratios
+        const maxDisplayHeight = 550;
         const containerW = container.clientWidth;
-        const containerH = container.clientHeight;
+        const containerH = Math.min(container.clientHeight || Infinity, maxDisplayHeight);
+        
+        // Safety check for container size
+        if (containerW === 0) return;
+
         const scale = Math.min(containerW / w, containerH / h);
         
         const finalW = Math.floor(w * scale);
@@ -618,21 +628,23 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         }
 
         // 4. Setup Stream & Recorder
-        const stream = canvas.captureStream(30); // Request 30 FPS
-        if (audioUrl) {
-            const audioTrack = destNode.stream.getAudioTracks()[0];
-            if (audioTrack) stream.addTrack(audioTrack);
+        const stream = canvas.captureStream(30); 
+        if (audioUrl && destNode) {
+            const audioTracks = destNode.stream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                stream.addTrack(audioTracks[0]);
+            }
         }
         
         const chunks: Blob[] = [];
         
-        // Improved MimeType selection
+        // Improved MimeType selection for better compatibility
         const types = [
-            "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-            "video/mp4",
             "video/webm;codecs=vp9,opus",
             "video/webm;codecs=vp8,opus",
-            "video/webm"
+            "video/webm",
+            "video/mp4",
+            "video/ogg"
         ];
         
         let mimeType = "";
@@ -1000,19 +1012,18 @@ High quality lighting and realistic depth. ${aiPrompt}`;
             </button>
         </div>
 
-        {/* Preview Frame Section - COMPACTED SIZE: max-w-[220px] */}
+        {/* Preview Frame Section - COMPACTED SIZE: max-h-[450px] */}
         <div className="order-1 md:order-2 space-y-3">
             <div className="w-full flex flex-col items-center transition-all duration-300">
                 <div 
-                  className="relative w-full bg-black rounded-xl overflow-hidden shadow-xl border border-slate-200 dark:border-white/10 group flex items-center justify-center transition-all duration-500 bg-midnight"
-                  style={{ aspectRatio: aspectRatio.replace(':', '/') }}
+                  className={`relative w-full max-w-[320px] mx-auto bg-black rounded-3xl overflow-hidden shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] border border-white/10 group flex items-center justify-center transition-all duration-500 bg-midnight ${aspectRatio === '9:16' ? 'h-[500px]' : 'aspect-video h-auto'}`}
                 >
                     {videoUrl ? (
                          <>
-                            <canvas ref={previewCanvasRef} className="absolute inset-0 m-auto pointer-events-none" />
+                            <canvas ref={previewCanvasRef} className="absolute inset-0 m-auto pointer-events-none object-contain w-full h-full" />
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <button onClick={togglePlayback} className={`pointer-events-auto w-7 h-7 rounded-full bg-black/50 backdrop-blur-xl flex items-center justify-center border border-white/20 hover:scale-110 transition-all cursor-pointer ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100 shadow-xl'}`}>
-                                    {isPlaying ? <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg> : <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
+                                <button onClick={togglePlayback} className={`pointer-events-auto w-10 h-10 rounded-full bg-black/40 backdrop-blur-3xl flex items-center justify-center border border-white/10 hover:scale-110 transition-all cursor-pointer group-hover:bg-accent/20 ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100 shadow-2xl shadow-black'}`}>
+                                    {isPlaying ? <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg> : <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
                                 </button>
                             </div>
                             <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1063,13 +1074,14 @@ High quality lighting and realistic depth. ${aiPrompt}`;
             
         <video 
           ref={videoRef} 
-          src={videoUrl || null} 
+          src={videoUrl || undefined} 
           className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none" 
           playsInline 
           muted={true} 
+          crossOrigin="anonymous"
           onLoadedMetadata={onVideoLoaded} 
         />
-        <audio ref={audioRef} src={audioUrl || null} className="hidden" onLoadedMetadata={onAudioLoaded} />
+        <audio ref={audioRef} src={audioUrl || undefined} className="hidden" onLoadedMetadata={onAudioLoaded} />
             
             {resultUrl && (
                 <div className="glass p-5 rounded-xl border border-accent/20 animate-in slide-in-from-bottom-4 max-w-md mx-auto shadow-2xl bg-accent/5">

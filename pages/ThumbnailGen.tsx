@@ -309,7 +309,6 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
           {error}
         </div>
       )}
-}
     </div>
   );
 };
