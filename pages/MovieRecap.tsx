@@ -231,8 +231,17 @@ High quality lighting and realistic depth. ${aiPrompt}`;
               'x-goog-api-key': process.env.GEMINI_API_KEY || '',
             },
           });
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to download video: ${response.status} ${response.statusText}`);
+          }
+
+          const blob = await response.blob();
+          if (blob.size === 0) {
+            throw new Error("Received an empty video file from the server.");
+          }
+          
+          const url = URL.createObjectURL(blob);
         
         if (videoUrl) URL.revokeObjectURL(videoUrl);
         setVideoFile(new File([blob], "ai_generated.mp4", { type: "video/mp4" }));
@@ -699,10 +708,18 @@ High quality lighting and realistic depth. ${aiPrompt}`;
 
         try {
             videoEl.muted = true;
+            // Ensure video speed is valid
+            videoEl.playbackRate = videoSpeed || 1.0;
+            
+            // Explicitly call load() if readyState is 0
+            if (videoEl.readyState === 0) {
+                videoEl.load();
+            }
+
             await videoEl.play();
-        } catch (e) {
-            console.error("Video playback failed:", e);
-            throw new Error("Video playback failed. Please ensure the video is playable.");
+        } catch (e: any) {
+            console.error("Video playback failed during generation:", e);
+            throw new Error(`Video playback failed (${e.name}: ${e.message}). Please ensure the video is playable or try a different format.`);
         }
 
         if (audioEl) {
@@ -1078,8 +1095,11 @@ High quality lighting and realistic depth. ${aiPrompt}`;
           className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none" 
           playsInline 
           muted={true} 
-          crossOrigin="anonymous"
           onLoadedMetadata={onVideoLoaded} 
+          onError={(e) => {
+            const mediaError = (e.target as HTMLVideoElement).error;
+            console.error("Video element error:", mediaError);
+          }}
         />
         <audio ref={audioRef} src={audioUrl || undefined} className="hidden" onLoadedMetadata={onAudioLoaded} />
             
