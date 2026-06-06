@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
 import { CREDIT_COSTS, ContentType } from '../types';
 
@@ -26,29 +27,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [hasKey, setHasKey] = useState(false);
   const [showAIPrompt, setShowAIPrompt] = useState(false);
-  const [veoMessageIndex, setVeoMessageIndex] = useState(0);
-
-  const VEO_MESSAGES = [
-    "Initializing Veo model...",
-    "Analyzing cinematic prompt...",
-    "Generating video frames...",
-    "Applying motion dynamics...",
-    "Rendering high-quality output...",
-    "This usually takes a few minutes...",
-    "Still working on your masterpiece...",
-    "Finalizing video..."
-  ];
-
-  useEffect(() => {
-    if (isGeneratingVideo) {
-      const interval = setInterval(() => {
-        setVeoMessageIndex((prev) => Math.min(prev + 1, VEO_MESSAGES.length - 1));
-      }, 15000); // Change message every 15 seconds
-      return () => clearInterval(interval);
-    } else {
-      setVeoMessageIndex(0);
-    }
-  }, [isGeneratingVideo]);
 
   // --- State: Settings ---
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
@@ -63,10 +41,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   
   const [logoPosition, setLogoPosition] = useState('Top Right');
   
-  // Freeze Frame Settings
-  const [freezeEnabled, setFreezeEnabled] = useState(true);
-  const [freezeInterval, setFreezeInterval] = useState(5); 
-  const [freezeDuration, setFreezeDuration] = useState(2); 
+  // Zoom Settings
+  const [zoomEnabled, setZoomEnabled] = useState(true);
+  const [zoomInterval, setZoomInterval] = useState(5); 
+  const [zoomDuration, setZoomDuration] = useState(3); 
 
   // --- State: Playback & Processing ---
   const [isPlaying, setIsPlaying] = useState(false);
@@ -83,9 +61,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const helperCanvasRef = useRef<HTMLCanvasElement | null>(null); 
   const animationFrameRef = useRef<number | null>(null);
-  const cachedFreezeFrame = useRef<ImageBitmap | null>(null);
-  const isCurrentlyFrozen = useRef<boolean>(false);
-  const isMounted = useRef(true);
   
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +68,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
   // --- Helpers ---
   const formatDurationFull = (seconds: number) => {
-    if (!Number.isFinite(seconds) || seconds <= 0) return '00:00:00.000';
+    if (!Number.isFinite(seconds)) return '00:00:00.000';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -117,7 +92,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setVideoUrl(url);
       setResultUrl(null);
       setVideoSpeed(1.0);
-      setError(null);
     }
   };
 
@@ -129,7 +103,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setAudioFile(file);
       setAudioUrl(url);
       setAudioSpeed(1.0);
-      setError(null);
     }
   };
 
@@ -175,33 +148,19 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
   const generateAIVideo = async () => {
     if (!aiPrompt.trim()) return;
+    setIsGeneratingVideo(true);
     setError(null);
 
-    if (!onSpendCredits(CREDIT_COSTS[ContentType.MOVIE_RECAP])) {
-      setError("Insufficient credits!");
-      return;
-    }
-
-    setIsGeneratingVideo(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      let key = '';
+      try {
+        key = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+      } catch (e) {}
       
-      const fullPrompt = `Create a cinematic movie recap video scene.
+      if (!key) throw new Error("API Key is missing. Please select one.");
 
-The scene should feel alive and continuously moving.
-There must not be any frozen frames or still images.
-The motion should naturally continue from the first frame to the last frame.
-
-Characters should show subtle natural movement such as breathing, blinking, walking, or small body motion.
-The environment should also contain motion like wind, light flicker, background activity, or atmospheric movement.
-The camera should move slightly in a cinematic way such as a slow push in, pan, or tracking movement.
-
-The pacing of the visuals should naturally follow the narration.
-The scene should end smoothly without holding the final frame.
-Motion should continue until the video ends.
-
-Smooth cinematic motion at 24 or 30 frames per second.
-High quality lighting and realistic depth. ${aiPrompt}`;
+      const ai = new GoogleGenAI({ apiKey: key });
+      const fullPrompt = `${aiPrompt}. Ensure high cinematic quality, slow camera movement, and natural motion dynamics.`;
 
       let operation = await ai.models.generateVideos({
         model: 'veo-3.1-lite-generate-preview',
@@ -213,35 +172,17 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         }
       });
 
-        // Poll for completion
-        const pollVideosOperation = async (op: any) => {
-          return await ai.operations.getVideosOperation({ operation: op });
-        };
+      while (!operation.done) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        operation = await ai.operations.getVideosOperation({ operation: operation });
+      }
 
-        while (!operation.done) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          operation = await pollVideosOperation(operation);
-        }
-
-        const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-        if (downloadLink) {
-          const response = await fetch(downloadLink, {
-            method: 'GET',
-            headers: {
-              'x-goog-api-key': process.env.GEMINI_API_KEY || '',
-            },
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to download video: ${response.status} ${response.statusText}`);
-          }
-
-          const blob = await response.blob();
-          if (blob.size === 0) {
-            throw new Error("Received an empty video file from the server.");
-          }
-          
-          const url = URL.createObjectURL(blob);
+      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+      if (downloadLink) {
+        const response = await fetch(`${downloadLink}&key=${key}`);
+        if (!response.ok) throw new Error("Failed to download video");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
         
         if (videoUrl) URL.revokeObjectURL(videoUrl);
         setVideoFile(new File([blob], "ai_generated.mp4", { type: "video/mp4" }));
@@ -249,17 +190,9 @@ High quality lighting and realistic depth. ${aiPrompt}`;
         setResultUrl(null);
         setVideoSpeed(1.0);
         setShowAIPrompt(false);
-      } else {
-        throw new Error("Failed to retrieve generated video.");
       }
-
     } catch (err: any) {
-      if (err.message?.includes("Requested entity was not found")) {
-        setHasKey(false);
-        setError("API Key session expired. Please re-select your key.");
-      } else {
-        setError(err.message || "Video generation failed");
-      }
+      setError(err.message || "Video generation failed");
     } finally {
       setIsGeneratingVideo(false);
     }
@@ -277,10 +210,8 @@ High quality lighting and realistic depth. ${aiPrompt}`;
             if (Number.isFinite(syncedAudioTime)) {
                audioRef.current.currentTime = syncedAudioTime;
             }
-            audioRef.current.playbackRate = audioSpeed;
             audioRef.current.play().catch(() => {});
         }
-        videoRef.current.playbackRate = videoSpeed;
         videoRef.current.play().catch(() => {});
       }
       setIsPlaying(!isPlaying);
@@ -326,44 +257,6 @@ High quality lighting and realistic depth. ${aiPrompt}`;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height);
 
-    const timeSec = timeMs / 1000;
-    let scale = 1.0;
-    let isFreezeActive = false;
-
-    if (freezeEnabled) {
-      const cycleTime = timeSec % Math.max(0.1, freezeInterval);
-      if (cycleTime < freezeDuration) {
-        isFreezeActive = true;
-        const zoomProgress = cycleTime / freezeDuration;
-        scale = 1.0 + (zoomProgress * 0.05); 
-        
-        if (!isCurrentlyFrozen.current) {
-          isCurrentlyFrozen.current = true;
-          // Capture frame once when freeze starts, without blocking render
-          createImageBitmap(video).then(bitmap => {
-            cachedFreezeFrame.current = bitmap;
-          }).catch(e => console.error("Frame capture failed", e));
-        }
-      } else {
-        if (isCurrentlyFrozen.current) {
-          isCurrentlyFrozen.current = false;
-          if (cachedFreezeFrame.current) {
-            cachedFreezeFrame.current.close();
-            cachedFreezeFrame.current = null;
-          }
-        }
-      }
-    } else {
-        if (isCurrentlyFrozen.current) {
-          isCurrentlyFrozen.current = false;
-          if (cachedFreezeFrame.current) {
-            cachedFreezeFrame.current.close();
-            cachedFreezeFrame.current = null;
-          }
-        }
-    }
-
-    if (video.videoWidth === 0 || video.videoHeight === 0) return;
     const vRatio = video.videoWidth / video.videoHeight;
     const cRatio = width / height;
     let drawW, drawH, offsetX, offsetY;
@@ -380,41 +273,25 @@ High quality lighting and realistic depth. ${aiPrompt}`;
       offsetY = 0;
     }
 
+    let scale = 1.0;
+    if (zoomEnabled) {
+      const timeSec = timeMs / 1000;
+      const safeInterval = Math.max(1, zoomInterval);
+      const safeDuration = Math.min(zoomDuration, safeInterval);
+      const timeInInterval = timeSec % safeInterval;
+      
+      if (timeInInterval < safeDuration) {
+          const progress = timeInInterval / safeDuration;
+          scale = 1.0 + (Math.sin(progress * Math.PI) * 0.15); 
+      }
+    }
+    
     ctx.save();
     ctx.translate(width/2, height/2);
     ctx.scale(scale, scale);
     ctx.translate(-width/2, -height/2);
-    
-    if (isFreezeActive && cachedFreezeFrame.current) {
-      ctx.drawImage(cachedFreezeFrame.current, offsetX, offsetY, drawW, drawH);
-    } else {
-      ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
-    }
-    
+    ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
     ctx.restore();
-
-    // Visual indicator for freeze frame in preview
-    if (isFreezeActive && !isProcessing) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)';
-      ctx.lineWidth = 12;
-      ctx.strokeRect(0, 0, width, height);
-      
-      // Badge
-      ctx.fillStyle = 'rgba(99, 102, 241, 0.9)';
-      const badgeW = 80;
-      const badgeH = 24;
-      ctx.beginPath();
-      ctx.roundRect(width - badgeW - 15, 15, badgeW, badgeH, 6);
-      ctx.fill();
-      
-      ctx.fillStyle = 'white';
-      ctx.font = '900 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('FREEZE ACTIVE', width - badgeW/2 - 15, 15 + badgeH/2);
-      ctx.restore();
-    }
 
     if (blurEnabled) {
       const bY = (blurPosition / 100) * height;
@@ -469,474 +346,263 @@ High quality lighting and realistic depth. ${aiPrompt}`;
       ctx.globalAlpha = 1.0;
     }
 
-  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, freezeEnabled, freezeInterval, freezeDuration, logoImage, logoPosition, isProcessing]);
+  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, zoomEnabled, zoomInterval, zoomDuration, logoImage, logoPosition]);
 
   useEffect(() => {
-    let handle: number;
     const loop = () => {
       if (previewCanvasRef.current && videoRef.current && videoRef.current.readyState >= 2) {
         const cvs = previewCanvasRef.current;
         const ctx = cvs.getContext('2d');
-        const container = cvs.parentElement;
-        if (!container) return;
-
-        // Sync Audio and Video
-        if (isPlaying && audioRef.current && audioFile && !isProcessing) {
-          const expectedVideoTime = (audioRef.current.currentTime / audioSpeed) * videoSpeed;
-          if (Math.abs(videoRef.current.currentTime - expectedVideoTime) > 0.1) {
-             videoRef.current.currentTime = expectedVideoTime;
-          }
-        }
-
-        let w = 854, h = 480;
-        if (aspectRatio === "9:16") { w = 480; h = 854; }
-        else if (aspectRatio === "1:1") { w = 480; h = 480; }
-        else if (aspectRatio === "4:5") { w = 480; h = 600; }
-        
-        // Fix: Limit the maximum height of the preview box for portrait ratios
-        const maxDisplayHeight = 550;
-        const containerW = container.clientWidth;
-        const containerH = Math.min(container.clientHeight || Infinity, maxDisplayHeight);
-        
-        // Safety check for container size
-        if (containerW === 0) return;
-
-        const scale = Math.min(containerW / w, containerH / h);
-        
-        const finalW = Math.floor(w * scale);
-        const finalH = Math.floor(h * scale);
-
-        if (cvs.width !== w || cvs.height !== h) {
-          cvs.width = w;
-          cvs.height = h;
-        }
-        cvs.style.width = `${finalW}px`;
-        cvs.style.height = `${finalH}px`;
-
+        let w = 480; 
+        let h = 270;
+        if (aspectRatio === "9:16") { w = 270; h = 480; }
+        else if (aspectRatio === "1:1") { w = 360; h = 360; }
+        else if (aspectRatio === "4:5") { w = 320; h = 400; }
+        cvs.width = w;
+        cvs.height = h;
         if (ctx) renderFrame(ctx, videoRef.current, w, h, videoRef.current.currentTime * 1000);
       }
-      
-      if (videoRef.current && 'requestVideoFrameCallback' in HTMLVideoElement.prototype && isPlaying && !isProcessing) {
-          handle = (videoRef.current as any).requestVideoFrameCallback(loop);
-      } else {
-          animationFrameRef.current = requestAnimationFrame(loop);
-      }
+      animationFrameRef.current = requestAnimationFrame(loop);
     };
-    
-    if (videoRef.current && 'requestVideoFrameCallback' in HTMLVideoElement.prototype && isPlaying && !isProcessing) {
-        handle = (videoRef.current as any).requestVideoFrameCallback(loop);
-    } else {
-        animationFrameRef.current = requestAnimationFrame(loop);
-    }
-    
-    return () => { 
-        if (videoRef.current && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-            (videoRef.current as any).cancelVideoFrameCallback(handle);
-        }
-        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); 
-    }
-  }, [aspectRatio, renderFrame, isPlaying, isProcessing, audioFile, audioSpeed, videoSpeed]);
-
-  // Cleanup object URLs to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      if (logoUrl) URL.revokeObjectURL(logoUrl);
-      if (resultUrl) URL.revokeObjectURL(resultUrl);
-    };
-  }, [videoUrl, audioUrl, logoUrl, resultUrl]);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
+    loop();
+    return () => { if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); }
+  }, [aspectRatio, renderFrame]);
 
   const handleGenerate = async () => {
     if (!videoUrl || !videoRef.current) return;
-    
-    // Check if the video element itself has an error
-    if (videoRef.current.error) {
-        setError(`Cannot generate: Video error - ${videoRef.current.error.message || "Format not supported"}`);
-        return;
-    }
-
-    // Check if video is ready
-    if (videoRef.current.readyState < 2) {
-        setError("Video is not ready. Please wait for it to load or try playing it first.");
-        return;
-    }
-    
-    if (videoFile && videoFile.size > 100 * 1024 * 1024) {
-      setError("Video is too large (Max 100MB). Please use a smaller file.");
-      return;
-    }
-
     if (!onSpendCredits(CREDIT_COSTS[ContentType.MOVIE_RECAP])) { setError("Insufficient credits!"); return; }
 
     setIsProcessing(true);
-    setProgress(1); 
+    setProgress(0);
     setError(null);
     setIsPlaying(false);
-    
-    // Use the existing, already-loaded video element
-    const videoEl = videoRef.current;
-    const originalTime = videoEl.currentTime;
-    const originalRate = videoEl.playbackRate;
-    
-    videoEl.pause();
+    videoRef.current.pause();
     if (audioRef.current) audioRef.current.pause();
 
-    let audioCtx: AudioContext | null = null;
-    let audioEl: HTMLAudioElement | null = null;
-    let recorder: MediaRecorder | null = null;
-    let processInterval: any = null;
-    let watchdogInterval: any = null;
-
     try {
-        // 1. Setup Canvas
         const canvas = document.createElement('canvas');
-        let w = 854, h = 480;
-        if (aspectRatio === "9:16") { w = 480; h = 854; }
-        else if (aspectRatio === "1:1") { w = 480; h = 480; }
-        else if (aspectRatio === "4:5") { w = 480; h = 600; }
+        let w = 1920, h = 1080;
+        if (aspectRatio === "9:16") { w = 1080; h = 1920; }
+        else if (aspectRatio === "1:1") { w = 1080; h = 1080; }
+        else if (aspectRatio === "4:5") { w = 1080; h = 1350; }
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d', { alpha: false });
-        if (!ctx) throw new Error("Canvas context failed");
+        if (!ctx) throw new Error("Context failed");
 
-        // 2. Setup Audio Context
-        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 44100 });
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
-        }
-        
+        const audioCtx = new AudioContext();
         const destNode = audioCtx.createMediaStreamDestination();
-
-        // 3. Setup Audio Element (if exists)
+        
+        let audioEl: HTMLAudioElement | null = null;
         if (audioUrl) {
            audioEl = new Audio(audioUrl);
            audioEl.crossOrigin = "anonymous";
            audioEl.playbackRate = audioSpeed; 
-           await new Promise<void>((resolve) => { 
-             if (!audioEl) return resolve();
-             audioEl.oncanplaythrough = () => resolve();
-             audioEl.onerror = () => { console.warn("Audio load failed, skipping"); resolve(); };
-             audioEl.src = audioUrl; 
-             audioEl.load();
-             setTimeout(resolve, 5000); // Timeout for audio
+           await new Promise(r => { 
+             audioEl!.oncanplaythrough = r; 
+             audioEl!.src = audioUrl; 
            });
-           
-           // Connect audio to destination
-           if (audioEl.readyState >= 2) {
-               const source = audioCtx.createMediaElementSource(audioEl);
-               source.connect(destNode);
-           }
+           const source = audioCtx.createMediaElementSource(audioEl);
+           source.connect(destNode);
+           audioEl.play(); 
         }
 
-        // 4. Setup Stream & Recorder
-        const stream = canvas.captureStream(30); 
-        if (audioUrl && destNode) {
-            const audioTracks = destNode.stream.getAudioTracks();
-            if (audioTracks.length > 0) {
-                stream.addTrack(audioTracks[0]);
-            }
+        const stream = canvas.captureStream(30);
+        if (audioUrl) {
+            const audioTrack = destNode.stream.getAudioTracks()[0];
+            if (audioTrack) stream.addTrack(audioTrack);
         }
         
         const chunks: Blob[] = [];
-        
-        // Improved MimeType selection for better compatibility
-        const types = [
-            "video/webm;codecs=vp9,opus",
-            "video/webm;codecs=vp8,opus",
-            "video/webm",
-            "video/mp4",
-            "video/ogg"
-        ];
-        
-        let mimeType = "";
-        for (const t of types) {
-            if (MediaRecorder.isTypeSupported(t)) {
-                mimeType = t;
-                break;
-            }
-        }
-        
-        if (!mimeType) throw new Error("No supported video mimeType found for recording.");
+        let mimeType = 'video/webm;codecs=vp9';
+        if (MediaRecorder.isTypeSupported('video/mp4')) mimeType = 'video/mp4';
+        else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) mimeType = 'video/webm;codecs=h264';
         setOutputMimeType(mimeType);
 
-        recorder = new MediaRecorder(stream, { 
-            mimeType,
-            videoBitsPerSecond: 5000000 // 5 Mbps (more compatible than 8)
-        });
-        
+        const recorder = new MediaRecorder(stream, { mimeType });
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-        
-        const finishGeneration = () => {
-             if (!isMounted.current) return;
-             if (chunks.length === 0) {
-                setError("Generation failed: No data recorded. Please try again.");
-             } else {
-                 const blob = new Blob(chunks, { type: mimeType });
-                 const url = URL.createObjectURL(blob);
-                 setResultUrl(url);
-             }
+        recorder.onstop = () => {
+             const blob = new Blob(chunks, { type: mimeType });
+             setResultUrl(URL.createObjectURL(blob));
              setIsProcessing(false);
-             cleanup();
+             audioCtx.close();
+             if (audioEl) {
+               audioEl.pause();
+               audioEl.src = "";
+             }
         };
+        recorder.start();
 
-        recorder.onstop = finishGeneration;
-
-        // 5. Start Playback & Recording
-        videoEl.currentTime = 0;
+        const videoEl = document.createElement('video');
+        videoEl.src = videoUrl;
+        videoEl.muted = true;
+        await videoEl.play();
         videoEl.playbackRate = videoSpeed;
-        
-        // Ensure video is ready to play
-        if (videoEl.readyState < 3) {
-            await new Promise<void>((resolve) => {
-                const onCanPlay = () => {
-                    videoEl.removeEventListener('canplaythrough', onCanPlay);
-                    resolve();
-                };
-                videoEl.addEventListener('canplaythrough', onCanPlay);
-                if (videoEl.readyState >= 3) resolve();
-                setTimeout(resolve, 5000); // Increased wait
-            });
-        }
 
-        try {
-            videoEl.muted = true;
-            // Ensure video speed is valid
-            videoEl.playbackRate = videoSpeed || 1.0;
-            
-            // Explicitly call load() if readyState is 0
-            if (videoEl.readyState === 0) {
-                videoEl.load();
-            }
+        const totalDur = videoEl.duration / videoSpeed;
+        const startTime = Date.now();
 
-            await videoEl.play();
-        } catch (e: any) {
-            console.error("Video playback failed during generation:", e);
-            throw new Error(`Video playback failed (${e.name}: ${e.message}). Please ensure the video is playable or try a different format.`);
-        }
-
-        if (audioEl) {
-            audioEl.play().catch(e => console.warn("Audio play error", e));
-        }
-        
-        // Small delay before starting recorder to ensure first frame is drawn
-        await new Promise(resolve => setTimeout(resolve, 100));
-        recorder.start(); // Start without interval for better compatibility with short videos
-
-        // Fix: Handle Infinity or invalid duration which causes progress to stay at 1%
-        let totalDur = videoEl.duration;
-        if (!isFinite(totalDur) || totalDur <= 0) {
-            totalDur = videoDuration || 1;
-        }
-        
-        let lastProcessTime = -1;
-        let lastTime = -1;
-        let stuckCount = 0;
-        let internalStuckCount = 0;
-
-        // 6. Processing Loop
-        processInterval = setInterval(() => {
-            if (!isProcessing || !isMounted.current || !ctx) {
-                cleanup();
-                return;
-            }
-
-            // Draw Frame
+        const processLoop = () => {
+            if (videoEl.ended) { recorder.stop(); return; }
             renderFrame(ctx, videoEl, w, h, videoEl.currentTime * 1000);
-
-            // Active Sync
-            if (audioEl && !audioEl.paused && !audioEl.ended && videoEl.readyState >= 2 && !videoEl.paused) {
-                 const expectedVideoTime = (audioEl.currentTime / audioSpeed) * videoSpeed;
-                 if (Math.abs(videoEl.currentTime - expectedVideoTime) > 0.3) {
-                      videoEl.currentTime = expectedVideoTime;
-                 }
-            }
-
-            // Manual advancement if stuck (more aggressive)
-            if (videoEl.currentTime <= lastProcessTime && !videoEl.ended) {
-                internalStuckCount++;
-                if (internalStuckCount > 5) { // ~165ms stuck
-                    videoEl.currentTime += 0.033;
-                    if (videoEl.paused) videoEl.play().catch(() => {});
-                    internalStuckCount = 0;
-                }
-            } else {
-                internalStuckCount = 0;
-            }
-            lastProcessTime = videoEl.currentTime;
-
-            // Update Progress
-            const currentProgress = Math.min(100, Math.floor((videoEl.currentTime / totalDur) * 100));
-            setProgress(Math.max(1, currentProgress));
-
-            // Check for completion
-            if (videoEl.ended || videoEl.currentTime >= totalDur) {
-                setProgress(100);
-                if (recorder && recorder.state === 'recording') {
-                    recorder.stop();
-                } else {
-                    finishGeneration();
-                }
-                cleanup();
-            }
-        }, 33); // ~30 FPS
-
-        // 7. Watchdog
-        watchdogInterval = setInterval(() => {
-            if (!isProcessing) return;
-            
-            if (Math.abs(videoEl.currentTime - lastTime) < 0.1 && !videoEl.paused && !videoEl.ended) {
-                stuckCount++;
-                if (stuckCount > 3) {
-                    console.log("Watchdog: Video stuck, nudging...");
-                    videoEl.currentTime += 0.1;
-                    videoEl.play().catch(() => {});
-                    stuckCount = 0;
-                }
-            } else {
-                stuckCount = 0;
-                lastTime = videoEl.currentTime;
-            }
-            
-            if (videoEl.paused && !videoEl.ended && videoEl.readyState >= 2) {
-                videoEl.play().catch(() => {});
-            }
-        }, 1000);
+            const elapsed = (Date.now() - startTime) / 1000;
+            setProgress(Math.min(100, Math.floor((elapsed / totalDur) * 100)));
+            requestAnimationFrame(processLoop);
+        };
+        processLoop();
 
     } catch (err: any) {
-        console.error("Gen Error:", err);
-        if (isMounted.current) {
-            setError("Generation Failed: " + (err.message || "Unknown error"));
-            setIsProcessing(false);
-        }
-        cleanup();
-    }
-
-    function cleanup() {
-        if (processInterval) clearInterval(processInterval);
-        if (watchdogInterval) clearInterval(watchdogInterval);
-        if (audioCtx && audioCtx.state !== 'closed') audioCtx.close();
-        
-        // Restore video state
-        if (videoEl) {
-            videoEl.pause();
-            videoEl.currentTime = originalTime;
-            videoEl.playbackRate = originalRate;
-        }
-        
-        if (audioEl) {
-            audioEl.pause();
-            audioEl.src = "";
-        }
+        setError("Generation Failed: " + err.message);
+        setIsProcessing(false);
     }
   };
 
   const videoOutputDur = videoDuration > 0 ? videoDuration / videoSpeed : 0;
   const audioOutputDur = audioDuration > 0 ? audioDuration / audioSpeed : 0;
 
-  const handleAutoSyncVideo = () => {
-    if (videoDuration && audioDuration) {
-        const targetSpeed = videoDuration / (audioDuration / audioSpeed);
-        setVideoSpeed(Number(targetSpeed.toFixed(4)));
-    }
-  };
-
-  const handleAutoSyncAudio = () => {
-    if (videoDuration && audioDuration) {
-        const targetSpeed = audioDuration / (videoDuration / videoSpeed);
-        setAudioSpeed(Number(targetSpeed.toFixed(4)));
-    }
-  };
-
   return (
-    <div className="max-w-4xl mx-auto pb-6">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-accent rounded-lg flex items-center justify-center shadow-lg shadow-accent/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="max-w-4xl mx-auto pb-20">
+      <AnimatePresence>
+        {isProcessing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl"
+          >
+            <div className="w-full max-w-md px-6 text-center space-y-8">
+              <div className="relative mx-auto w-32 h-32">
+                <motion.div 
+                  className="absolute inset-0 border-4 border-indigo-500/20 rounded-full"
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.5, 0.2] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+                <motion.div 
+                   className="absolute inset-0 border-t-4 border-indigo-500 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)]"
+                   animate={{ rotate: 360 }}
+                   transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-black text-white">{progress}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-white tracking-tight">Synthesizing Recap</h2>
+                <p className="text-zinc-400 text-sm">Our AI is processing cinematic effects and synchronizing audio channels.</p>
+              </div>
+
+              <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/5 p-0.5">
+                <motion.div 
+                  className="h-full bg-indigo-500 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                />
+              </div>
+
+              <div className="flex justify-center gap-4 pt-4">
+                 {['Analyzing Frames', 'Applying Motion', 'Finalizing Render'].map((step, i) => (
+                   <motion.div 
+                    key={step}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: progress > (i * 30) ? 1 : 0.4, y: 0 }}
+                    className="text-[8px] font-black uppercase tracking-widest text-indigo-400"
+                   >
+                     {step}
+                   </motion.div>
+                 ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 21h16a1 1 0 001-1V4a1 1 0 00-1-1H4a1 1 0 00-1 1v16a1 1 0 001 1z" />
           </svg>
         </div>
         <div>
-          <h1 className="movie-h1 !mb-0 uppercase tracking-tighter">Recap Studio</h1>
-          <p className="movie-meta !text-[10px] !mb-0 uppercase">PRO SYNC • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} CREDITS</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Movie Recap Studio</h1>
+          <p className="text-slate-500 dark:text-zinc-400 text-xs font-medium">Professional Sync & Effects • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} Credits</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div className="order-2 md:order-1 space-y-4">
-            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
-                <h3 className="movie-meta uppercase tracking-[0.2em]">Assets</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-6">
+            <div className="glass p-4 rounded-2xl border border-white/5 space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Source Selection</h3>
                 <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => videoInputRef.current?.click()} className={`p-4 rounded-lg border border-dashed flex flex-col items-center gap-2 transition-all ${videoFile ? 'border-accent bg-accent/10' : 'border-slate-300 dark:border-white/20 hover:border-slate-400 dark:hover:border-white/40'}`}>
-                        <svg className={`w-5 h-5 ${videoFile ? 'text-accent' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        <span className={`movie-meta !text-[10px] uppercase truncate max-w-full !mb-0 ${videoFile ? 'text-accent' : 'text-slate-500'}`}>{videoFile ? 'Video Ready' : 'Add Video'}</span>
+                    <button onClick={() => videoInputRef.current?.click()} className={`p-4 rounded-2xl border border-dashed flex flex-col items-center gap-2 transition-all ${videoFile ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-300 dark:border-white/10 hover:border-indigo-400 hover:bg-indigo-500/5'}`}>
+                        <svg className={`w-6 h-6 ${videoFile ? 'text-indigo-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        <span className={`text-[10px] font-bold uppercase truncate max-w-full ${videoFile ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>{videoFile ? 'Video Loaded' : 'Add Video'}</span>
                     </button>
-                    <button onClick={() => audioInputRef.current?.click()} className={`p-4 rounded-lg border border-dashed flex flex-col items-center gap-2 transition-all ${audioFile ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-slate-300 dark:border-white/20 hover:border-slate-400 dark:hover:border-white/40'}`}>
-                        <svg className={`w-5 h-5 ${audioFile ? 'text-emerald-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                        <span className={`movie-meta !text-[10px] uppercase truncate max-w-full !mb-0 ${audioFile ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>{audioFile ? 'Audio Ready' : 'Add Audio'}</span>
-                    </button>
-                </div>
-                <div className="pt-0.5">
-                     <div className="flex gap-2">
-                         <button onClick={() => logoInputRef.current?.click()} className="flex-1 py-1.5 border border-dashed border-slate-300 dark:border-white/20 rounded-lg text-[7px] font-black uppercase tracking-widest text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
-                            {logoFile ? 'Change Logo' : 'Overlay Branding'}
-                         </button>
-                         {logoFile && <button onClick={() => {setLogoFile(null); setLogoImage(null); setLogoUrl(null);}} className="px-2 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-rose-500 hover:text-white text-slate-500 transition-all"><svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
-                     </div>
-                </div>
-                <input type="file" ref={videoInputRef} accept="video/*,.mp4,.mov,.mkv" onChange={handleVideoUpload} className="hidden" />
-                <input type="file" ref={audioInputRef} accept="audio/*,.mp3,.wav,.m4a" onChange={handleAudioUpload} className="hidden" />
-                <input type="file" ref={logoInputRef} accept="image/*,.png,.jpg,.jpeg" onChange={handleLogoUpload} className="hidden" />
-            </div>
-
-            {/* AI Video Generation Section */}
-            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
-                <div className="flex justify-between items-center">
-                    <h3 className="movie-meta uppercase tracking-[0.2em] !mb-0">AI Video Generation</h3>
-                    <button onClick={() => setShowAIPrompt(!showAIPrompt)} className="movie-meta !text-[10px] uppercase text-accent hover:text-accent-hover !mb-0">
-                        {showAIPrompt ? 'Hide' : 'Generate Video'}
+                    <button onClick={() => audioInputRef.current?.click()} className={`p-4 rounded-2xl border border-dashed flex flex-col items-center gap-2 transition-all ${audioFile ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-300 dark:border-white/10 hover:border-emerald-400 hover:bg-emerald-500/5'}`}>
+                        <svg className={`w-6 h-6 ${audioFile ? 'text-emerald-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                        <span className={`text-[10px] font-bold uppercase truncate max-w-full ${audioFile ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>{audioFile ? 'Audio Loaded' : 'Add Audio'}</span>
                     </button>
                 </div>
                 
-                {showAIPrompt && (
-                    <div className="space-y-4 pt-1 animate-in slide-in-from-top-2">
-                        {!hasKey ? (
-                            <div className="text-center space-y-4 py-2">
-                                <p className="movie-meta uppercase tracking-widest !mb-0">API Key required for Veo generation</p>
-                                <button onClick={handleOpenKey} className="px-4 py-2 bg-accent text-white rounded-lg movie-meta !text-[10px] uppercase hover:bg-accent-hover transition-all shadow-lg shadow-accent/20">Select API Key</button>
-                            </div>
-                        ) : (
-                            <>
-                                <textarea 
-                                    value={aiPrompt} 
-                                    onChange={(e) => setAiPrompt(e.target.value)} 
-                                    placeholder="Describe your scene (e.g., A tense courtroom scene where the lawyer presents shocking evidence...)" 
-                                    className="w-full h-20 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-3 movie-body !mb-0 outline-none focus:ring-1 focus:ring-accent resize-none placeholder:text-zinc-600"
-                                />
-                                <button 
-                                    onClick={generateAIVideo} 
-                                    disabled={isGeneratingVideo || !aiPrompt.trim()} 
-                                    className={`w-full py-2 rounded-lg movie-meta !text-[10px] uppercase transition-all !mb-0 ${isGeneratingVideo || !aiPrompt.trim() ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/20'}`}
-                                >
-                                    {isGeneratingVideo ? 'Generating with Veo...' : 'Generate AI Video'}
-                                </button>
-                            </>
-                        )}
+                <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setShowAIPrompt(!showAIPrompt)} 
+                      className="flex items-center justify-center gap-2 py-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400 text-[10px] font-bold uppercase transition-all"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      {showAIPrompt ? 'Close AI' : 'Generate with AI'}
+                    </button>
+                    <div className="flex gap-2">
+                         <button onClick={() => logoInputRef.current?.click()} className="flex-1 py-2 border border-dashed border-slate-300 dark:border-white/10 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-white/5 transition-all">
+                            {logoFile ? 'Change Logo' : 'Add Overlay'}
+                         </button>
+                         {logoFile && <button onClick={() => {setLogoFile(null); setLogoImage(null); setLogoUrl(null);}} className="px-3 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-rose-500 hover:text-white text-slate-500 transition-all"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
                     </div>
-                )}
+                </div>
+
+                <AnimatePresence>
+                  {showAIPrompt && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden space-y-4"
+                    >
+                      {!hasKey ? (
+                        <div className="p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 text-center space-y-3">
+                          <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">API Key required for Veo generation</p>
+                          <button onClick={handleOpenKey} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-[10px] font-black uppercase hover:bg-orange-600 transition-all">Select API Key</button>
+                        </div>
+                      ) : (
+                        <>
+                          <textarea 
+                            value={aiPrompt}
+                            onChange={(e) => setAiPrompt(e.target.value)}
+                            placeholder="Describe your scene... (e.g., A cinematic wide shot of a futuristic neon city at night, heavy rain)"
+                            className="w-full h-24 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-indigo-500 resize-none text-slate-700 dark:text-zinc-200"
+                          />
+                          <button 
+                            onClick={generateAIVideo}
+                            disabled={isGeneratingVideo || !aiPrompt.trim()}
+                            className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isGeneratingVideo || !aiPrompt.trim() ? 'bg-slate-200 dark:bg-white/5 text-slate-400' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20'}`}
+                          >
+                            {isGeneratingVideo ? 'Consulting Veo Model...' : 'Synthesis with AI'}
+                          </button>
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <input type="file" ref={videoInputRef} accept="video/*" onChange={handleVideoUpload} className="hidden" />
+                <input type="file" ref={audioInputRef} accept="audio/*" onChange={handleAudioUpload} className="hidden" />
+                <input type="file" ref={logoInputRef} accept="image/*" onChange={handleLogoUpload} className="hidden" />
             </div>
 
-            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
+            <div className="glass p-4 rounded-2xl border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="movie-meta uppercase tracking-[0.2em] !mb-0">Canvas</h3>
-                    <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md movie-meta !text-[10px] uppercase px-2 py-1 outline-none cursor-pointer !mb-0">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Visual Controls</h3>
+                    <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg text-[9px] font-bold px-2 py-1 text-slate-700 dark:text-white outline-none">
                         <option value="16:9">YouTube (16:9)</option>
                         <option value="9:16">TikTok (9:16)</option>
                         <option value="1:1">Square (1:1)</option>
@@ -944,185 +610,158 @@ High quality lighting and realistic depth. ${aiPrompt}`;
                     </select>
                 </div>
                 
-                <div className="py-2 border-b border-white/5">
-                     <div className="flex items-center justify-between mb-2">
-                         <span className="movie-meta uppercase !mb-0">Freeze Effect</span>
-                         <input type="checkbox" checked={freezeEnabled} onChange={e => setFreezeEnabled(e.target.checked)} className="accent-accent w-4 h-4" />
+                {/* Zoom Effect */}
+                <div className="space-y-3">
+                     <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cinematic Zoom</span>
+                         <input type="checkbox" checked={zoomEnabled} onChange={e => setZoomEnabled(e.target.checked)} className="accent-indigo-500" />
                      </div>
-                     {freezeEnabled && (
-                        <div className="grid grid-cols-2 gap-4 pl-4 mt-2 pb-2 border-l-2 border-accent/30">
+                     {zoomEnabled && (
+                        <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-indigo-500/20 py-1">
                             <div>
-                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Interval</span><span>{freezeInterval}s</span></div>
-                                <input type="range" min="1" max="15" step="1" value={freezeInterval} onChange={(e) => setFreezeInterval(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
+                                <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase"><span>Rate</span><span>{zoomInterval}s</span></div>
+                                <input type="range" min="1" max="10" step="1" value={zoomInterval} onChange={(e) => setZoomInterval(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
                             </div>
                             <div>
-                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Duration</span><span>{freezeDuration}s</span></div>
-                                <input type="range" min="0.5" max="5" step="0.5" value={freezeDuration} onChange={(e) => setFreezeDuration(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
+                                <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase"><span>Size</span><span>{zoomDuration}s</span></div>
+                                <input type="range" min="1" max="10" step="1" value={zoomDuration} onChange={(e) => setZoomDuration(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
                             </div>
                         </div>
                      )}
                 </div>
 
-                <div className="py-1">
-                     <div className="flex items-center gap-2 mb-2">
-                         <div className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse"></div>
-                         <span className="movie-meta uppercase !mb-0">Branding Position</span>
+                {/* Blur Strip */}
+                <div className="space-y-3 pt-2 border-t border-white/5">
+                     <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sub-Text Blur Strip</span>
+                         <input type="checkbox" checked={blurEnabled} onChange={e => setBlurEnabled(e.target.checked)} className="accent-indigo-500" />
                      </div>
-                     <div className="grid grid-cols-2 gap-2 mt-2">
-                        {['Top Right', 'Bottom Right', 'Top Left', 'Bottom Left'].map(pos => (
-                            <button key={pos} onClick={() => setLogoPosition(pos)} className={`py-1.5 rounded-md border movie-meta !text-[9px] uppercase transition-all !mb-0 ${logoPosition === pos ? 'bg-accent border-accent text-white shadow-lg shadow-accent/20' : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-500'}`}>{pos}</button>
-                        ))}
-                     </div>
+                     {blurEnabled && (
+                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-indigo-500/20 py-1">
+                            <div>
+                                <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase"><span>Pos</span><span>{blurPosition}%</span></div>
+                                <input type="range" min="0" max="100" value={blurPosition} onChange={(e) => setBlurPosition(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase"><span>H</span><span>{blurThickness}%</span></div>
+                                <input type="range" min="5" max="50" value={blurThickness} onChange={(e) => setBlurThickness(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase"><span>Strength</span><span>{blurIntensity}px</span></div>
+                                <input type="range" min="0" max="50" value={blurIntensity} onChange={(e) => setBlurIntensity(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
+                            </div>
+                        </div>
+                     )}
                 </div>
             </div>
 
-            {/* Precision Sync Section */}
-            <div className="glass p-3 rounded-lg border border-white/5 space-y-4">
+            <div className="glass p-4 rounded-2xl border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="movie-h2 uppercase !mb-0">Timing Sync</h3>
+                    <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-zinc-500 tracking-[0.2em]">Sync Tuning</h3>
+                    {audioDuration > 0 && <span className="text-[9px] font-black text-indigo-400 font-mono tracking-widest uppercase">Target: {formatDurationFull(audioOutputDur)}</span>}
                 </div>
-                <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 rounded-lg border border-white/5">
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="movie-meta uppercase tracking-widest !mb-0">Video</label>
-                            <span className="movie-meta !text-[10px] !mb-0">{formatDurationFull(videoDuration)}</span>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4 p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-indigo-500/10">
+                        <div className="text-[9px] font-black text-slate-400 uppercase text-center tracking-widest">Video Warp</div>
+                        <input type="number" step="0.001" value={videoSpeed} onChange={e => setVideoSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-2 px-3 text-sm font-black text-indigo-600 dark:text-indigo-400 text-center outline-none" />
+                        <div className="text-center">
+                            <div className="text-[10px] font-black text-indigo-500 font-mono tabular-nums">{formatDurationFull(videoOutputDur)}</div>
                         </div>
-                        <input type="number" step="0.0001" value={videoSpeed} onChange={e => setVideoSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-white/10 rounded-md py-2 px-3 text-sm font-bold text-accent text-center outline-none focus:ring-1 focus:ring-accent" />
-                        <div className="flex flex-col items-center pt-1">
-                             <span className="movie-meta !text-[10px] uppercase !mb-0">Output</span>
-                             <span className="text-sm font-mono font-black text-accent tabular-nums">{formatDurationFull(videoOutputDur)}</span>
-                        </div>
-                        <button onClick={handleAutoSyncVideo} className="w-full mt-2 py-2 rounded-md bg-accent text-white movie-meta !text-[10px] uppercase hover:bg-accent-hover shadow-lg shadow-accent/20 transition-all active:scale-95">Sync to Audio</button>
+                        <button onClick={() => {if (videoDuration && audioDuration) setVideoSpeed(Number((videoDuration / (audioDuration / audioSpeed)).toFixed(4)))}} className="w-full py-2 rounded-lg bg-indigo-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20 active:scale-95">Match to Audio</button>
                     </div>
-                    
-                    <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 rounded-lg border border-white/5">
-                        <div className="flex justify-between items-center mb-1">
-                             <label className="movie-meta uppercase tracking-widest !mb-0">Audio</label>
-                             <span className="movie-meta !text-[10px] !mb-0">{formatDurationFull(audioDuration)}</span>
+                    <div className="space-y-4 p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-rose-500/10">
+                        <div className="text-[9px] font-black text-slate-400 uppercase text-center tracking-widest">Audio Warp</div>
+                        <input type="number" step="0.001" value={audioSpeed} onChange={e => setAudioSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-2 px-3 text-sm font-black text-rose-500 dark:text-rose-400 text-center outline-none" />
+                        <div className="text-center">
+                            <div className="text-[10px] font-black text-rose-500 font-mono tabular-nums">{formatDurationFull(audioOutputDur)}</div>
                         </div>
-                         <input type="number" step="0.0001" value={audioSpeed} onChange={e => setAudioSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-black/40 border border-white/10 rounded-md py-2 px-3 text-sm font-bold text-zinc-400 text-center outline-none focus:ring-1 focus:ring-zinc-400" />
-                         <div className="flex flex-col items-center pt-1">
-                             <span className="movie-meta !text-[10px] uppercase !mb-0">Output</span>
-                             <span className="text-sm font-mono font-black text-zinc-400 tabular-nums">{formatDurationFull(audioOutputDur)}</span>
-                        </div>
-                        <button onClick={handleAutoSyncAudio} className="w-full mt-2 py-2 rounded-md bg-zinc-800 text-white movie-meta !text-[10px] uppercase hover:bg-zinc-700 shadow-sm transition-all active:scale-95">Sync to Video</button>
+                        <button onClick={() => {if (videoDuration && audioDuration) setAudioSpeed(Number((audioDuration / (videoDuration / videoSpeed)).toFixed(4)))}} className="w-full py-2 rounded-lg bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-600/20 active:scale-95">Match to Video</button>
                     </div>
                 </div>
             </div>
-
-            {isProcessing && (
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between items-center">
-                  <span className="movie-meta uppercase tracking-widest text-accent !mb-0">Processing Frames</span>
-                  <span className="movie-meta !text-[10px] text-accent tabular-nums !mb-0">{progress}%</span>
-                </div>
-                <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-                  <div 
-                    className="bg-accent h-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(225,29,72,0.4)]"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            <button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className={`w-full py-3 rounded-lg movie-meta !text-[11px] uppercase transition-all shadow-xl active:scale-95 !mb-0 ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'}`}>
-                {isProcessing ? 'SYNTHESIZING...' : 'Execute Synthesis'}
-            </button>
         </div>
 
-        {/* Preview Frame Section - COMPACTED SIZE: max-h-[450px] */}
-        <div className="order-1 md:order-2 space-y-3">
-            <div className="w-full flex flex-col items-center transition-all duration-300">
-                <div 
-                  className={`relative w-full max-w-[320px] mx-auto bg-black rounded-3xl overflow-hidden shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] border border-white/10 group flex items-center justify-center transition-all duration-500 bg-midnight ${aspectRatio === '9:16' ? 'h-[500px]' : 'aspect-video h-auto'}`}
-                >
-                    {videoUrl ? (
-                         <>
-                            <canvas ref={previewCanvasRef} className="absolute inset-0 m-auto pointer-events-none object-contain w-full h-full" />
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <button onClick={togglePlayback} className={`pointer-events-auto w-10 h-10 rounded-full bg-black/40 backdrop-blur-3xl flex items-center justify-center border border-white/10 hover:scale-110 transition-all cursor-pointer group-hover:bg-accent/20 ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100 shadow-2xl shadow-black'}`}>
-                                    {isPlaying ? <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg> : <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
-                                </button>
-                            </div>
-                            <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[6px] font-mono font-bold text-white tabular-nums">{formatTimeSimple(currentTime)}</span>
-                                    <input type="range" min="0" max={videoDuration} value={currentTime} onChange={handleSeek} className="flex-1 h-0.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-white hover:h-1 transition-all" />
-                                    <span className="text-[6px] font-mono font-bold text-gray-400 tabular-nums">{formatTimeSimple(videoDuration)}</span>
+        <div className="space-y-6">
+            <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/5 group">
+                {videoUrl ? (
+                     <>
+                        <canvas ref={previewCanvasRef} className="max-w-full max-h-full object-contain mx-auto" />
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:bg-black/20 transition-all">
+                            <button onClick={togglePlayback} className={`pointer-events-auto w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-indigo-600/50 hover:scale-110 active:scale-95 transition-all cursor-pointer ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
+                                {isPlaying ? <svg className="w-5 h-5 transition-all" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg> : <svg className="w-5 h-5 ml-1 transition-all" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
+                            </button>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-mono font-bold text-white tabular-nums">{formatTimeSimple(currentTime)}</span>
+                                <div className="flex-1 relative h-1 flex items-center">
+                                  <div className="absolute inset-0 bg-white/20 rounded-full" />
+                                  <div className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full" style={{ width: `${(currentTime / videoDuration) * 100}%` }} />
+                                  <input type="range" min="0" max={videoDuration} step="0.001" value={currentTime} onChange={handleSeek} className="absolute inset-0 w-full opacity-0 cursor-pointer" />
                                 </div>
+                                <span className="text-[10px] font-mono font-bold text-zinc-400 tabular-nums">{formatTimeSimple(videoDuration)}</span>
                             </div>
-                         </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full p-2 text-center">
-                             <div className="w-6 h-6 bg-white/5 rounded-lg flex items-center justify-center mb-1 shadow-inner"><svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>
-                             <p className="text-gray-500 text-[6px] font-black uppercase tracking-[0.3em]">Load Asset</p>
                         </div>
-                    )}
-                </div>
-
-                {/* Blur Strip Controls - COMPACTED */}
-                <div className="w-full glass p-3 rounded-lg border border-white/5 mt-4 space-y-4">
-                    <div className="flex items-center justify-between mb-1">
-                         <div className="flex items-center gap-2">
-                             <div className="w-3 h-3 bg-accent rounded flex items-center justify-center">
-                                 <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                             </div>
-                             <span className="movie-meta uppercase !mb-0 tracking-widest">Blur Overlay Strip</span>
-                         </div>
-                         <input type="checkbox" checked={blurEnabled} onChange={e => setBlurEnabled(e.target.checked)} className="accent-accent w-4 h-4" />
+                     </>
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full">
+                         <motion.div 
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center mb-4 border border-white/5"
+                         >
+                           <svg className="w-8 h-8 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                         </motion.div>
+                         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em]">Cinematic Preview</p>
                     </div>
-                    {blurEnabled && (
-                        <div className="space-y-4 pt-1">
-                            <div>
-                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Vertical Pos</span><span>{blurPosition}%</span></div>
-                                <input type="range" min="0" max="100" value={blurPosition} onChange={(e) => setBlurPosition(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
-                            </div>
-                            <div>
-                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Thickness</span><span>{blurThickness}%</span></div>
-                                <input type="range" min="5" max="50" value={blurThickness} onChange={(e) => setBlurThickness(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
-                            </div>
-                            <div>
-                                <div className="flex justify-between movie-meta !text-[9px] uppercase !mb-1"><span>Intensity</span><span>{blurIntensity}px</span></div>
-                                <input type="range" min="0" max="80" value={blurIntensity} onChange={(e) => setBlurIntensity(Number(e.target.value))} className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent" />
-                            </div>
-                        </div>
-                    )}
-                </div>
+                )}
             </div>
+
+            <button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] transition-all relative overflow-hidden shadow-2xl ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed shadow-none' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}>
+                {isProcessing ? `Rendering Synthesis ${progress}%` : 'Execute Master Render'}
+                {!isProcessing && videoUrl && (
+                   <motion.div 
+                    className="absolute inset-0 bg-white/10" 
+                    animate={{ x: ['-100%', '100%'] }} 
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                   />
+                )}
+            </button>
+
+            <video ref={videoRef} src={videoUrl || ""} className="hidden" playsInline muted={true} onLoadedMetadata={onVideoLoaded} />
+            <audio ref={audioRef} src={audioUrl || ""} className="hidden" onLoadedMetadata={onAudioLoaded} />
             
-        <video 
-          ref={videoRef} 
-          src={videoUrl || undefined} 
-          className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none" 
-          playsInline 
-          muted={true} 
-          onLoadedMetadata={onVideoLoaded} 
-          onError={(e) => {
-            const mediaError = (e.target as HTMLVideoElement).error;
-            console.error("Video element error:", mediaError);
-          }}
-        />
-        <audio ref={audioRef} src={audioUrl || undefined} className="hidden" onLoadedMetadata={onAudioLoaded} />
-            
-            {resultUrl && (
-                <div className="glass p-5 rounded-xl border border-accent/20 animate-in slide-in-from-bottom-4 max-w-md mx-auto shadow-2xl bg-accent/5">
+            <AnimatePresence>
+              {resultUrl && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="glass p-6 rounded-3xl border border-indigo-500/20 bg-indigo-500/5 shadow-2xl"
+                >
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
-                           <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
-                           <h3 className="movie-h2 uppercase tracking-widest !mb-0">Generation Complete</h3>
+                           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                           <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">Synthesis Complete</h3>
                         </div>
                         <div className="flex gap-2">
-                            <a href={resultUrl} download={`recap_final.${outputMimeType.includes('mp4') ? 'mp4' : 'webm'}`} className="px-4 py-2 rounded-lg bg-accent text-white movie-meta !text-[10px] uppercase hover:bg-accent-hover transition-all active:scale-95 shadow-lg shadow-accent/20">Download Video</a>
+                            <button onClick={() => setResultUrl(null)} className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 text-slate-500 hover:text-rose-500 text-[10px] font-black uppercase transition-all">Discard</button>
+                            <a href={resultUrl} download={`recap_${Date.now()}.${outputMimeType.includes('mp4') ? 'mp4' : 'webm'}`} className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all">Download</a>
                         </div>
                     </div>
-                    <video src={resultUrl} controls className="w-full rounded-xl bg-black shadow-2xl border border-white/5" />
-                    <button onClick={() => setResultUrl(null)} className="w-full mt-4 movie-meta uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors">Discard & Create New</button>
-                </div>
-            )}
-            
+                    <video src={resultUrl} controls className="w-full rounded-2xl bg-black aspect-video shadow-2xl border border-white/5" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {error && (
-              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[8px] font-black text-center uppercase tracking-widest animate-in shake duration-500">
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-bold text-center uppercase tracking-widest"
+              >
                 {error}
-              </div>
+              </motion.div>
             )}
         </div>
       </div>

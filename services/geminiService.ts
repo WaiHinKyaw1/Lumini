@@ -3,7 +3,14 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } f
 
 // Standard client getter with fallback for build safety and provided user key
 const getAIClient = () => {
-  const key = (process.env.GEMINI_API_KEY || process.env.API_KEY || "").trim();
+  let key = '';
+  try {
+    key = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+  } catch (e) {
+    // Ignore
+  }
+  key = (key || "").trim();
+  
   if (!key) {
     throw new Error("Gemini API Key is missing. Please ensure GEMINI_API_KEY is set in the environment.");
   }
@@ -13,7 +20,7 @@ const getAIClient = () => {
 export const generateText = async (prompt: string, systemInstruction: string) => {
   const ai = getAIClient();
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.5-flash',
     contents: prompt,
     config: {
       systemInstruction,
@@ -54,7 +61,7 @@ export const generateImage = async (prompt: string, aspectRatio: "1:1" | "16:9" 
 export const generateVideo = async (prompt: string) => {
   const ai = getAIClient();
   let operation = await ai.models.generateVideos({
-    model: 'veo-3.1-fast-generate-preview',
+    model: 'veo-3.1-lite-generate-preview',
     prompt: prompt,
     config: {
       numberOfVideos: 1,
@@ -71,7 +78,13 @@ export const generateVideo = async (prompt: string) => {
   const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
   if (!videoUri) throw new Error("Video generation failed");
 
-  const key = (process.env.GEMINI_API_KEY || process.env.API_KEY || "").trim();
+  let key = '';
+  try {
+    key = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY || "") : "");
+  } catch (e) {
+    // Ignore
+  }
+  key = (key || "").trim();
   return `${videoUri}&key=${key}`;
 };
 
@@ -100,7 +113,7 @@ STRICT RULES:
   const prompt = "Transcribe this media file into a professional SRT subtitle file.";
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.5-flash',
     contents: {
       parts: [
         { inlineData: { data: fileBase64, mimeType } },
@@ -110,7 +123,6 @@ STRICT RULES:
     config: {
       systemInstruction,
       temperature: 0.1,
-      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
     }
   });
   
@@ -141,7 +153,7 @@ export const analyzeDocument = async (
   parts.push({ text: prompt });
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.5-flash',
     contents: {
       parts: parts
     },
@@ -177,7 +189,7 @@ export const analyzeDocumentStream = async (
   parts.push({ text: prompt });
 
   const responseStream = await ai.models.generateContentStream({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.5-flash',
     contents: {
       parts: parts
     },
@@ -215,7 +227,7 @@ export const generateSpeech = async (
   const cleanText = text.trim();
 
   // Fulfilling user request: "one person, don't split segments and reconnect them"
-  const storytellingPrompt = `Say in a natural storytelling tone: ${cleanText}`;
+  const storytellingPrompt = `မြန်မာ movie recap channel ကြည့်နေရသလိုမျိုး စိတ်လှုပ်ရှားစရာကောင်းပြီး လျင်မြန်တဲ့ narration style နဲ့ ပရိသတ်ကို ဆွဲဆောင်နိုင်တဲ့အသံနေအသံထားမျိုးနဲ့ ဒီအတိုင်းဖတ်ပေးပါ: ${cleanText}`;
 
   let attempt = 0;
   const MAX_RETRIES = 3;

@@ -14,8 +14,7 @@ const MovieRecap = lazy(() => import('./pages/MovieRecap'));
 const VideoInsights = lazy(() => import('./pages/VideoInsights'));
 const ThumbnailGen = lazy(() => import('./pages/ThumbnailGen'));
 const SubtitleStudio = lazy(() => import('./pages/SubtitleStudio'));
-const BrandKit = lazy(() => import('./pages/BrandKit'));
-const Profile = lazy(() => import('./pages/Profile'));
+const VideoStudio = lazy(() => import('./pages/VideoStudio'));
 
 const INITIAL_STATS: UserStats = {
   credits: 100,
@@ -23,13 +22,6 @@ const INITIAL_STATS: UserStats = {
 };
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<any>({
-    user: {
-      email: 'creator@lumina.studio',
-      id: 'lumina-creator',
-      user_metadata: { full_name: 'Lumina Creator' }
-    }
-  });
   const [stats, setStats] = useState<UserStats>(INITIAL_STATS);
   const [hasApiKey, setHasApiKey] = useState(true);
   const [currentPath, setCurrentPath] = useState('dashboard');
@@ -45,7 +37,12 @@ const App: React.FC = () => {
         setHasApiKey(true);
       } else {
         // Fallback to checking environment variable for deployed apps
-        const envKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+        let envKey = '';
+        try {
+          envKey = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+        } catch (e) {
+          // Ignore
+        }
         setHasApiKey(!!envKey);
       }
     };
@@ -93,6 +90,7 @@ const App: React.FC = () => {
   };
 
   const renderPage = () => {
+
     // If no API key, only allow Dashboard and Profile
     if (!hasApiKey && currentPath !== 'dashboard' && currentPath !== 'profile' && currentPath !== 'brandkit') {
       return (
@@ -134,8 +132,7 @@ const App: React.FC = () => {
             case 'thumbnail': return <ThumbnailGen onSpendCredits={spendCredits} />;
             case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
             case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
-            case 'brandkit': return <BrandKit />;
-            case 'profile': return <Profile session={session} />;
+            case 'video': return <VideoStudio onSpendCredits={spendCredits} />;
             default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
           }
         })()}
