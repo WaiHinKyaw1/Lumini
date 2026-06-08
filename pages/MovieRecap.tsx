@@ -135,15 +135,27 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   // --- AI Video Generation ---
   useEffect(() => {
     const checkApiKey = async () => {
-      const selected = await (window as any).aistudio?.hasSelectedApiKey();
-      setHasKey(selected);
+      const selected = await (window as any).aistudio?.hasSelectedApiKey?.();
+      if (selected) {
+        setHasKey(true);
+      } else {
+        let fallbackKey = '';
+        try {
+          fallbackKey = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY as string);
+        } catch (e) {}
+        setHasKey(!!fallbackKey);
+      }
     };
     checkApiKey();
   }, []);
 
   const handleOpenKey = async () => {
-    await (window as any).aistudio?.openSelectKey();
-    setHasKey(true);
+    if ((window as any).aistudio?.openSelectKey) {
+      await (window as any).aistudio?.openSelectKey();
+      setHasKey(true);
+    } else {
+      setHasKey(true);
+    }
   };
 
   const generateAIVideo = async () => {
@@ -154,7 +166,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     try {
       let key = '';
       try {
-        key = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+        key = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY as string) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
       } catch (e) {}
       
       if (!key) throw new Error("API Key is missing. Please select one.");

@@ -183,11 +183,8 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
     setProgress(50);
 
     try {
-      // Create a specific tone cue matching direct requirements
-      const fullTTSPrompt = `မြန်မာ movie recap page ကြည့်နေရသလိုမျိုး အသံအညှိအနှိုင်းနဲ့ မြန်မာဆန်ဆန် စိတ်လှုပ်ရှားစရာအလှည့်အပြောင်းတွေကို ကောင်းမွန်စွာ ဖြည့်ဆည်းဖတ်ပေးပါ။ Speeches should sound authentic, highly energetic, and natural Burmese. Original timeline duration was ${duration > 0 ? duration : 15} seconds, so synchronize your rate beautifully (speed modifier: ${speed}x). Here is the text: ${translation}`;
-
-      // Call the latest Gemini TTS model
-      const synthesizedUrl = await generateSpeech(fullTTSPrompt, voice);
+      // Call the latest Gemini TTS model with dynamic chunking and speed pace matching
+      const synthesizedUrl = await generateSpeech(translation, voice, speed);
       setAudioUrl(synthesizedUrl);
       setProgress(100);
       toast.success('Burmese voiceover generated successfully!');

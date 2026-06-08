@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Holds the authenticated user's current credits, activity metrics, and profile metadata.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Firebase Authentication UID."
+        },
+        "email": {
+          "type": "string",
+          "description": "Authenticated user's email address."
+        },
+        "credits": {
+          "type": "number",
+          "description": "The current unused balance of credits."
+        },
+        "totalGenerated": {
+          "type": "number",
+          "description": "Aggregate count of media generations successfully completed by this agent."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating registration init."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp tracking state synchronization changes."
+        }
+      },
+      "required": ["id", "credits", "totalGenerated", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Individual account state entries mapped strictly by user ID."
+    }
+  }
+}

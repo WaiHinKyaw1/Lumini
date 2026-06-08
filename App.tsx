@@ -3,7 +3,10 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import CreditModal from './components/CreditModal';
 import { UserStats } from './types';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
+import { auth, db, OperationType, handleFirestoreError, testConnection } from './services/firebase';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 
 // Performance: Lazy loading pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -27,6 +30,64 @@ const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  const [manualKey, setManualKey] = useState('');
+
+  // Connection diagnostics validation upon startup
+  useEffect(() => {
+    testConnection();
+  }, []);
+
+  // Firebase Authentication & Real-time Profile Synchronization Listener
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      
+      if (currentUser) {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        
+        try {
+          const docSnap = await getDoc(userDocRef);
+          if (!docSnap.exists()) {
+            // First time user registration - bootstrap initial persistent stats
+            await setDoc(userDocRef, {
+              id: currentUser.uid,
+              email: currentUser.email || '',
+              credits: INITIAL_STATS.credits,
+              totalGenerated: INITIAL_STATS.totalGenerated,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            });
+            toast.success('Successfully registered on Cloud Firestore!');
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, `users/${currentUser.uid}`);
+        }
+
+        // Maintain responsive real-time state synchronization via Firestore Stream
+        const unsubscribeSnapshot = onSnapshot(userDocRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            setStats({
+              credits: data.credits ?? INITIAL_STATS.credits,
+              totalGenerated: data.totalGenerated ?? INITIAL_STATS.totalGenerated
+            });
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
+        });
+
+        return () => {
+          unsubscribeSnapshot();
+        };
+      } else {
+        setStats(INITIAL_STATS);
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
 
   // API Key Check
   useEffect(() => {
@@ -36,10 +97,10 @@ const App: React.FC = () => {
       if (hasKey) {
         setHasApiKey(true);
       } else {
-        // Fallback to checking environment variable for deployed apps
+        // Fallback to checking environment variable or localStorage for deployed apps
         let envKey = '';
         try {
-          envKey = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+          envKey = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
         } catch (e) {
           // Ignore
         }
@@ -61,10 +122,47 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
+  const handleSaveManualKey = () => {
+    if (!manualKey.trim()) {
+      toast.error("Please enter a valid Gemini API Key.");
+      return;
+    }
+    try {
+      localStorage.setItem('VITE_GEMINI_API_KEY', manualKey.trim());
+      setHasApiKey(true);
+      toast.success("API key stored successfully! Module activated.");
+    } catch (e) {
+      toast.error("Failed to save the key locally.");
+    }
+  };
+
   const handleOpenKeySelector = async () => {
-    await (window as any).aistudio.openSelectKey();
-    const hasKey = await (window as any).aistudio?.hasSelectedApiKey?.();
-    setHasApiKey(!!hasKey);
+    if ((window as any).aistudio?.openSelectKey) {
+      await (window as any).aistudio.openSelectKey();
+      const hasKey = await (window as any).aistudio?.hasSelectedApiKey?.();
+      setHasApiKey(!!hasKey);
+    } else {
+      toast.error("Google AI Studio environment not detected here. Please use the manual input box below.");
+    }
+  };
+
+  const handleLoginGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      toast.success('Welcome back to Lumina Studio!');
+    } catch (error: any) {
+      toast.error(error.message || 'Authentication failed.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast.success('Signed out successfully.');
+    } catch (error: any) {
+      toast.error(error.message || 'Logout failed.');
+    }
   };
 
   const spendCredits = (amount: number): boolean => {
@@ -73,26 +171,46 @@ const App: React.FC = () => {
       return false;
     }
     
-    setStats(prev => {
-      if (prev.credits < amount) return prev;
-      const newCredits = prev.credits - amount;
-      const newTotal = prev.totalGenerated + 1;
-      return { ...prev, credits: newCredits, totalGenerated: newTotal };
-    });
+    const newCredits = stats.credits - amount;
+    const newTotal = stats.totalGenerated + 1;
+    
+    // Quick optimistic interface sync
+    setStats({ credits: newCredits, totalGenerated: newTotal });
+
+    if (auth.currentUser) {
+      const userDocRef = doc(db, 'users', auth.currentUser.uid);
+      updateDoc(userDocRef, {
+        credits: newCredits,
+        totalGenerated: newTotal,
+        updatedAt: serverTimestamp()
+      }).catch((error) => {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
+      });
+    }
+    
     return true;
   };
 
   const addCredits = (amount: number) => {
-    setStats(prev => {
-      const newCredits = prev.credits + amount;
-      return { ...prev, credits: newCredits };
-    });
+    const newCredits = stats.credits + amount;
+    setStats(prev => ({ ...prev, credits: newCredits }));
+
+    if (auth.currentUser) {
+      const userDocRef = doc(db, 'users', auth.currentUser.uid);
+      updateDoc(userDocRef, {
+        credits: newCredits,
+        updatedAt: serverTimestamp()
+      }).catch((error) => {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
+      });
+    }
   };
 
   const renderPage = () => {
 
     // If no API key, only allow Dashboard and Profile
     if (!hasApiKey && currentPath !== 'dashboard' && currentPath !== 'profile' && currentPath !== 'brandkit') {
+      const isAiStudioEnv = typeof (window as any).aistudio !== 'undefined';
       return (
         <div className="flex items-center justify-center h-[60vh]">
           <div className="max-w-md w-full glass p-8 rounded-[2.5rem] border border-white/10 text-center space-y-6">
@@ -102,15 +220,44 @@ const App: React.FC = () => {
               </svg>
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">API Key Required</h1>
-              <p className="text-zinc-400 text-sm">To use this AI tool, you must select a paid Gemini API key.</p>
+              <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Gemini API Key</h1>
+              <p className="text-zinc-400 text-xs leading-relaxed px-2">
+                {isAiStudioEnv 
+                  ? "To run this application, select your Gemini API key from Google AI Studio."
+                  : "To run your deployed app, enter your Gemini API key below. Your key is stored securely in your local browser storage."}
+              </p>
             </div>
-            <button 
-              onClick={handleOpenKeySelector}
-              className="w-full py-4 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-accent/20 transition-all active:scale-95"
-            >
-              Select API Key
-            </button>
+
+            {isAiStudioEnv ? (
+              <button 
+                onClick={handleOpenKeySelector}
+                className="w-full py-4 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-accent/20 transition-all active:scale-95"
+              >
+                Select API Key
+              </button>
+            ) : (
+              <div className="space-y-3 pt-2 text-left">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-1 text-center">PASTE YOUR GEMINI API KEY</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={manualKey}
+                    onChange={(e) => setManualKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full px-4 py-3 bg-zinc-950/60 border border-white/15 focus:border-accent rounded-xl text-white text-xs outline-none focus:ring-1 focus:ring-accent font-mono text-center"
+                  />
+                </div>
+                <button 
+                  onClick={handleSaveManualKey}
+                  className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-accent/10 transition-all active:scale-95 mt-2"
+                >
+                  Activate & Save Key
+                </button>
+                <p className="text-[9px] text-zinc-500 text-center leading-relaxed mt-2">
+                  Key saved locally in your own browser's localStorage. Alternatively, set <code className="text-zinc-450 font-mono bg-zinc-900 border border-white/5 p-0.5 rounded">VITE_GEMINI_API_KEY</code> on Vercel dashboard.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -150,6 +297,9 @@ const App: React.FC = () => {
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
         onOpenCredits={() => setIsCreditModalOpen(true)}
+        user={user}
+        onLoginGoogle={handleLoginGoogle}
+        onLogout={handleLogout}
       >
         {renderPage()}
       </Layout>

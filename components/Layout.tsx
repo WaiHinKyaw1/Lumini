@@ -9,9 +9,12 @@ interface LayoutProps {
   isDarkMode: boolean;
   toggleTheme: () => void;
   onOpenCredits: () => void;
+  user: any;
+  onLoginGoogle?: () => void;
+  onLogout?: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits }) => {
+const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits, user, onLoginGoogle, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -137,6 +140,40 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
               <span className="text-[10px] font-black text-accent dark:text-accent uppercase tracking-widest">{credits} CR</span>
               <svg className="w-3 h-3 text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
             </button>
+
+            {user ? (
+              <div className="flex items-center gap-1.5 ml-1">
+                <div className="flex items-center gap-1.5 p-1 px-2.5 bg-gray-100 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-full text-[10px] font-bold text-zinc-650 dark:text-zinc-400">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="pfp" className="w-4 h-4 rounded-full" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-accent flex items-center justify-center text-white text-[8px] font-black">
+                      {user.email?.[0].toUpperCase() || 'U'}
+                    </div>
+                  )}
+                  <span className="hidden md:inline max-w-[100px] truncate">{user.displayName || user.email || 'User'}</span>
+                </div>
+                <button 
+                  onClick={onLogout}
+                  className="p-1.5 rounded-full bg-red-500/10 hover:bg-red-500/25 text-red-500 transition-all"
+                  title="Sign Out"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onLoginGoogle}
+                className="flex items-center gap-1.5 px-3 py-1 ml-1 bg-accent/10 border border-accent/20 rounded-full hover:bg-accent hover:text-white transition-all text-[9px] font-black uppercase tracking-widest text-accent"
+              >
+                <span>Google Sign In</span>
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.7 0 3.25.61 4.47 1.615l2.45-2.45C17.385 1.575 14.935 1 12.24 1C6.72 1 2.24 5.48 2.24 11s4.48 10 10 10c5.76 0 9.55-4.05 9.55-9.715 0-.585-.05-1.155-.15-1.7H12.24z"/>
+                </svg>
+              </button>
+            )}
         </div>
       </header>
 
