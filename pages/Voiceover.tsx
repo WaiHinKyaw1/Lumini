@@ -10,6 +10,7 @@ interface VoiceoverProps {
 const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [text, setText] = useState('');
   const [characterId, setCharacterId] = useState('thiha_mm');
+  const [tone, setTone] = useState('thrilling');
   
   // Advanced Controls: -100% to 100%
   const [voiceSpeed, setVoiceSpeed] = useState(0); 
@@ -169,7 +170,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     });
 
     try {
-      const blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap);
+      const blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone);
       if (isMounted.current) {
         setAudioUrl(blobUrl);
       }
@@ -240,6 +241,35 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Narration Style & Tone (Matches custom video-recap channel configuration) */}
+        <div className="space-y-3">
+          <label className="movie-meta !text-[9px] uppercase tracking-[0.2em] block">Narration Style & Tone</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {[
+              { id: 'thrilling', name: 'Thrilling Recap', desc: 'Recap Slang' },
+              { id: 'professional', name: 'Professional', desc: 'Commanding News' },
+              { id: 'sweet', name: 'Storytelling', desc: 'Friendly Sweet' },
+              { id: 'sarcastic', name: 'Sarcastic', desc: 'Witty Mockery' },
+              { id: 'emotional', name: 'Emotional', desc: 'Poetic Poetry' },
+              { id: 'mystery', name: 'Mystery', desc: 'Suspenseful' }
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTone(t.id)}
+                type="button"
+                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center ${
+                  tone === t.id 
+                    ? 'bg-accent/10 border-accent text-accent shadow-lg shadow-accent/5' 
+                    : 'bg-transparent border-slate-200 dark:border-white/5 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-white/5'
+                }`}
+              >
+                <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-wider font-bold">{t.name}</span>
+                <span className="text-[8px] opacity-75 font-mono mt-0.5">{t.desc}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Input Area */}

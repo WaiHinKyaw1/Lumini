@@ -217,7 +217,7 @@ function writeString(view: DataView, offset: number, string: string) {
 }
 
 // Subtitle chunking helper to keep sentences natural, avoiding truncation or quality drop for long text
-const splitTextIntoChunks = (text: string, maxLength: number = 250): string[] => {
+const splitTextIntoChunks = (text: string, maxLength: number = 350): string[] => {
   // Regex splitting on Burmese period (။), English period (.), exclamation (!), question mark (?), or newlines
   const segments = text.split(/(?<=[။\.!\?\n\r\t])/);
   const chunks: string[] = [];
@@ -395,15 +395,57 @@ const floatTo16BitPCM = (output: DataView, offset: number, input: Float32Array) 
   }
 };
 
+const getVoiceDirectionPrompt = (voice: string, tone?: string): string => {
+  const normVoice = (voice || "").trim().toLowerCase();
+  const normTone = (tone || "").trim().toLowerCase();
+  
+  let basePrompt = "";
+  
+  // Custom tone overlay instructions matching movie recap style or user selections
+  let tonePrompt = "";
+  if (normTone === 'thrilling') {
+    tonePrompt = " Speeches must sound incredibly thrilling, fast-paced, dramatic, and extremely exciting like a professional movie recap voiceover.";
+  } else if (normTone === 'sarcastic') {
+    tonePrompt = " Speeches must sound playfully sarcastic, witty, slightly cynical, and highly engaging with mocking expressions.";
+  } else if (normTone === 'emotional') {
+    tonePrompt = " Speeches must sound deeply emotional, expressive, warm, and highly heartfelt, conveying rich feelings.";
+  } else if (normTone === 'mystery') {
+    tonePrompt = " Speeches must sound highly mysterious, slow, suspenseful, deep, and intriguing, keeping audiences on the edge of their seats.";
+  } else if (normTone === 'professional') {
+    tonePrompt = " Speeches must sound perfectly professional, calm, authoritative, prestigious, and clear, like standard news broadcasting.";
+  } else if (normTone === 'sweet') {
+    tonePrompt = " Speeches must sound sweet, gentle, natural, warm, friendly, and beautifully conversational like a friendly storyteller.";
+  }
+  
+  if (normVoice.includes("fenrir")) {
+    basePrompt = "သတင်း သို့မဟုတ် ကွန်မြူနတီ ကြေညာချက်ဖတ်နေသလိုမျိုး လေးနက်ပြီး ပြတ်သားကြည်လင်တဲ့ ခန့်ညားပြီး ဩဇာအပြည့်ရှိတဲ့ပုံစံနဲ့ ဖတ်ပေးပါ။ Speeches must sound powerful, highly clear, authoritative, and professional.";
+  } else if (normVoice.includes("kore")) {
+    basePrompt = "ချိုသာကြည်လင်အေးချမ်းတဲ့ နေ့စဉ်စကားပြောပုံစံ သို့မဟုတ် စိတ်ဝင်စားစရာပုံပြင်ပြောပြနေသလို သဘာဝကျပြီး သာယာချိုအေးတဲ့ပုံစံနဲ့ ဖတ်ပေးပါ။ Speeches must sound sweet, natural, friendly, and perfectly flowing.";
+  } else if (normVoice.includes("puck")) {
+    basePrompt = "မြန်မာ movie recap channel သို့မဟုတ် Review ကြည့်နေရသလိုမျိုး စိတ်လှုပ်ရှားစရာကောင်းပြီး လျင်မြန်တက်ကြွတဲ့ narration style နဲ့ ပရိသတ်ကို ဆွဲဆောင်နိုင်တဲ့အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches must sound exceptionally energetic, fast-paced, exciting, and highly authentic.";
+  } else if (normVoice.includes("zephyr")) {
+    basePrompt = "နူးညံ့သိမ်မွေ့ပြီး စိတ်ခံစားမှုအပြည့်နဲ့ ကဗျာဆန်ဆန် ညင်သာကြည်နူးဖွယ်ကောင်းတဲ့ အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches must sound exceptionally soft, sweet, poetic, and emotionally warm.";
+  } else if (normVoice.includes("charon")) {
+    basePrompt = "Please read this in a deep, professional, high-fidelity formal native narration tone. Speeches must sound exceptionally crisp, deep, and authoritative.";
+  } else {
+    // Default fallback
+    basePrompt = "မြန်မာ movie recap channel ကြည့်နေရသလိုမျိုး စိတ်လှုပ်ရှားစရာကောင်းပြီး လျင်မြန်တဲ့ narration style နဲ့ ပရိသတ်ကို ဆွဲဆောင်နိုင်တဲ့အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches should sound highly energetic, natural, and authentic.";
+  }
+
+  return `${basePrompt}${tonePrompt}`;
+};
+
 const synthesizeSingleChunk = async (
   ai: ReturnType<typeof getAIClient>,
   text: string,
   voice: string,
   speedPrompt: string,
-  pitchPrompt: string
+  pitchPrompt: string,
+  tone?: string
 ): Promise<string> => {
   const cleanText = text.trim();
-  const storytellingPrompt = `မြန်မာ movie recap channel ကြည့်နေရသလိုမျိုး စိတ်လှုပ်ရှားစရာကောင်းပြီး လျင်မြန်တဲ့ narration style နဲ့ ပရိသတ်ကို ဆွဲဆောင်နိုင်တဲ့အသံနေအသံထားမျိုးနဲ့ ဒီအတိုင်းဖတ်ပေးပါ။ Speeches should sound highly energetic, natural, and authentic. Do NOT read any instructions or metadata, read ONLY the actual Burmese text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
+  const directionPrompt = getVoiceDirectionPrompt(voice, tone);
+  const storytellingPrompt = `${directionPrompt} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
 
   const MAX_RETRIES = 3;
   let attempt = 0;
@@ -450,7 +492,8 @@ export const generateSpeech = async (
   voice: string = 'Kore', 
   speedOffset: number = 0, 
   pitchOffset: number = 0,
-  voiceMap?: any
+  voiceMap?: any,
+  tone?: string
 ) => {
   const ai = getAIClient();
   const rawText = text.trim();
@@ -486,7 +529,7 @@ export const generateSpeech = async (
   // Split any segment further into smaller sub-chunks if they are too long to ensure highest sound quality
   const subChunks: SpeechSegment[] = [];
   for (const segment of parsedSegments) {
-    const chunks = splitTextIntoChunks(segment.text, 350); // Increased character chunk limit to 350 for better continuous timing
+    const chunks = splitTextIntoChunks(segment.text, 350); // Set chunk limit to 350 characters for maximum voice continuity and natural phrase flow
     for (const chunk of chunks) {
       subChunks.push({ text: chunk, voice: segment.voice });
     }
@@ -504,7 +547,7 @@ export const generateSpeech = async (
     const batch = subChunks.slice(i, i + BATCH_SIZE);
     const promises = batch.map(async (chunk, index) => {
       const actualIndex = i + index;
-      const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt);
+      const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone);
       if (b64) {
         base64Chunks[actualIndex] = b64;
       }
