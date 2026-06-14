@@ -217,7 +217,7 @@ function writeString(view: DataView, offset: number, string: string) {
 }
 
 // Subtitle chunking helper to keep sentences natural, avoiding truncation or quality drop for long text
-const splitTextIntoChunks = (text: string, maxLength: number = 350): string[] => {
+const splitTextIntoChunks = (text: string, maxLength: number = 1500): string[] => {
   // Regex splitting on Burmese period (။), English period (.), exclamation (!), question mark (?), or newlines
   const segments = text.split(/(?<=[။\.!\?\n\r\t])/);
   const chunks: string[] = [];
@@ -307,7 +307,27 @@ const decodeBase64ToAudioBuffer = async (ctx: AudioContext, base64: string): Pro
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return await ctx.decodeAudioData(bytes.buffer);
+  
+  // Dual-mode decoding: Try browser decodeAudioData first, fall back to parsing manual raw PCM values if native decoding fails
+  try {
+    const bufferCopy = bytes.buffer.slice(0);
+    return await ctx.decodeAudioData(bufferCopy);
+  } catch (decodeErr) {
+    console.warn("Native browser decodeAudioData rejected sample format, trying manual raw 16-bit 24kHz PCM parsing fallback...", decodeErr);
+    
+    const numSamples = Math.floor(len / 2);
+    // Standard high-fidelity voice-over audio operates at 24000Hz mono
+    const buffer = ctx.createBuffer(1, numSamples, 24000);
+    const channelData = buffer.getChannelData(0);
+    
+    const dataView = new DataView(bytes.buffer);
+    for (let i = 0; i < numSamples; i++) {
+      const intSample = dataView.getInt16(i * 2, true);
+      channelData[i] = intSample / 32768.0;
+    }
+    
+    return buffer;
+  }
 };
 
 // Seamlessly join multiple audio chunks into a single clean stream
@@ -481,6 +501,21 @@ const synthesizeSingleChunk = async (
       }
       
       console.error(`Audio synthesis failed for script segment:`, err);
+      if (isQuotaError) {
+        let retrySeconds = 45;
+        const msgStr = err.message || "";
+        const match = msgStr.match(/retry in ([\d\.]+)s/i);
+        if (match && match[1]) {
+          retrySeconds = Math.ceil(parseFloat(match[1]));
+        }
+        
+        throw new Error(JSON.stringify({
+          isQuotaError: true,
+          retryAfter: retrySeconds,
+          message: err.message || "Quota exceeded",
+          mmMessage: "လူကြီးမင်း၏ တစ်မိနစ်လျှင် အခမဲ့အသုံးပြုခွင့် ကန့်သတ်ချက် (Free Tier Quota Limit) ပြည့်သွားပါပြီ။ Gemini TTS အသံဖန်တီးမှုစနစ် (Free Level) သည် တစ်မိနစ်လျှင် အများဆုံး ၃ ကြိမ်သာ အသုံးပြုခွင့်ပေးထားပါသည်။ ကျေးဇူးပြု၍ ခေတ္တစောင့်ဆိုင်းပေးပါ သို့မဟုတ် ကိုယ်ပိုင် API Key အသုံးပြုပါ။"
+        }));
+      }
       throw err;
     }
   }
@@ -529,7 +564,7 @@ export const generateSpeech = async (
   // Split any segment further into smaller sub-chunks if they are too long to ensure highest sound quality
   const subChunks: SpeechSegment[] = [];
   for (const segment of parsedSegments) {
-    const chunks = splitTextIntoChunks(segment.text, 350); // Set chunk limit to 350 characters for maximum voice continuity and natural phrase flow
+    const chunks = splitTextIntoChunks(segment.text, 1500); // Set chunk limit to 1500 characters for maximum voice continuity and natural phrase flow
     for (const chunk of chunks) {
       subChunks.push({ text: chunk, voice: segment.voice });
     }

@@ -1,10 +1,10 @@
 {
-  "projectId": "subtle-element-qg02f",
-  "appId": "1:696413830937:web:8562b685a890a921c1cf88",
-  "apiKey": "AIzaSyD5QIkNjMjnF7A60-wo-Km3D1aJ9DSD3VQ",
-  "authDomain": "subtle-element-qg02f.firebaseapp.com",
+  "projectId": "ai-studio-4c6d9",
+  "appId": "1:602844643987:web:ed6f117f8908b7e1194366",
+  "apiKey": "AIzaSyAwEzn1Ij6luq2o3OmEkzHd5p2jhtAQBf4",
+  "authDomain": "ai-studio-4c6d9.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-f3d7c315-6b16-47ce-898c-a13f8a61b48c",
-  "storageBucket": "subtle-element-qg02f.firebasestorage.app",
-  "messagingSenderId": "696413830937",
+  "storageBucket": "ai-studio-4c6d9.firebasestorage.app",
+  "messagingSenderId": "602844643987",
   "measurementId": ""
 }

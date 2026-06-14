@@ -35,10 +35,10 @@ service cloud.firestore {
         && data.id.size() <= 128
         && data.id == request.auth.uid
         && (data.email == null || (data.email is string && data.email.size() <= 256))
-        && data.credits is number
+        && (data.credits is int || data.credits is float)
         && data.credits >= 0
         && data.credits <= 1000000
-        && data.totalGenerated is number
+        && (data.totalGenerated is int || data.totalGenerated is float)
         && data.totalGenerated >= 0;
     }
 

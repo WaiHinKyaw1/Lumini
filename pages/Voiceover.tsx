@@ -23,10 +23,24 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [isChecked, setIsChecked] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   
   const audioCtxRef = useRef<AudioContext | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isMounted = useRef(true);
+
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      setError(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCountdown(prev => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   const MAX_CHARS = 15000;
 
@@ -148,8 +162,14 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       }
     } catch (err: any) { 
         if (isMounted.current) {
-            setError("Preview failed."); 
+            setError(err.message || "Preview failed."); 
             setIsPreviewing(null); 
+            try {
+              if (err.message && err.message.startsWith('{') && err.message.includes('isQuotaError')) {
+                const parsed = JSON.parse(err.message);
+                setCountdown(parsed.retryAfter || 45);
+              }
+            } catch (_) {}
         }
     }
   };
@@ -175,7 +195,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         setAudioUrl(blobUrl);
       }
     } catch (err: any) { 
-        if (isMounted.current) setError(err.message || "Synthesis failed."); 
+        if (isMounted.current) {
+          setError(err.message || "Synthesis failed."); 
+          try {
+            if (err.message && err.message.startsWith('{') && err.message.includes('isQuotaError')) {
+              const parsed = JSON.parse(err.message);
+              setCountdown(parsed.retryAfter || 45);
+            }
+          } catch (_) {}
+        }
     } 
     finally { 
         if (isMounted.current) setIsProcessing(false); 
@@ -366,11 +394,52 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         </div>
       )}
 
-      {error && (
-        <div className="mt-3 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
-          <p className="text-rose-500 dark:text-rose-400 text-[10px] font-bold uppercase tracking-widest">{error}</p>
-        </div>
-      )}
+      {error && (() => {
+        let parsedQuotaError = null;
+        try {
+          if (error.startsWith('{') && error.includes('isQuotaError')) {
+            parsedQuotaError = JSON.parse(error);
+          }
+        } catch (_) {}
+
+        return (
+          <div className="mt-4">
+            {parsedQuotaError ? (
+              <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-left space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2 text-amber-500 font-extrabold text-[11px] uppercase tracking-widest">
+                    <svg className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Quota Limit Exceeded</span>
+                  </div>
+                  {countdown !== null && (
+                    <span className="px-2.5 py-1 bg-amber-500 text-midnight dark:text-black rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse">
+                      Please Wait: {countdown}s
+                    </span>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-bold leading-relaxed">
+                    {parsedQuotaError.mmMessage}
+                  </p>
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal leading-relaxed bg-[#0e0e11]/50 p-3.5 rounded-xl border border-white/5 space-y-1.5">
+                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">💡 ဖြေရှင်းနည်းလမ်းညွှန်များ -</span>
+                    <p>၁။ <strong>ခေတ္တခဏ စောင့်ဆိုင်းပေးပါ -</strong> အခမဲ့ဗားရှင်း (Free Tier) သည် တစ်မိနစ်လျှင် အသံဖန်တီးမှု ၃ ကြိမ်သာ ခွင့်ပြုသောကြောင့် စက္ကန့် ၃၀ ခန့် စောင့်ပြီးမှ ပြန်လည်လုပ်ဆောင်ပေးပါ။</p>
+                    <p>၂။ <strong>ကိုယ်ပိုင် API Key သုံးပါ -</strong> Profile သို့မဟုတ် Settings စာမျက်နှာတွင် သင်၏ကိုယ်ပိုင် Gemini API Key အား ထည့်သွင်းပါက ကန့်သတ်ချက်မရှိ စိုက်ကြိုက်အသုံးပြုနိုင်ပါမည်။</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
+                <p className="text-rose-500 dark:text-rose-400 text-[10px] font-bold uppercase tracking-widest">{error}</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };

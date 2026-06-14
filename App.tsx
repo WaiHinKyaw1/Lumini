@@ -2,6 +2,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import CreditModal from './components/CreditModal';
+import { AuthScreen } from './components/AuthScreen';
 import { UserStats } from './types';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db, OperationType, handleFirestoreError, testConnection } from './services/firebase';
@@ -39,55 +40,75 @@ const App: React.FC = () => {
     testConnection();
   }, []);
 
-  // Firebase Authentication & Real-time Profile Synchronization Listener
+  // Firebase Authentication Listener
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      
-      if (currentUser) {
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        
-        try {
-          const docSnap = await getDoc(userDocRef);
-          if (!docSnap.exists()) {
-            // First time user registration - bootstrap initial persistent stats
-            await setDoc(userDocRef, {
-              id: currentUser.uid,
-              email: currentUser.email || '',
-              credits: INITIAL_STATS.credits,
-              totalGenerated: INITIAL_STATS.totalGenerated,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
-            toast.success('Successfully registered on Cloud Firestore!');
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, `users/${currentUser.uid}`);
-        }
-
-        // Maintain responsive real-time state synchronization via Firestore Stream
-        const unsubscribeSnapshot = onSnapshot(userDocRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            setStats({
-              credits: data.credits ?? INITIAL_STATS.credits,
-              totalGenerated: data.totalGenerated ?? INITIAL_STATS.totalGenerated
-            });
-          }
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
-        });
-
-        return () => {
-          unsubscribeSnapshot();
-        };
-      } else {
-        setStats(INITIAL_STATS);
-      }
     });
-
     return () => unsubscribeAuth();
   }, []);
+
+  // Real-time Profile & Stats Synchronization Listener
+  useEffect(() => {
+    if (!user) {
+      setStats(INITIAL_STATS);
+      return;
+    }
+
+    let isMounted = true;
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const syncUserData = async () => {
+      const userDocRef = doc(db, 'users', user.uid);
+      
+      try {
+        const docSnap = await getDoc(userDocRef);
+        if (!docSnap.exists() && isMounted) {
+          // First time user registration - bootstrap initial persistent stats
+          await setDoc(userDocRef, {
+            id: user.uid,
+            email: user.email || '',
+            credits: INITIAL_STATS.credits,
+            totalGenerated: INITIAL_STATS.totalGenerated,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          toast.success('Successfully registered on Cloud Firestore!');
+        }
+      } catch (error) {
+        if (isMounted) {
+          handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
+        }
+      }
+
+      if (!isMounted) return;
+
+      // Maintain responsive real-time state synchronization via Firestore Stream
+      unsubscribeSnapshot = onSnapshot(userDocRef, (snapshot) => {
+        if (snapshot.exists() && isMounted) {
+          const data = snapshot.data();
+          setStats({
+            credits: data.credits ?? INITIAL_STATS.credits,
+            totalGenerated: data.totalGenerated ?? INITIAL_STATS.totalGenerated
+          });
+        }
+      }, (error) => {
+        // Only report error if user is still logged in to avoid race condition on logout
+        if (isMounted && auth.currentUser) {
+          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+        }
+      });
+    };
+
+    syncUserData();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
+  }, [user]);
 
   // API Key Check
   useEffect(() => {
@@ -207,6 +228,10 @@ const App: React.FC = () => {
   };
 
   const renderPage = () => {
+    // If not authenticated, require registering or logging in first
+    if (!user) {
+      return <AuthScreen onLoginGoogle={handleLoginGoogle} />;
+    }
 
     // If no API key, only allow Dashboard and Profile
     if (!hasApiKey && currentPath !== 'dashboard' && currentPath !== 'profile' && currentPath !== 'brandkit') {
