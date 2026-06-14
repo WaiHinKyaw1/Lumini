@@ -3,6 +3,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { generateImage, generateText } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface ThumbnailGenProps {
   onSpendCredits: (amount: number) => boolean;
@@ -10,6 +14,7 @@ interface ThumbnailGenProps {
 
 const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [topic, setTopic] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [titleText, setTitleText] = useState('');
   const [style, setStyle] = useState('Gaming');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -126,6 +131,18 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
         setResult(imageUrl);
         const hookList = hooksText.split('\n').filter(h => h.trim().match(/^\d\.|^-/)).map(h => h.replace(/^\d\.\s*|^- \s*/, ''));
         setHooks(hookList);
+      }
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'thumbnail',
+          { topic, titleText, style, useBrandKit },
+          { imageUrl: imageUrl?.substring(0, 200) + "...", hooks: hooksText }
+        );
+        setRefreshTrigger(prev => prev + 1);
       }
 
     } catch (err: any) {
@@ -309,6 +326,8 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
           {error}
         </div>
       )}
+      
+      <ModuleLogHistory moduleName="thumbnail" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

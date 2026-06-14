@@ -1,6 +1,8 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { supabase, GenerationRecord, deleteRecord } from '../services/supabase';
+import { auth } from '../services/firebase';
+import { toast } from 'react-hot-toast';
 
 interface DashboardProps {
   onAction: (path: string) => void;
@@ -9,6 +11,12 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits }) => {
+  const [logs, setLogs] = useState<GenerationRecord[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
+  const [showSqlSetup, setShowSqlSetup] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+
   const categories = [
     {
       name: 'Video & Motion',
@@ -33,6 +41,104 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
       ]
     }
   ];
+
+  const fetchLogs = async () => {
+    const user = auth.currentUser;
+    if (!user || !supabase) {
+      setLogError("Supabase is not initialized or user is offline.");
+      return;
+    }
+
+    setIsLoadingLogs(true);
+    setLogError(null);
+    try {
+      const { data, error } = await supabase
+        .from('user_records')
+        .select('*')
+        .eq('user_id', user.uid)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (error.code === '42P01') {
+          // Table does not exist in Supabase yet
+          setShowSqlSetup(true);
+        } else {
+          setLogError(error.message);
+        }
+      } else {
+        setLogs(data || []);
+        setShowSqlSetup(false);
+      }
+    } catch (err: any) {
+      setLogError(err.message || 'Failed to query Supabase logs.');
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  const handleDeleteLog = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!id) return;
+    if (!window.confirm("သေချာပါသလား? ဤသတင်းအချက်အလက်ကို ဖျက်ပါမည်။\n(Are you sure you want to delete this record?)")) {
+      return;
+    }
+    
+    try {
+      const success = await deleteRecord(id);
+      if (success) {
+        toast.success("မှတ်တမ်းကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ (Record deleted)");
+        setLogs((prev) => prev.filter((log) => log.id !== id));
+      } else {
+        toast.error("ဖျက်ရန် အဆင်မပြေပါ (Failed to delete record)");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error deleting log");
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, []);
+
+  const handleCopySql = () => {
+    const sqlCode = `create table user_records (
+  id uuid default gen_random_uuid() primary key,
+  user_id text not null,
+  user_email text,
+  module text not null,
+  input_data text,
+  output_data text,
+  created_at timestamptz default now()
+);
+
+-- Enable Row Level Security (RLS)
+alter table user_records enable row level security;
+
+-- Create Open access policy for Anon users to read/insert
+create policy "Allow public read and write" 
+on user_records 
+for all 
+using (true) 
+with check (true);`;
+
+    navigator.clipboard.writeText(sqlCode);
+    toast.success("SQL script copied successfully!");
+  };
+
+  const getModuleTitle = (mod: string) => {
+    switch (mod) {
+      case 'voiceover': return 'Voice Synthesis';
+      case 'translation': return 'Translator';
+      case 'transcription': return 'Transcription';
+      case 'recap_insights': return 'AI Video Recapper';
+      case 'thumbnail': return 'Thumbnail Generator';
+      case 'subtitles': return 'Subtitle Studio';
+      case 'videostudio_transcribe': return 'Video Studio - Transcribe';
+      case 'videostudio_translate': return 'Video Studio - Translate';
+      case 'videostudio_voiceover': return 'Video Studio - Voice';
+      default: return mod.toUpperCase();
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-12">
@@ -101,6 +207,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
           </div>
         ))}
       </div>
+
+      
       
       {/* Footer - Minimal Luxury */}
       <footer className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -125,4 +233,3 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
 };
 
 export default React.memo(Dashboard);
-

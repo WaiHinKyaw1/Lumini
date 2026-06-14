@@ -2,6 +2,10 @@ import React, { useState, useRef } from 'react';
 import { generateSubtitles, generateText, generateSpeech } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
 import { Toaster, toast } from 'react-hot-toast';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface VideoStudioProps {
   onSpendCredits: (amount: number) => boolean;
@@ -12,6 +16,7 @@ type Step = 'SOURCE' | 'TRANSCRIPTION' | 'TRANSLATION' | 'VOICEOVER';
 const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
   // Navigation & UI State
   const [currentStep, setCurrentStep] = useState<Step>('SOURCE');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [inputMode, setInputMode] = useState<'UPLOAD' | 'PASTE'>('UPLOAD');
   const [file, setFile] = useState<File | null>(null);
   const [pastedTranscript, setPastedTranscript] = useState<string>('');
@@ -108,6 +113,18 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
       setTranscript(scriptText);
       setProgress(100);
       toast.success('Transcription complete!');
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'videostudio_transcribe',
+          { fileName: file?.name || 'pasted', mimeType },
+          { resultLength: scriptText.length, preview: scriptText.substring(0, 150) + "..." }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Transcription failed.');
@@ -157,6 +174,18 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
       setTranslation(translatedText);
       setProgress(100);
       toast.success('Translation completed!');
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'videostudio_translate',
+          { originalScriptLength: transcript.length, duration, tone },
+          { resultLength: translatedText.length, preview: translatedText.substring(0, 150) + "..." }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Translation failed.');
@@ -188,6 +217,18 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
       setAudioUrl(synthesizedUrl);
       setProgress(100);
       toast.success('Burmese voiceover generated successfully!');
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'videostudio_voiceover',
+          { voice, speed, translationLength: translation.length },
+          { status: 'success', info: 'Voiceover audio generated successfully' }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
     } catch (err: any) {
       console.error(err);
       let userMsg = err.message || 'Voiceover generation failed.';
@@ -618,6 +659,10 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
           </div>
         )}
 
+        <ModuleLogHistory 
+          moduleName={['videostudio_transcribe', 'videostudio_translate', 'videostudio_voiceover']} 
+          refreshTrigger={refreshTrigger} 
+        />
       </div>
     </div>
   );

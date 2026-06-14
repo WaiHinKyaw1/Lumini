@@ -3,6 +3,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
 import { CREDIT_COSTS, ContentType } from '../types';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
 
 interface MovieRecapProps {
   onSpendCredits: (amount: number) => boolean;
@@ -11,6 +14,7 @@ interface MovieRecapProps {
 const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   // --- State: Media ---
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(0);
   
@@ -202,6 +206,18 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         setResultUrl(null);
         setVideoSpeed(1.0);
         setShowAIPrompt(false);
+
+         const currentUser = auth.currentUser;
+         if (currentUser) {
+           await logGeneration(
+             currentUser.uid,
+             currentUser.email || '',
+             'movierecap',
+             { prompt: aiPrompt, aspectRatio },
+             { downloadLink: downloadLink?.substring(0, 150) + "..." }
+           );
+           setRefreshTrigger(prev => prev + 1);
+         }
       }
     } catch (err: any) {
       setError(err.message || "Video generation failed");
@@ -777,6 +793,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             )}
         </div>
       </div>
+      
+      <ModuleLogHistory moduleName="movierecap" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

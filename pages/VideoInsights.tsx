@@ -2,6 +2,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface VideoInsightsProps {
   onSpendCredits: (amount: number) => boolean;
@@ -18,6 +22,7 @@ interface RecapTypeOption {
 
 const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
   const [file, setFile] = useState<File | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [duration, setDuration] = useState<string>('00:00:00');
   const [targetLang, setTargetLang] = useState('BURMESE');
   const [perspective, setPerspective] = useState<Perspective>('3RD PERSON');
@@ -123,6 +128,18 @@ Instructions:
         }
       });
       setProgress(100);
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'recap_insights',
+          { fileName: file.name, fileSize: file.size, targetLang, perspective, tone, recapType },
+          { resultLength: fullRecap.length, textPreview: fullRecap.substring(0, 150) + "..." }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
 
     } catch (err: any) {
       if (isMounted.current) {
@@ -334,6 +351,8 @@ Instructions:
           <p className="movie-meta !text-[11px] text-rose-500 uppercase tracking-widest !mb-0">{error}</p>
         </div>
       )}
+      
+      <ModuleLogHistory moduleName="recap_insights" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

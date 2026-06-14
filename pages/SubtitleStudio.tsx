@@ -3,6 +3,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { generateSubtitles } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface SubtitleStudioProps {
   onSpendCredits: (amount: number) => boolean;
@@ -18,6 +22,7 @@ interface FileItem {
 
 const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
   const [queue, setQueue] = useState<FileItem[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [language, setLanguage] = useState('BURMESE');
   const [isProcessingAll, setIsProcessingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +197,18 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
       const result = await generateSubtitles(base64, mimeType, language);
       
       if (!isMounted.current) return;
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'subtitles',
+          { fileName: item.file.name, fileSize: item.file.size, language },
+          { resultLength: result?.length || 0, textPreview: result?.substring(0, 150) + "..." }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
 
       setQueue((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, status: 'completed', result } : i))
@@ -483,6 +500,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
           {error}
         </div>
       )}
+      
+      <ModuleLogHistory moduleName="subtitles" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

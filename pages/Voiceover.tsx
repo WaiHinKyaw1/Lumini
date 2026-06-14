@@ -2,6 +2,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSpeech, playAudio } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface VoiceoverProps {
   onSpendCredits: (amount: number) => boolean;
@@ -17,6 +21,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [voicePitch, setVoicePitch] = useState(0); 
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPreviewing, setIsPreviewing] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -194,6 +199,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       if (isMounted.current) {
         setAudioUrl(blobUrl);
       }
+      
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'voiceover',
+          { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch },
+          { status: 'success', info: 'Voiceover audio generated successfully' }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
     } catch (err: any) { 
         if (isMounted.current) {
           setError(err.message || "Synthesis failed."); 
@@ -213,56 +230,56 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const selectedChar = characters.find(c => c.id === characterId);
 
   return (
-    <div className="max-w-xl mx-auto pb-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
-          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="max-w-xl mx-auto pb-4">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center shadow-md shadow-accent/20">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </div>
         <div>
-          <h1 className="movie-h2 !text-xl !mb-0 uppercase tracking-tighter">Voiceover Studio</h1>
-          <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
+          <h1 className="movie-h2 !text-lg !mb-0 uppercase tracking-tighter">Voiceover Studio</h1>
+          <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
         </div>
       </div>
 
-      <div className="glass p-6 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="glass p-4 rounded-xl border border-white/5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Talent Selection */}
         <div className="relative z-30" ref={dropdownRef}>
-          <label className="movie-meta !text-[9px] uppercase tracking-[0.2em] !mb-2 block">Voice Model</label>
+          <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-1 block">Voice Model</label>
           <button 
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl hover:border-accent/50 transition-all"
+            className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg hover:border-accent/50 transition-all"
           >
             <div className="flex flex-col items-start text-left">
-              <span className="movie-h2 !text-sm !mb-0 uppercase tracking-widest">{selectedChar?.name}</span>
-              <span className="movie-meta !text-[10px] !mb-0 uppercase mt-0.5">{selectedChar?.desc}</span>
+              <span className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">{selectedChar?.name}</span>
+              <span className="movie-meta !text-[9px] !mb-0 uppercase mt-0.5">{selectedChar?.desc}</span>
             </div>
-            <svg className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute left-0 right-0 mt-2 bg-midnight border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
-              <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+            <div className="absolute left-0 right-0 mt-1.5 bg-midnight border border-white/10 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+              <div className="max-h-[180px] overflow-y-auto custom-scrollbar p-1.5 space-y-1">
                 {characters.map((char) => (
                   <div
                     key={char.id}
                     onClick={() => { setCharacterId(char.id); setIsDropdownOpen(false); }}
-                    className={`flex items-center justify-between p-3 rounded-lg transition-all cursor-pointer ${
+                    className={`flex items-center justify-between p-2 rounded-md transition-all cursor-pointer ${
                       characterId === char.id ? 'bg-accent/10 text-accent' : 'hover:bg-white/5 text-zinc-300'
                     }`}
                   >
                     <div className="flex flex-col">
-                      <span className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">{char.name}</span>
-                      <span className="movie-meta !text-[9px] !mb-0 uppercase mt-0.5">{char.desc}</span>
+                      <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-widest">{char.name}</span>
+                      <span className="movie-meta !text-[8px] !mb-0 uppercase mt-0.5">{char.desc}</span>
                     </div>
                     <button
                       onClick={(e) => handlePreview(e, char.id)}
-                      className={`p-2 rounded-md transition-all ${
+                      className={`p-1.5 rounded-md transition-all ${
                         isPreviewing === char.id ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/10 text-zinc-400 hover:bg-accent hover:text-white'
                       }`}
                     >
-                      {isPreviewing === char.id ? '...' : <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
+                      {isPreviewing === char.id ? '...' : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
                     </button>
                   </div>
                 ))}
@@ -272,9 +289,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         </div>
 
         {/* Narration Style & Tone (Matches custom video-recap channel configuration) */}
-        <div className="space-y-3">
-          <label className="movie-meta !text-[9px] uppercase tracking-[0.2em] block">Narration Style & Tone</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="space-y-2">
+          <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Narration Style & Tone</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             {[
               { id: 'thrilling', name: 'Thrilling Recap', desc: 'Recap Slang' },
               { id: 'professional', name: 'Professional', desc: 'Commanding News' },
@@ -287,78 +304,78 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 key={t.id}
                 onClick={() => setTone(t.id)}
                 type="button"
-                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center ${
+                className={`p-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center ${
                   tone === t.id 
-                    ? 'bg-accent/10 border-accent text-accent shadow-lg shadow-accent/5' 
+                    ? 'bg-accent/10 border-accent text-accent shadow-md shadow-accent/5' 
                     : 'bg-transparent border-slate-200 dark:border-white/5 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-white/5'
                 }`}
               >
-                <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-wider font-bold">{t.name}</span>
-                <span className="text-[8px] opacity-75 font-mono mt-0.5">{t.desc}</span>
+                <span className="movie-h2 !text-[10px] !mb-0 uppercase tracking-wider font-bold">{t.name}</span>
+                <span className="text-[7px] opacity-75 font-mono mt-0.5">{t.desc}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* Input Area */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <label className="movie-meta !text-[9px] uppercase tracking-[0.2em]">Input Script</label>
+            <div className="flex items-center gap-1.5">
+              <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em]">Input Script</label>
               <div className="group relative">
-                <svg className="w-4 h-4 text-slate-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-midnight text-[9px] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 pointer-events-none z-50">
+                <svg className="w-3.5 h-3.5 text-slate-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="absolute bottom-full left-0 mb-1.5 w-44 p-1.5 bg-midnight text-[8px] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 pointer-events-none z-50">
                   Use tags like <span className="text-accent">[NILAR]</span> or <span className="text-accent">[THIHA]</span> to switch voices in the same script.
                 </div>
               </div>
             </div>
-            <div className="flex gap-4">
-              <button onClick={handlePaste} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors !mb-0">Paste</button>
-              <button onClick={handleClear} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-colors !mb-0">Clear</button>
+            <div className="flex gap-3">
+              <button onClick={handlePaste} className="movie-meta !text-[9px] uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors !mb-0">Paste</button>
+              <button onClick={handleClear} className="movie-meta !text-[9px] uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-colors !mb-0">Clear</button>
             </div>
           </div>
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value.slice(0, MAX_CHARS)); setIsChecked(false); }}
             placeholder="Enter your script here..."
-            className="w-full h-48 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-4 movie-body !text-[14px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all resize-none leading-relaxed"
+            className="w-full h-36 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-3 movie-body !text-[13px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all resize-none leading-relaxed"
           />
-          <div className="movie-meta !text-[10px] text-zinc-500 uppercase tracking-widest text-right !mb-0">
+          <div className="movie-meta !text-[9px] text-zinc-500 uppercase tracking-widest text-right !mb-0">
             {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
           </div>
         </div>
 
         {/* Parameters */}
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
             <div className="flex justify-between">
-              <label className="movie-meta !text-[10px] uppercase tracking-widest">Velocity</label>
-              <span className="movie-meta !text-[10px] text-accent !mb-0">{voiceSpeed}%</span>
+              <label className="movie-meta !text-[9px] uppercase tracking-widest">Velocity</label>
+              <span className="movie-meta !text-[9px] text-accent !mb-0">{voiceSpeed}%</span>
             </div>
             <input 
               type="range" min="-100" max="100" step="1" value={voiceSpeed} 
               onChange={(e) => setVoiceSpeed(parseInt(e.target.value))}
-              className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex justify-between">
-              <label className="movie-meta !text-[10px] uppercase tracking-widest">Pitch</label>
-              <span className="movie-meta !text-[10px] text-accent !mb-0">{voicePitch}%</span>
+              <label className="movie-meta !text-[9px] uppercase tracking-widest">Pitch</label>
+              <span className="movie-meta !text-[9px] text-accent !mb-0">{voicePitch}%</span>
             </div>
             <input 
               type="range" min="-100" max="100" step="1" value={voicePitch} 
               onChange={(e) => setVoicePitch(parseInt(e.target.value))}
-              className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-1">
           <button
             onClick={isChecked ? handleGenerate : handleCheck}
             disabled={isChecked && isProcessing}
-            className={`w-full py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-xl ${
+            className={`w-full py-2.5 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
               !isChecked 
                 ? 'bg-zinc-100 hover:bg-zinc-200 text-midnight dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'
                 : isProcessing ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
@@ -440,6 +457,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </div>
         );
       })()}
+      
+      <ModuleLogHistory moduleName="voiceover" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

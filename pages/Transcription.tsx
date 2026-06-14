@@ -2,6 +2,10 @@
 import React, { useState } from 'react';
 import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface TranscriptionProps {
   onSpendCredits: (amount: number) => boolean;
@@ -9,6 +13,7 @@ interface TranscriptionProps {
 
 const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
   const [file, setFile] = useState<File | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<string | null>(null);
@@ -193,6 +198,18 @@ Rules:
       });
       setProgress(100);
 
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'transcription',
+          { fileName: file.name, fileSize: file.size, fileType: file.type },
+          { resultLength: fullTranscription.length, textPreview: fullTranscription.substring(0, 150) + "..." }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
+
     } catch (err: any) {
       if (isMounted.current) {
         setError(err.message || "Transcription failed");
@@ -281,6 +298,8 @@ Rules:
         )}
       </div>
       {error && <div className="mt-3 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest">{error}</div>}
+      
+      <ModuleLogHistory moduleName="transcription" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

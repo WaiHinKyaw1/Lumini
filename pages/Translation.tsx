@@ -2,6 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { generateText } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
+import { auth } from '../services/firebase';
+import { logGeneration } from '../services/supabase';
+import { ModuleLogHistory } from '../components/ModuleLogHistory';
+
 
 interface TranslationProps {
   onSpendCredits: (amount: number) => boolean;
@@ -9,6 +13,7 @@ interface TranslationProps {
 
 const Translation: React.FC<TranslationProps> = ({ onSpendCredits }) => {
   const [sourceText, setSourceText] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [targetLang, setTargetLang] = useState('BURMESE');
   
   const [includeDeepMeaning, setIncludeDeepMeaning] = useState(false);
@@ -104,6 +109,18 @@ Translate the text into ${targetLang} following the order:
 
       const result = await generateText(prompt, systemInstruction);
       setTranslatedText(result);
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logGeneration(
+          currentUser.uid,
+          currentUser.email || '',
+          'translation',
+          { sourceText, targetLang, includeDeepMeaning, includeHooks },
+          { resultLength: result?.length || 0, preview: result?.substring(0, 150) + "..." }
+        );
+        setRefreshTrigger(prev => prev + 1);
+      }
 
     } catch (err: any) {
       setError(err.message || "Something went wrong during translation.");
@@ -287,6 +304,8 @@ Translate the text into ${targetLang} following the order:
           Critical Synthesis Error: {error}
         </div>
       )}
+      
+      <ModuleLogHistory moduleName="translation" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

@@ -19,14 +19,30 @@ const VideoInsights = lazy(() => import('./pages/VideoInsights'));
 const ThumbnailGen = lazy(() => import('./pages/ThumbnailGen'));
 const SubtitleStudio = lazy(() => import('./pages/SubtitleStudio'));
 const VideoStudio = lazy(() => import('./pages/VideoStudio'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 const INITIAL_STATS: UserStats = {
   credits: 100,
   totalGenerated: 0
 };
 
+const getInitialStats = (): UserStats => {
+  try {
+    const cachedStats = localStorage.getItem('lumina_user_stats');
+    if (cachedStats) {
+      const parsed = JSON.parse(cachedStats);
+      if (typeof parsed.credits === 'number' && typeof parsed.totalGenerated === 'number') {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to read local stats fallback: ", err);
+  }
+  return INITIAL_STATS;
+};
+
 const App: React.FC = () => {
-  const [stats, setStats] = useState<UserStats>(INITIAL_STATS);
+  const [stats, setStatsState] = useState<UserStats>(getInitialStats());
   const [hasApiKey, setHasApiKey] = useState(true);
   const [currentPath, setCurrentPath] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -34,6 +50,19 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
 
   const [manualKey, setManualKey] = useState('');
+
+  // Local storage synchronized wrapper
+  const setStats = (newStats: UserStats | ((prev: UserStats) => UserStats)) => {
+    setStatsState(prev => {
+      const updated = typeof newStats === 'function' ? newStats(prev) : newStats;
+      try {
+        localStorage.setItem('lumina_user_stats', JSON.stringify(updated));
+      } catch (err) {
+        // Ignore
+      }
+      return updated;
+    });
+  };
 
   // Connection diagnostics validation upon startup
   useEffect(() => {
@@ -75,7 +104,12 @@ const App: React.FC = () => {
           });
           toast.success('Successfully registered on Cloud Firestore!');
         }
-      } catch (error) {
+      } catch (error: any) {
+        const isOffline = error?.code === 'unavailable' || String(error).toLowerCase().includes('offline');
+        if (isOffline) {
+          console.warn("Connection offline: utilizing local fallback.");
+          toast('Running in local mode. Stats are cached locally.', { icon: '📡' });
+        }
         if (isMounted) {
           handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
         }
@@ -93,6 +127,11 @@ const App: React.FC = () => {
           });
         }
       }, (error) => {
+        const isOffline = (error as any)?.code === 'unavailable' || String(error).toLowerCase().includes('offline');
+        if (isOffline) {
+          console.warn("onSnapshot disconnected context in offline mode.");
+          return;
+        }
         // Only report error if user is still logged in to avoid race condition on logout
         if (isMounted && auth.currentUser) {
           handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
@@ -305,6 +344,7 @@ const App: React.FC = () => {
             case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
             case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
             case 'video': return <VideoStudio onSpendCredits={spendCredits} />;
+            case 'profile': return <Profile stats={stats} onApiKeyChange={(hasKey) => setHasApiKey(hasKey)} />;
             default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
           }
         })()}

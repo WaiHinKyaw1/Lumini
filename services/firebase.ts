@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -7,7 +7,18 @@ const app = initializeApp(firebaseConfig);
 
 // CRITICAL: Bind custom database id explicitly to keep client context in sync
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth();
+
+// Initialize Firebase Auth with browserLocalPersistence to bypass potential IndexedDB iframe security assertion issues
+let firebaseAuth;
+try {
+  firebaseAuth = initializeAuth(app, {
+    persistence: browserLocalPersistence,
+  });
+} catch (e) {
+  firebaseAuth = getAuth(app);
+}
+
+export const auth = firebaseAuth;
 
 // Verification helper following constraints in SKILL.md
 export async function testConnection() {
@@ -50,8 +61,18 @@ export interface FirestoreErrorInfo {
 
 // Catch and translate Firestore operation errors
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorCode = (error as any)?.code || '';
+
+  // Intercept offline or network connection issues to avoid triggering unhandled fatal crashed rejections
+  const isOfflineError = 
+    errorCode === 'unavailable' || 
+    errorMessage.toLowerCase().includes('offline') || 
+    errorMessage.toLowerCase().includes('could not reach') || 
+    errorMessage.toLowerCase().includes('failed to get document because the client is offline');
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -66,6 +87,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  if (isOfflineError) {
+    console.warn('Firestore is currently operating in offline/disconnected mode: ', JSON.stringify(errInfo));
+    // Gracefully return here instead of crashing the front-end stream
+    return;
+  }
+
   console.error('Firestore Error Details: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
