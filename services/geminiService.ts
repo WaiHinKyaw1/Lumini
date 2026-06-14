@@ -216,27 +216,68 @@ function writeString(view: DataView, offset: number, string: string) {
   }
 }
 
-// Subtitle chunking helper to keep sentences natural, avoiding truncation or quality drop for long text
-const splitTextIntoChunks = (text: string, maxLength: number = 1500): string[] => {
-  // Regex splitting on Burmese period (။), English period (.), exclamation (!), question mark (?), or newlines
-  const segments = text.split(/(?<=[။\.!\?\n\r\t])/);
+// Subtitle chunking helper to keep sentences natural, avoiding truncation, quality loss, or volume drops
+const splitTextIntoChunks = (text: string, maxLength: number = 400): string[] => {
+  // First, split by major punctuation: Burmese period (။), English period (.), exclamation (!), question mark (?), newlines/tabs
+  const initialSegments = text.split(/(?<=[။\.!\?\n\r\t])/);
+  const refinedSegments: string[] = [];
+
+  for (const seg of initialSegments) {
+    const trimmed = seg.trim();
+    if (!trimmed) continue;
+
+    // If the segment is within maxLength, it is safe
+    if (trimmed.length <= maxLength) {
+      refinedSegments.push(trimmed);
+      continue;
+    }
+
+    // Otherwise, split further by secondary delimiters: Burmese comma (၊), English comma (,), semicolons
+    const subParts = trimmed.split(/(?<=[၊,;])/);
+    for (const part of subParts) {
+      const partTrimmed = part.trim();
+      if (!partTrimmed) continue;
+
+      if (partTrimmed.length <= maxLength) {
+        refinedSegments.push(partTrimmed);
+        continue;
+      }
+
+      // If still too long, split by spaces
+      const spaceParts = partTrimmed.split(/\s+/);
+      let tempPart = "";
+      for (const word of spaceParts) {
+        if (!word) continue;
+        if ((tempPart + " " + word).trim().length > maxLength) {
+          if (tempPart) {
+            refinedSegments.push(tempPart.trim());
+          }
+          tempPart = word;
+        } else {
+          tempPart = tempPart ? tempPart + " " + word : word;
+        }
+      }
+      if (tempPart) {
+        refinedSegments.push(tempPart.trim());
+      }
+    }
+  }
+
+  // Now aggregate segments up to maxLength to minimize API requests while keeping robust bounds
   const chunks: string[] = [];
   let currentChunk = "";
 
-  for (const segment of segments) {
-    const trimmed = segment.trim();
-    if (!trimmed) continue;
-
-    if ((currentChunk + " " + trimmed).length > maxLength) {
+  for (const segment of refinedSegments) {
+    if ((currentChunk + " " + segment).length > maxLength) {
       if (currentChunk) {
         chunks.push(currentChunk.trim());
-        currentChunk = trimmed;
+        currentChunk = segment;
       } else {
-        chunks.push(trimmed);
+        chunks.push(segment);
         currentChunk = "";
       }
     } else {
-      currentChunk = currentChunk ? currentChunk + " " + trimmed : trimmed;
+      currentChunk = currentChunk ? currentChunk + " " + segment : segment;
     }
   }
   if (currentChunk) {
@@ -465,7 +506,8 @@ const synthesizeSingleChunk = async (
 ): Promise<string> => {
   const cleanText = text.trim();
   const directionPrompt = getVoiceDirectionPrompt(voice, tone);
-  const storytellingPrompt = `${directionPrompt} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
+  const qualityInstruction = "CRITICAL REQUIREMENT: Speak with high clarity, normal loud volume, and crystal-clear voice quality. Do NOT whisper, do NOT muffle, do NOT fade out, and do NOT voice block. Maintain equal high volume and a natural pace from the first word to the very last word. အစမှအဆုံးအထိ တည်ငြိမ်ကြည်လင်ပြီး ကျယ်လောင်ပြတ်သားသော အသံဖြင့်သာ ဖတ်ပေးပါ။ အသံဝါးသွားခြင်း၊ တိုးသွားခြင်း သို့မဟုတ် တီးတိုးပြောခြင်း လုံးဝမရှိစေရ။";
+  const storytellingPrompt = `${directionPrompt} ${qualityInstruction} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
 
   const MAX_RETRIES = 3;
   let attempt = 0;
@@ -564,7 +606,7 @@ export const generateSpeech = async (
   // Split any segment further into smaller sub-chunks if they are too long to ensure highest sound quality
   const subChunks: SpeechSegment[] = [];
   for (const segment of parsedSegments) {
-    const chunks = splitTextIntoChunks(segment.text, 1500); // Set chunk limit to 1500 characters for maximum voice continuity and natural phrase flow
+    const chunks = splitTextIntoChunks(segment.text, 400); // Set chunk limit to 400 characters to prevent muffling, volume drop, or dropped content in Burmese
     for (const chunk of chunks) {
       subChunks.push({ text: chunk, voice: segment.voice });
     }
