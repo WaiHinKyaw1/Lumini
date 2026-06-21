@@ -233,9 +233,15 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
       console.error(err);
       let userMsg = err.message || 'Voiceover generation failed.';
       try {
-        if (err.message && err.message.startsWith('{') && err.message.includes('isQuotaError')) {
-          const parsed = JSON.parse(err.message);
-          userMsg = `${parsed.mmMessage} (Please wait 30-45s and try again)`;
+        const msg = err.message || "";
+        const openBrace = msg.indexOf('{');
+        const closeBrace = msg.lastIndexOf('}');
+        if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
+          const jsonStr = msg.substring(openBrace, closeBrace + 1);
+          if (jsonStr.includes('isQuotaError')) {
+            const parsed = JSON.parse(jsonStr);
+            userMsg = `${parsed.mmMessage} (Please wait 30-45s and try again)`;
+          }
         }
       } catch (_) {}
       toast.error(userMsg, { duration: 10000 });

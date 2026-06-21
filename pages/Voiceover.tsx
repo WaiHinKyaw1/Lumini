@@ -170,9 +170,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             setError(err.message || "Preview failed."); 
             setIsPreviewing(null); 
             try {
-              if (err.message && err.message.startsWith('{') && err.message.includes('isQuotaError')) {
-                const parsed = JSON.parse(err.message);
-                setCountdown(parsed.retryAfter || 45);
+              const msg = err.message || "";
+              const openBrace = msg.indexOf('{');
+              const closeBrace = msg.lastIndexOf('}');
+              if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
+                const jsonStr = msg.substring(openBrace, closeBrace + 1);
+                if (jsonStr.includes('isQuotaError')) {
+                  const parsed = JSON.parse(jsonStr);
+                  setCountdown(parsed.retryAfter || 45);
+                }
               }
             } catch (_) {}
         }
@@ -215,9 +221,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         if (isMounted.current) {
           setError(err.message || "Synthesis failed."); 
           try {
-            if (err.message && err.message.startsWith('{') && err.message.includes('isQuotaError')) {
-              const parsed = JSON.parse(err.message);
-              setCountdown(parsed.retryAfter || 45);
+            const msg = err.message || "";
+            const openBrace = msg.indexOf('{');
+            const closeBrace = msg.lastIndexOf('}');
+            if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
+              const jsonStr = msg.substring(openBrace, closeBrace + 1);
+              if (jsonStr.includes('isQuotaError')) {
+                const parsed = JSON.parse(jsonStr);
+                setCountdown(parsed.retryAfter || 45);
+              }
             }
           } catch (_) {}
         }
@@ -414,8 +426,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       {error && (() => {
         let parsedQuotaError = null;
         try {
-          if (error.startsWith('{') && error.includes('isQuotaError')) {
-            parsedQuotaError = JSON.parse(error);
+          const openBrace = error.indexOf('{');
+          const closeBrace = error.lastIndexOf('}');
+          if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
+            const jsonStr = error.substring(openBrace, closeBrace + 1);
+            if (jsonStr.includes('isQuotaError')) {
+              parsedQuotaError = JSON.parse(jsonStr);
+            }
           }
         } catch (_) {}
 

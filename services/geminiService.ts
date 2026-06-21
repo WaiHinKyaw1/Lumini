@@ -603,10 +603,20 @@ export const generateSpeech = async (
   // Parse text into logical speaker segments (supports dynamic speaker tags like [NILAR] or [THIHA])
   const parsedSegments = parseSpeechSegments(rawText, voice, voiceMap);
 
+  // Determine chunk size threshold: bigger chunks for custom key owners, and safer larger default threshold (800) for free tier to minimize hits on requests limits
+  let hasCustomKey = false;
+  try {
+    const customKey = localStorage.getItem('VITE_GEMINI_API_KEY');
+    if (customKey && customKey.trim()) {
+      hasCustomKey = true;
+    }
+  } catch (e) {}
+  const targetChunkLimit = hasCustomKey ? 1200 : 800;
+
   // Split any segment further into smaller sub-chunks if they are too long to ensure highest sound quality
   const subChunks: SpeechSegment[] = [];
   for (const segment of parsedSegments) {
-    const chunks = splitTextIntoChunks(segment.text, 400); // Set chunk limit to 400 characters to prevent muffling, volume drop, or dropped content in Burmese
+    const chunks = splitTextIntoChunks(segment.text, targetChunkLimit); // Optimized dynamic chunk limit to prevent rate limits
     for (const chunk of chunks) {
       subChunks.push({ text: chunk, voice: segment.voice });
     }
