@@ -603,7 +603,7 @@ export const generateSpeech = async (
   // Parse text into logical speaker segments (supports dynamic speaker tags like [NILAR] or [THIHA])
   const parsedSegments = parseSpeechSegments(rawText, voice, voiceMap);
 
-  // Determine chunk size threshold: bigger chunks for custom key owners, and safer larger default threshold (800) for free tier to minimize hits on requests limits
+  // Determine chunk size threshold: bigger chunks for custom key owners, and safer larger default threshold (1800) for free tier to minimize hits on requests limits
   let hasCustomKey = false;
   try {
     const customKey = localStorage.getItem('VITE_GEMINI_API_KEY');
@@ -611,7 +611,7 @@ export const generateSpeech = async (
       hasCustomKey = true;
     }
   } catch (e) {}
-  const targetChunkLimit = hasCustomKey ? 1200 : 800;
+  const targetChunkLimit = hasCustomKey ? 3000 : 1800;
 
   // Split any segment further into smaller sub-chunks if they are too long to ensure highest sound quality
   const subChunks: SpeechSegment[] = [];
@@ -626,20 +626,35 @@ export const generateSpeech = async (
     throw new Error("Could not split speech text into valid chunks.");
   }
 
-  // Synthesize chunks in batches with limited concurrency to avoid exceeding key rate limits while maximizing speed
   const base64Chunks: string[] = new Array(subChunks.length);
-  const BATCH_SIZE = 3;
 
-  for (let i = 0; i < subChunks.length; i += BATCH_SIZE) {
-    const batch = subChunks.slice(i, i + BATCH_SIZE);
-    const promises = batch.map(async (chunk, index) => {
-      const actualIndex = i + index;
+  if (hasCustomKey) {
+    // For custom keys, synthesize chunks in parallel batches for maximum speed
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < subChunks.length; i += BATCH_SIZE) {
+      const batch = subChunks.slice(i, i + BATCH_SIZE);
+      const promises = batch.map(async (chunk, index) => {
+        const actualIndex = i + index;
+        const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone);
+        if (b64) {
+          base64Chunks[actualIndex] = b64;
+        }
+      });
+      await Promise.all(promises);
+    }
+  } else {
+    // For free tier, execute chunks strictly sequentially with safety intervals to avoid triggering concurrent rate limits
+    for (let i = 0; i < subChunks.length; i++) {
+      if (i > 0) {
+        // Safe spacing delay (1500ms) between consecutive requests in free tier
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      const chunk = subChunks[i];
       const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone);
       if (b64) {
-        base64Chunks[actualIndex] = b64;
+        base64Chunks[i] = b64;
       }
-    });
-    await Promise.all(promises);
+    }
   }
 
   // Setup AudioContext for standard decoding and join operations
