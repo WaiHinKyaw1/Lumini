@@ -468,6 +468,12 @@ const getVoiceDirectionPrompt = (voice: string, tone?: string): string => {
     tonePrompt = " Speeches must sound incredibly thrilling, fast-paced, dramatic, and extremely exciting like a professional movie recap voiceover.";
   } else if (normTone === 'sarcastic') {
     tonePrompt = " Speeches must sound playfully sarcastic, witty, slightly cynical, and highly engaging with mocking expressions.";
+  } else if (normTone === 'recap_trend') {
+    tonePrompt = " Speeches must adopt the highly trending Burmese movie recap style, combining humorous sarcasm, witty colloquial slang, and sassy, highly-engaging mock review tones. Speak with active energy, natural modern expressions, and high audience engagement. မြန်မာ Movie Recap Channels တွေမှာ အခုခေတ်စားနေတဲ့ စကားပြောပုံစံမျိုး၊ ဟာသနှောပြီး ဇာတ်ကောင်တွေကို ရွှန်းရွှန်းဝေအောင် စောင်းမြောင်းဆော်တတ်တဲ့ပုံစံ၊ လူငယ်ဆန်ဆန် စကားပြောစတိုင်၊ ခေတ်ပေါ် Slang စကားလုံးများကို သဘာဝကျကျ သုံးနှုန်းဖတ်ပြပေးပါ။ အသံအမူအရာက သက်ဝင်လှုပ်ရှားပြီး ဆွဲဆောင်မှုအပြည့် ရှိနေရပါမည်။";
+  } else if (normTone === 'hype_viral') {
+    tonePrompt = " Speeches must sound incredibly hyped, energetic, fast-paced, and highly dramatic like a sensational viral movie recapper. Inject high adrenaline, extreme excitement, and crisp active tone to captivate the listeners. အလွန်စိတ်လှုပ်ရှားစရာကောင်းပြီး အရှိန်အဟုန်ပြင်းပြင်းနှင့် ပရိသတ်ကို ဆွဲဆောင်သည့် ဗိုင်းရယ် (Viral) ဗီဒီယိုစတိုင်မျိုး၊ စိတ်လှုပ်ရှားဖွယ်ရာ အကွေ့အကောက်များကို တက်ကြွဖျတ်လတ်ပြီး ဆွဲဆောင်မှုအပြည့်ရှိသော အသံနှုန်းထားဖြင့် ဖတ်ပေးပါ။";
+  } else if (normTone === 'comedy_laugh') {
+    tonePrompt = " Speeches must sound extremely funny, humorous, playful, witty, and lightheartedly cynical, making the audience laugh with expressive and entertaining voice inflections. ဟာသမြောက်ပြီး ရယ်စရာကောင်းသော အမူအရာမျိုး၊ ဇာတ်ကောင်တွေရဲ့ လွဲချော်မှုတွေကို လှောင်ပြောင်ရယ်မောသံစွက်ပြီး ပေါ့ပေါ့ပါးပါး ပြောပြပေးသည့် ဟာသစတိုင်မျိုးဖြင့် ဖတ်ပေးပါ။";
   } else if (normTone === 'emotional') {
     tonePrompt = " Speeches must sound deeply emotional, expressive, warm, and highly heartfelt, conveying rich feelings.";
   } else if (normTone === 'mystery') {
@@ -506,7 +512,7 @@ const synthesizeSingleChunk = async (
 ): Promise<string> => {
   const cleanText = text.trim();
   const directionPrompt = getVoiceDirectionPrompt(voice, tone);
-  const qualityInstruction = "CRITICAL REQUIREMENT: Speak with high clarity, normal loud volume, and crystal-clear voice quality. Do NOT whisper, do NOT muffle, do NOT fade out, and do NOT voice block. Maintain equal high volume and a natural pace from the first word to the very last word. အစမှအဆုံးအထိ တည်ငြိမ်ကြည်လင်ပြီး ကျယ်လောင်ပြတ်သားသော အသံဖြင့်သာ ဖတ်ပေးပါ။ အသံဝါးသွားခြင်း၊ တိုးသွားခြင်း သို့မဟုတ် တီးတိုးပြောခြင်း လုံးဝမရှိစေရ။";
+  const qualityInstruction = "CRITICAL HIGH-FIDELITY REQUIREMENT: Speak with perfect clarity, standard loud vocal volume, and crystal-clear professional voice quality. There must be absolutely ZERO background noise, ZERO echo, ZERO static hiss, and NO robot-like digital artifacts. Do NOT whisper, do NOT muffle, do NOT fade out, and do NOT voice-block. Maintain equal strong projection and a natural, highly-articulated speaking pace from the first word to the very last word. အဓိကသတိပြုရန် - အသံဖန်တီးရာတွင် ဆူညံ့သံများ၊ နောက်ခံလေသံများ (static / background noise) လုံးဝမပါဝင်ဘဲ စတူဒီယိုထဲ၌ သွင်းထားသကဲ့သို့ အလွန်ကြည်လင်ပြတ်သား ကျယ်လောင်သော အသံဖြင့်သာ ဖတ်ပေးပါ။ အစမှအဆုံးအထိ အသံဝါးသွားခြင်း၊ တိုးသွားခြင်း သို့မဟုတ် တီးတိုးပြောခြင်း လုံးဝမရှိစေရ။";
   const storytellingPrompt = `${directionPrompt} ${qualityInstruction} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
 
   const MAX_RETRIES = 3;

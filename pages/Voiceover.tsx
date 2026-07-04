@@ -14,7 +14,7 @@ interface VoiceoverProps {
 const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [text, setText] = useState('');
   const [characterId, setCharacterId] = useState('thiha_mm');
-  const [tone, setTone] = useState('thrilling');
+  const [tone, setTone] = useState('recap_trend');
   
   // Advanced Controls: -100% to 100%
   const [voiceSpeed, setVoiceSpeed] = useState(0); 
@@ -305,12 +305,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Narration Style & Tone</label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             {[
-              { id: 'thrilling', name: 'Thrilling Recap', desc: 'Recap Slang' },
-              { id: 'professional', name: 'Professional', desc: 'Commanding News' },
-              { id: 'sweet', name: 'Storytelling', desc: 'Friendly Sweet' },
-              { id: 'sarcastic', name: 'Sarcastic', desc: 'Witty Mockery' },
-              { id: 'emotional', name: 'Emotional', desc: 'Poetic Poetry' },
-              { id: 'mystery', name: 'Mystery', desc: 'Suspenseful' }
+              { id: 'recap_trend', name: 'Trending Recap', desc: 'ခေတ်စားနေတဲ့ စတိုင်' },
+              { id: 'hype_viral', name: 'Viral Hype', desc: 'အရှိန်ပြင်း ဆွဲဆောင်မှု' },
+              { id: 'comedy_laugh', name: 'Comedy Recap', desc: 'ရယ်စရာ ဟာသနှော' },
+              { id: 'thrilling', name: 'Thrilling Recap', desc: 'စိတ်လှုပ်ရှား ရင်ဖို' },
+              { id: 'sarcastic', name: 'Sarcastic Slang', desc: 'ရွဲ့စောင်းပြော စတိုင်' },
+              { id: 'mystery', name: 'Mystery Suspense', desc: 'သည်းထိတ် လျှို့ဝှက်' },
+              { id: 'professional', name: 'Professional', desc: 'သတင်းကြေညာ သံ' },
+              { id: 'sweet', name: 'Storytelling', desc: 'ပုံပြင်ပြော ချိုအေး' },
+              { id: 'emotional', name: 'Emotional Poetry', desc: 'စိတ်ခံစားမှု အပြည့်' }
             ].map((t) => (
               <button
                 key={t.id}
