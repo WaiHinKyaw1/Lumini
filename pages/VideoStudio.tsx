@@ -7,6 +7,8 @@ import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
 import { merger, measureAudioDuration, estimateSyncSpeed } from '../services/videoMerger';
+import { loadBatchQueue, saveBatchQueue, removeFromBatch, addToBatch, BatchItem, BatchStatus } from '../services/batchQueue';
+import { getRefuelState } from '../services/refuelEngine';
 
 
 interface VideoStudioProps {
@@ -45,6 +47,143 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
   const [speed, setSpeed] = useState<number>(1.0); // virtual rate control for prompt context
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Batch Queue State
+  const [batchItems, setBatchItems] = useState<BatchItem[]>(() => loadBatchQueue());
+  const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
+  const [batchLog, setBatchLog] = useState<string>('');
+
+  const refreshBatch = () => setBatchItems(loadBatchQueue());
+
+  const syncBatchItem = (id: string, patch: Partial<BatchItem>) => {
+    const updated = loadBatchQueue().map(i => (i.id === id ? { ...i, ...patch } : i));
+    saveBatchQueue(updated);
+    setBatchItems(updated);
+  };
+
+  // Add the currently configured job to the batch queue (without running it)
+  const handleAddToBatch = () => {
+    if (!file && inputMode === 'UPLOAD') {
+      toast.error('Batch ထည့်ဖို့ ဗီဒီယို file ရွေးပေးပါ');
+      return;
+    }
+    addToBatch({
+      name: file?.name || 'Pasted transcript',
+      fileName: file?.name || 'pasted.txt',
+      language: translation ? 'my' : 'en',
+      voice,
+    });
+    refreshBatch();
+    toast.success('Batch queue ထဲ ထည့်ပြီးပါပြီ!');
+  };
+
+  const handleRemoveBatchItem = (id: string) => {
+    removeFromBatch(id);
+    refreshBatch();
+  };
+
+  const handleClearDoneBatchItems = () => {
+    const updated = loadBatchQueue().filter(i => i.status !== 'done');
+    saveBatchQueue(updated);
+    setBatchItems(updated);
+    toast.success('ပြီးဆုံး items ဖျက်ပြီးပါပြီ');
+  };
+
+  /**
+   * Process the batch queue sequentially.
+   * Runs the full pipeline (transcribe → translate → voiceover → merge) for each
+   * queued item. Because video files cannot be re-read from localStorage,
+   * the current session's file is used only for demonstration when present;
+   * items whose file is unavailable are marked failed with a clear message.
+   */
+  const handleProcessBatch = async () => {
+    const queue = loadBatchQueue().filter(i => i.status === 'queued');
+    if (queue.length === 0) {
+      toast.error('Batch queue ထဲ queued item မရှိပါ');
+      return;
+    }
+    if (!onSpendCredits(CREDIT_COSTS[ContentType.VOICEOVER] * queue.length)) {
+      toast.error('Batch အတွက် credit လုံလောက်မှု မရှိပါ');
+      return;
+    }
+    setIsBatchRunning(true);
+    setBatchLog('Batch processing စတင်ပါပြီ...\n');
+    for (const item of queue) {
+      syncBatchItem(item.id, { status: 'processing', startedAt: Date.now() });
+      setBatchLog(prev => `${prev}→ ${item.name} စတင်နေပါတယ်...\n`);
+      try {
+        // Files cannot be re-read from localStorage across sessions. The batch
+        // run uses the file currently selected in this session when names match.
+        if (!file || item.fileName !== file.name) {
+          throw new Error('ဤ browser session ထဲမှာ video file ပြန်မရပါ။ ဗီဒီယိုကို ပြန်တင်ပြီး "Process Batch" ကို ထပ်နှိပ်ပါ။');
+        }
+        // Step 1: Transcription — replicate the page pipeline (base64 + mime)
+        setStatusMessage(`Transcribing ${item.name}...`);
+        setProgress(15);
+        const reader = new FileReader();
+        const base64: string = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        let mimeType = file.type;
+        if (!mimeType) {
+          const ext = file.name.split('.').pop()?.toLowerCase();
+          mimeType = ext === 'mov' ? 'video/quicktime' : ext === 'mkv' ? 'video/x-matroska' : ext === 'mp3' ? 'audio/mp3' : ext === 'wav' ? 'audio/wav' : 'video/mp4';
+        }
+        const transText = await generateSubtitles(base64, mimeType);
+        setBatchLog(prev => `${prev}  ✓ transcription ပြီး\n`);
+        // Step 2: Translate — replicate the cinematic recap prompt
+        setStatusMessage(`Translating ${item.name}...`);
+        setProgress(40);
+        const lengthInstruction = duration > 0
+          ? `The original track lasted exactly ${duration} seconds. Ensure the translated Burmese script can realistically be spoken in EXACTLY ${duration} seconds (about ${Math.floor(duration * 2.5)} Burmese words).`
+          : 'Create a highly compact, pacing-friendly translation.';
+        const systemPrompt = `You are an elite, professional translator and narrator specializing in Burmese Movie Recap channels. Deliver ONLY the pure Burmese spoken narration script. No scene descriptions, no speaker tags, no metadata. Use authentic Burmese YouTube recap slang that excites audiences. ${lengthInstruction}`;
+        const transText2 = await generateText(
+          `Translate the following script into Burmese:\n---\n${transText}\n---\nEmotional tone: ${tone.toUpperCase()}`,
+          systemPrompt,
+        );
+        setBatchLog(prev => `${prev}  ✓ translation ပြီး\n`);
+        // Step 3: Voiceover — returns a playable object URL
+        setStatusMessage(`Voiceover ${item.name}...`);
+        setProgress(70);
+        const audioUrl = await generateSpeech(transText2, item.voice, speed);
+        const audioBlob = await fetch(audioUrl).then(r => r.blob());
+        setBatchLog(prev => `${prev}  ✓ voiceover ပြီး\n`);
+        // Step 4: Merge with video timeline sync
+        setStatusMessage(`Syncing ${item.name}...`);
+        setProgress(90);
+        const voiceDur = await measureAudioDuration(audioBlob);
+        const videoSpeed = estimateSyncSpeed(duration, voiceDur);
+        const mergedBlob = await merger.merge(file, audioBlob, { videoSpeed });
+        const finalUrl = URL.createObjectURL(mergedBlob);
+        const a = document.createElement('a');
+        a.href = finalUrl;
+        a.download = `batch-${item.id}.mp4`;
+        a.click();
+        setBatchLog(prev => `${prev}  ✓ final video download စတင်${videoSpeed > 1.05 ? ` (${videoSpeed.toFixed(2)}x auto speed-match)` : ''}\n`);
+        syncBatchItem(item.id, { status: 'done', finishedAt: Date.now() });
+        setBatchLog(prev => `${prev}→ ${item.name} ပြီးဆုံး\n`);
+      } catch (err: any) {
+        syncBatchItem(item.id, { status: 'failed', error: err?.message || 'Unknown error', finishedAt: Date.now() });
+        setBatchLog(prev => `${prev}  ✗ error: ${err?.message || 'failed'}\n`);
+      }
+    }
+    setProgress(100);
+    setStatusMessage('Batch processing ပြီးဆုံး');
+    setIsBatchRunning(false);
+    refreshBatch();
+    toast.success('Batch processing ပြီးဆုံးပါပြီ');
+  };
+
+  const batchStatusStyle = (status: BatchStatus): string =>
+    ({
+      queued: 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400',
+      processing: 'bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-300 animate-pulse',
+      done: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300',
+      failed: 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300',
+    } as Record<BatchStatus, string>)[status] || '';
 
   // Recent-task restore: re-apply pipeline settings from a previous task
   const handleRestoreVideoStudio = (input: any) => {
@@ -795,6 +934,60 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
           </div>
         )}
 
+        {/* ===================== BATCH PROCESSING ===================== */}
+        <div className="glass mt-6 p-5 rounded-2xl border border-white/10">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-black uppercase tracking-widest text-zinc-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+              Batch Queue — ဗီဒီယိုအများကြီး တစ်ခါတည့်
+            </h3>
+            {batchItems.filter(i => i.status === 'done').length > 0 && (
+              <button onClick={handleClearDoneBatchItems} className="text-[10px] font-bold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider">Clear done</button>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <button
+              onClick={handleAddToBatch}
+              disabled={isBatchRunning}
+              className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-40"
+            >
+              + Queue ထဲ ထည့်မယ့် (ယခု config ဖြင့်)
+            </button>
+            <button
+              onClick={handleProcessBatch}
+              disabled={isBatchRunning || batchItems.filter(i => i.status === 'queued').length === 0}
+              className="flex-1 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-orange-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isBatchRunning ? `Processing... (${batchItems.filter(i => i.status === 'processing').length}/${batchItems.length})` : `Process ${batchItems.filter(i => i.status === 'queued').length} Items`}
+            </button>
+          </div>
+          {batchItems.length > 0 ? (
+            <div className="space-y-2 max-h-52 overflow-y-auto">
+              {batchItems.map(item => (
+                <div key={item.id} className="flex items-center gap-3 bg-black/20 border border-white/5 rounded-xl px-3 py-2">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    item.status === 'done' ? 'bg-emerald-400' : item.status === 'processing' ? 'bg-orange-400 animate-pulse' : item.status === 'failed' ? 'bg-red-400' : 'bg-zinc-500'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-zinc-200 truncate">{item.name}</p>
+                    <p className="text-[10px] text-zinc-500">Voice: {item.voice} • {item.status === 'failed' && item.error ? `error: ${item.error}` : item.status}</p>
+                  </div>
+                  {!isBatchRunning && item.status === 'queued' && (
+                    <button onClick={() => handleRemoveBatchItem(item.id)} className="text-[10px] text-zinc-500 hover:text-red-400 font-bold uppercase">Remove</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-zinc-500 text-center py-2">Queue ထဲ item မရှိသေးပါ — ဗီဒီယိုတင်ပြီး config ချိန်ပြီး "Queue ထဲ ထည့်မယ့်" နှိပ်ပါ။</p>
+          )}
+          {batchLog && (
+            <pre className="mt-3 text-[10px] text-zinc-400 bg-black/30 rounded-lg p-3 max-h-36 overflow-y-auto font-mono whitespace-pre-wrap">{batchLog}</pre>
+          )}
+          <p className="text-[9px] text-zinc-500 mt-2 leading-relaxed">
+            Batch က ဗီဒီယိုတိုင်းကို transcription → translate → voiceover → timeline sync အပြည့် ဖြတ်ပေးပါတယ်။ Queue က browser ထဲ local သာသိမ်းပြီး server cost လုံးဝမကုန်ပါ။ Video file တွေက session ထဲမှာသာရတဲ့အတွက် ဗီဒီယိုတင်ပြီးမှ Process ခေါ်ပါ။
+          </p>
+        </div>
         <RecentHistory
           moduleName={['videostudio_transcribe', 'videostudio_translate', 'videostudio_voiceover']}
           onRestore={handleRestoreVideoStudio}

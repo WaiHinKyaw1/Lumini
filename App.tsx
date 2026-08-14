@@ -2,6 +2,14 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import CreditModal from './components/CreditModal';
+import RefuelEngine from './components/RefuelEngine';
+import {
+  claimMission,
+  getRefuelState,
+  recordReferralGiven,
+  redeemReferralCode,
+  REFERRAL_REWARD,
+} from './services/refuelEngine';
 import { AuthScreen } from './components/AuthScreen';
 import { UserStats } from './types';
 import { Toaster, toast } from 'react-hot-toast';
@@ -47,6 +55,7 @@ const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [isRefuelOpen, setIsRefuelOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   const [manualKey, setManualKey] = useState('');
@@ -68,6 +77,55 @@ const App: React.FC = () => {
   useEffect(() => {
     testConnection();
   }, []);
+
+  // Refuel Engine: handle ?ref= URL param (friend shared their code) + mission auto-detection
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref');
+      const refuel = getRefuelState();
+      if (refCode && !refuel.referredBy && refCode.trim().toUpperCase() !== refuel.referralCode) {
+        const earned = redeemReferralCode(refCode.trim(), addCredits, firestoreRefuelSync);
+        if (earned > 0) {
+          toast.success(`Referral code သုံးလို့ +${REFERRAL_REWARD} credits ရရှိပါပြီ!`);
+        }
+      }
+      // Clean URL after processing
+      if (refCode) {
+        const cleanUrl = `${window.location.pathname}${window.location.hash}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user]);
+
+  // Mission auto-detection — when visiting modules, claim related mission rewards
+  useEffect(() => {
+    if (!user) return;
+    const missionMap: Record<string, string> = {
+      transcription: 'first_transcription',
+      voiceover: 'first_voiceover',
+      recap: 'first_recap',
+    };
+    const missionId = missionMap[currentPath];
+    if (!missionId) return;
+    const state = getRefuelState();
+    if (!state.redeemed[missionId]) {
+      const earned = claimMission(missionId, addCredits, firestoreRefuelSync);
+      if (earned > 0) {
+        toast.success(`Mission ပြီး! +${earned} credits ရရှိပါပြီ`);
+      }
+    }
+  }, [currentPath, user]);
+
+  const firestoreRefuelSync = (patch: Record<string, unknown>) => {
+    if (!auth.currentUser) return;
+    updateDoc(doc(db, 'users', auth.currentUser.uid), patch).catch((error) => {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
+    });
+  };
 
   // Firebase Authentication Listener
   useEffect(() => {
@@ -362,6 +420,7 @@ const App: React.FC = () => {
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
         onOpenCredits={() => setIsCreditModalOpen(true)}
+        onOpenRefuel={() => setIsRefuelOpen(true)}
         user={user}
         onLoginGoogle={handleLoginGoogle}
         onLogout={handleLogout}
@@ -372,6 +431,12 @@ const App: React.FC = () => {
         isOpen={isCreditModalOpen} 
         onClose={() => setIsCreditModalOpen(false)} 
         onAddCredits={addCredits} 
+      />
+      <RefuelEngine
+        isOpen={isRefuelOpen}
+        onClose={() => setIsRefuelOpen(false)}
+        onAddCredits={addCredits}
+        onSyncFirestore={firestoreRefuelSync}
       />
     </>
   );
