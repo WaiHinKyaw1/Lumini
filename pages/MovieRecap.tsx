@@ -553,14 +553,14 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         </div>
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Movie Recap Studio</h1>
-          <p className="text-slate-500 dark:text-zinc-400 text-xs font-medium">Professional Sync & Effects • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} Credits</p>
+          <p className="text-slate-500 dark:text-zinc-300 text-xs font-medium">Professional Sync & Effects • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} Credits</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-6">
             <div className="glass p-4 rounded-2xl border border-white/5 space-y-4">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Source Selection</h3>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-400">Source Selection</h3>
                 <div className="grid grid-cols-2 gap-4">
                     <button onClick={() => videoInputRef.current?.click()} className={`p-4 rounded-2xl border border-dashed flex flex-col items-center gap-2 transition-all ${videoFile ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-300 dark:border-white/10 hover:border-indigo-400 hover:bg-indigo-500/5'}`}>
                         <svg className={`w-6 h-6 ${videoFile ? 'text-indigo-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
@@ -629,7 +629,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
             <div className="glass p-4 rounded-2xl border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">Visual Controls</h3>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-400">Visual Controls</h3>
                     <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg text-[9px] font-bold px-2 py-1 text-slate-700 dark:text-white outline-none">
                         <option value="16:9">YouTube (16:9)</option>
                         <option value="9:16">TikTok (9:16)</option>
@@ -685,7 +685,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
             <div className="glass p-4 rounded-2xl border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-zinc-500 tracking-[0.2em]">Sync Tuning</h3>
+                    <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-zinc-400 tracking-[0.2em]">Sync Tuning</h3>
                     {audioDuration > 0 && <span className="text-[9px] font-black text-indigo-400 font-mono tracking-widest uppercase">Target: {formatDurationFull(audioOutputDur)}</span>}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
