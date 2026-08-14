@@ -6,6 +6,7 @@ import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 
 interface SubtitleStudioProps {
@@ -30,6 +31,13 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
   const [brandKit, setBrandKit] = useState<BrandKitData | null>(null);
   const [useBrandStyling, setUseBrandStyling] = useState(false);
   const isMounted = useRef(true);
+
+  // Recent-task restore: re-apply the subtitle language setting from a previous task
+  const handleRestoreSubtitles = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.language === 'string') setLanguage(input.language);
+    setError(null);
+  };
 
   useEffect(() => {
     const kit = getBrandKit();
@@ -206,6 +214,11 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
           'subtitles',
           { fileName: item.file.name, fileSize: item.file.size, language },
           { resultLength: result?.length || 0, textPreview: result?.substring(0, 150) + "..." }
+        );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'subtitles', input: { fileName: item.file.name, language } },
+          })
         );
         setRefreshTrigger(prev => prev + 1);
       }
@@ -501,6 +514,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
         </div>
       )}
       
+      <RecentHistory moduleName="subtitles" onRestore={handleRestoreSubtitles} />
+      <div className="mt-4" />
       <ModuleLogHistory moduleName="subtitles" refreshTrigger={refreshTrigger} />
     </div>
   );

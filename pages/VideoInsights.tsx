@@ -5,6 +5,7 @@ import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 
 interface VideoInsightsProps {
@@ -42,6 +43,17 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
   }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Recent-task restore: re-apply the recap configuration from a previous task
+  const handleRestoreInsights = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.targetLang === 'string') setTargetLang(input.targetLang);
+    if (input.perspective === '1ST PERSON' || input.perspective === '3RD PERSON') setPerspective(input.perspective);
+    if (['PROFESSIONAL', 'EXTREME', 'SARCASTIC', 'EMOTIONAL', 'MYSTERY', 'COMEDY'].includes(input.tone)) setTone(input.tone);
+    if (['DEFAULT', 'DOCUMENTARY', 'MOVIE RECAP', 'CRAFTING'].includes(input.recapType)) setRecapType(input.recapType);
+    setResult(null);
+    setError(null);
+  };
 
   const recapOptions: RecapTypeOption[] = [
     { id: 'DEFAULT', title: 'DEFAULT' },
@@ -137,6 +149,11 @@ Instructions:
           'recap_insights',
           { fileName: file.name, fileSize: file.size, targetLang, perspective, tone, recapType },
           { resultLength: fullRecap.length, textPreview: fullRecap.substring(0, 150) + "..." }
+        );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'recap_insights', input: { fileName: file.name, targetLang, perspective, tone, recapType } },
+          })
         );
         setRefreshTrigger(prev => prev + 1);
       }
@@ -352,6 +369,8 @@ Instructions:
         </div>
       )}
       
+      <RecentHistory moduleName="recap_insights" onRestore={handleRestoreInsights} />
+      <div className="mt-4" />
       <ModuleLogHistory moduleName="recap_insights" refreshTrigger={refreshTrigger} />
     </div>
   );
