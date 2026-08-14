@@ -199,7 +199,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
             <button
               key={tab.id}
               onClick={() => setActiveCategoryFilter(tab.id)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
+              className={`px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
                 activeCategoryFilter === tab.id
                   ? 'bg-accent text-white border-accent'
                   : 'bg-white dark:bg-[#0c0c0e] border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white'
@@ -226,13 +226,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
       </div>
 
       {/* Module Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {filteredCategories.flatMap(category =>
           category.items.map((action) => (
             <button
               key={action.path}
               onClick={() => onAction(action.path)}
-              className="group p-5 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 hover:border-accent/50 hover:shadow-md transition-all text-left"
+              aria-label={`${action.title} module ဖွင့်ရန် (${action.cost} CR)`}
+              className="group p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 hover:border-accent/50 hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[110px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className={`p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 ${action.color}`}>

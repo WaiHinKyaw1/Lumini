@@ -261,7 +261,7 @@ Rules:
 
             <button
               onClick={handleProcess}
-              disabled={!file}
+ aria-label="Transcription စတင်ရန်"              disabled={!file}
               className={`w-full mt-6 py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-xl ${
                 file 
                   ? 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]' 

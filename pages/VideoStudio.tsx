@@ -475,7 +475,7 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
 
   return (
     <div className="max-w-3xl mx-auto pb-12 px-4 transition-all duration-300">
-      <Toaster position="top-right" />
+
       
       {/* Page Title */}
       <div className="flex items-center gap-3 mb-8">
@@ -685,7 +685,7 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
 
             <button
               onClick={startTranscription}
-              className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold uppercase tracking-widest shadow-lg shadow-orange-500/25 transition-all text-xs"
+ aria-label="ဗီဒီယို transcription စတင်ရန်"              className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold uppercase tracking-widest shadow-lg shadow-orange-500/25 transition-all text-xs"
             >
               Analyze & Extract Script
             </button>
@@ -735,7 +735,7 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
               </button>
               <button
                 onClick={startTranslation}
-                className="flex-[2] py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl uppercase tracking-widest transition-all text-xs font-bold shadow-lg shadow-orange-500/20"
+ aria-label="မြန်မာဘာသာသို့ ဘာသာပြန်ရန်"                className="flex-[2] py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl uppercase tracking-widest transition-all text-xs font-bold shadow-lg shadow-orange-500/20"
               >
                 Translate to Burmese (5 CR)
               </button>
@@ -806,7 +806,7 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
               </button>
               <button
                 onClick={startVoiceover}
-                className="flex-[2] py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl uppercase tracking-widest transition-all text-xs font-bold shadow-lg shadow-orange-500/20"
+ aria-label="အသံထွက်ပြီး ဗီဒီယို sync လုပ်ရန်"                className="flex-[2] py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl uppercase tracking-widest transition-all text-xs font-bold shadow-lg shadow-orange-500/20"
               >
                 Synthesize Voice (10 CR)
               </button>

@@ -292,7 +292,7 @@ Translate the text into ${targetLang} following the order:
             {!isChecked ? (
               <button onClick={handleCheck} className="w-full py-4 rounded-xl bg-midnight text-white border border-white/10 hover:bg-zinc-800 movie-meta !text-[12px] uppercase tracking-[0.25em] shadow-2xl transition-all active:scale-[0.98]">Lock Synthesis Protocol</button>
             ) : (
-              <button onClick={handleTranslate} disabled={isProcessing} className={`w-full py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.25em] transition-all shadow-2xl ${isProcessing ? 'bg-white/5 text-zinc-600' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'}`}>{isProcessing ? 'Decoding Neural Net...' : `Execute Studio Master`}</button>
+              <button onClick={handleTranslate} disabled={isProcessing} aria-label="ဗီဒီယိုစာသား မြန်မာဘာသာပြန်ရန်" className={`w-full py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.25em] transition-all shadow-2xl ${isProcessing ? 'bg-white/5 text-zinc-600' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'}`}>{isProcessing ? 'Decoding Neural Net...' : `Execute Studio Master`}</button>
             )}
           </div>
         </div>

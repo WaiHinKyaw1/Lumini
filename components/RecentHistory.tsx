@@ -4,6 +4,7 @@ import { auth } from '../services/firebase';
 import { toast } from 'react-hot-toast';
 import { getRecent, putRecord, isIndexedDBAvailable } from '../services/historyCache';
 import { Clock, Undo2, Loader2 } from 'lucide-react';
+import { Skeleton } from './Skeleton';
 
 const LOCAL_KEY = 'lumini_recent_history';
 const MAX_LOCAL_ITEMS = 20;
@@ -187,9 +188,12 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-4 py-3 text-[11px] text-zinc-400">
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-        <span>Recent tasks လိုဒ်နေပါသည်…</span>
+      <div className="rounded-2xl bg-zinc-950/60 border border-white/5 overflow-hidden" aria-label="မကြာသေးမီ လုပ်ဆောင်ချက်များ တင်နေပါသည်" aria-busy="true" role="status">
+        <Skeleton className="h-9 rounded-none border-b border-white/5" />
+        <div className="px-4 py-3 space-y-2.5">
+          <Skeleton className="h-7 w-full" />
+          <Skeleton className="h-7 w-5/6" />
+        </div>
       </div>
     );
   }
@@ -226,6 +230,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
                 type="button"
                 onClick={() => handleRestore(rec)}
                 disabled={isRestoring}
+                aria-label={isRestoring ? `ပြန်လည်ထည့်သွင်းနေပါသည် (${getModuleTitle(rec.module)})` : `${burmeseRestoreLabel} (${getModuleTitle(rec.module)})`}
                 className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50"
               >
                 {isRestoring ? (

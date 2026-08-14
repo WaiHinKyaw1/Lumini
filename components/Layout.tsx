@@ -65,6 +65,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
         <div className="flex items-center gap-4">
           <button 
             onClick={() => setIsSidebarOpen(true)}
+            aria-label="Navigation menu ဖွင့်ရန်"
             className="p-1.5 -ml-2 rounded-xl text-slate-600 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,6 +108,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
                     <button
                       key={item.path}
                       onClick={() => handleNavClick(item.path)}
+                      aria-label={`${item.name} module သို့သွားရန်`}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-slate-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all group"
                     >
                       <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors">
@@ -128,7 +130,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
         </div>
 
         <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-1.5 rounded-full bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-white/10">
+            <button onClick={toggleTheme} aria-label={isDarkMode ? 'အလင်းမုဒ် ပြောင်းရန်' : 'Dark mode ပြောင်းရန်'} className="p-1.5 rounded-full bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-white/10">
                {isDarkMode ? (
                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                ) : (
@@ -137,6 +139,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
             </button>
             <button 
               onClick={onOpenCredits}
+              aria-label={`Credit balance ဖြည့်ရန် (${credits} CR)`}
               className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-full hover:border-accent/50 hover:bg-accent/5 transition-all group"
             >
               <span className="text-[10px] font-black text-accent dark:text-accent uppercase tracking-widest">{credits} CR</span>
@@ -145,8 +148,9 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
             {onOpenRefuel && (
               <button 
                 onClick={onOpenRefuel}
-                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full hover:shadow-lg hover:shadow-orange-500/25 transition-all group"
+                aria-label="Refuel Engine — ငွေမပေးဘဲ free credits ရယူရန်"
                 title="Refuel Engine — ငွေမပေးဘဲ free credits ရယူမယ့်"
+                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full hover:shadow-lg hover:shadow-orange-500/25 transition-all group"
               >
                 <svg className="w-3 h-3 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
                 <span className="text-[10px] font-black uppercase tracking-widest">Refuel</span>
@@ -157,8 +161,9 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
               <div className="flex items-center gap-1.5 ml-1">
                 <button 
                   onClick={() => setPath('profile')}
-                  className="flex items-center gap-1.5 p-1 px-2.5 bg-gray-100 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-full text-[10px] font-bold text-zinc-600 dark:text-zinc-300 hover:border-accent/50 hover:bg-accent/5 transition-all outline-none"
+                  aria-label="Profile & Settings ဖွင့်ရန်"
                   title="View Profile & Settings"
+                  className="flex items-center gap-1.5 p-1 px-2.5 bg-gray-100 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-full text-[10px] font-bold text-zinc-600 dark:text-zinc-300 hover:border-accent/50 hover:bg-accent/5 transition-all outline-none"
                 >
                   {user.photoURL ? (
                     <img src={user.photoURL} alt="pfp" className="w-4 h-4 rounded-full" referrerPolicy="no-referrer" />
@@ -171,8 +176,9 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
                 </button>
                 <button 
                   onClick={onLogout}
-                  className="p-1.5 rounded-full bg-red-500/10 hover:bg-red-500/25 text-red-500 transition-all"
+                  aria-label="Sign out လုပ်ရန်"
                   title="Sign Out"
+                  className="p-1.5 rounded-full bg-red-500/10 hover:bg-red-500/25 text-red-500 transition-all"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -182,6 +188,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
             ) : (
               <button
                 onClick={onLoginGoogle}
+                aria-label="Google account ဖြင့် Sign in လုပ်ရန်"
                 className="flex items-center gap-1.5 px-3 py-1 ml-1 bg-accent/10 border border-accent/20 rounded-full hover:bg-accent hover:text-white transition-all text-[9px] font-black uppercase tracking-widest text-accent"
               >
                 <span>Google Sign In</span>
@@ -212,6 +219,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
             </div>
             <button 
               onClick={() => setIsSidebarOpen(false)}
+              aria-label="Navigation menu ပိတ်ရန်"
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -226,6 +234,8 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
               <button
                 key={item.path}
                 onClick={() => handleNavClick(item.path)}
+                aria-label={`${item.name} module သို့သွားရန်`}
+                aria-current={currentPath === item.path ? 'page' : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${
                   currentPath === item.path 
                     ? 'bg-accent text-white shadow-lg shadow-accent/20' 
@@ -250,6 +260,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
                  </div>
                  <button 
                   onClick={onOpenCredits}
+                  aria-label="Refuel Engine ဖွင့်ရန်"
                   className="w-full py-2 bg-accent text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-accent-hover transition-colors shadow-lg shadow-accent/20"
                  >
                    Refuel Engine

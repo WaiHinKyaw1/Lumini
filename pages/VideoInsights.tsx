@@ -310,7 +310,7 @@ Instructions:
 
         <div className="pt-2">
           <button
-            onClick={handleProcess}
+            onClick={handleProcess} aria-label="ဗီဒီယို Analysis စတင်ရန်"
             disabled={!file || isProcessing}
             className={`w-full py-4 rounded-xl movie-meta !text-[13px] uppercase tracking-[0.25em] transition-all shadow-2xl ${
               isProcessing 
