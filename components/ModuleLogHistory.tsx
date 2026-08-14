@@ -173,7 +173,7 @@ export const ModuleLogHistory: React.FC<ModuleLogHistoryProps> = ({
                         <ul className="space-y-1 font-mono text-[11px] text-zinc-300">
                           {Object.entries(inputObj).map(([key, val]) => (
                             <li key={key} className="flex gap-2">
-                              <span className="text-zinc-550 shrink-0">{key}:</span>
+                              <span className="text-zinc-500 shrink-0">{key}:</span>
                               <span className="text-zinc-200 line-clamp-2 overflow-ellipsis">{String(val)}</span>
                             </li>
                           ))}
@@ -190,7 +190,7 @@ export const ModuleLogHistory: React.FC<ModuleLogHistoryProps> = ({
                         <ul className="space-y-1 font-mono text-[11px] text-zinc-300">
                           {Object.entries(outputObj).map(([key, val]) => (
                             <li key={key} className="flex gap-2">
-                              <span className="text-zinc-550 shrink-0">{key}:</span>
+                              <span className="text-zinc-500 shrink-0">{key}:</span>
                               <span className="text-zinc-200 line-clamp-3 overflow-ellipsis">{String(val)}</span>
                             </li>
                           ))}

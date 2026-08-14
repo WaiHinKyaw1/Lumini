@@ -148,7 +148,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
           <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
             {isLogin ? 'Welcome Back' : 'Join Lumina'}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-zinc-500 max-w-[280px] mx-auto leading-relaxed">
+          <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-[280px] mx-auto leading-relaxed">
             {isLogin 
               ? 'Access your cinematic creation tools, multi-speaker voiceover synthesizer, and viral captions.' 
               : 'Register your account to unlock professional automation, transcription engines, and credits.'}
@@ -161,7 +161,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
             type="button"
             onClick={() => { setIsLogin(true); setError(null); }}
             className={`py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all relative z-10 flex items-center justify-center gap-2 ${
-              isLogin ? 'text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+              isLogin ? 'text-white' : 'text-slate-500 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-zinc-200'
             }`}
           >
             {isLogin && (
@@ -178,7 +178,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
             type="button"
             onClick={() => { setIsLogin(false); setError(null); }}
             className={`py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all relative z-10 flex items-center justify-center gap-2 ${
-              !isLogin ? 'text-white' : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+              !isLogin ? 'text-white' : 'text-slate-500 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-zinc-200'
             }`}
           >
             {!isLogin && (
@@ -207,7 +207,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
 
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-slate-200 dark:bg-white/5" />
-            <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-650 uppercase tracking-widest">or email credentials</span>
+            <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-widest">or email credentials</span>
             <div className="h-px flex-1 bg-slate-200 dark:bg-white/5" />
           </div>
 
@@ -236,7 +236,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>ဖြေရှင်းနည်းလမ်းညွှန် (Instant Solution)</span>
                       </div>
-                      <p className="text-[10px] text-zinc-650 dark:text-zinc-400 leading-relaxed font-semibold animate-fade-in">
+                      <p className="text-[10px] text-zinc-600 dark:text-zinc-300 leading-relaxed font-semibold animate-fade-in">
                         Firebase တွင် အီးမေးလ်ဖြင့် အကောင့်သစ်ဖွင့်ခြင်း (Email Registration) ကို စတင်အသုံးပြုနိုင်ရန် Manual ဖွင့်ပေးရန်လိုအပ်ပါသည်။ အောက်ပါ ရွေးချယ်စရာတစ်ခုခုဖြင့် ၁ စက္ကန့်အတွင်း အလွယ်တကူ ကျော်ဖြတ်နိုင်ပါသည် -
                       </p>
                       
@@ -256,7 +256,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
 
                         {/* Option 2: Step Guide Link */}
                         <div className="p-2.5 bg-white dark:bg-black/40 border border-amber-500/10 rounded-xl space-y-1">
-                          <p className="text-[9px] font-black uppercase text-zinc-500 dark:text-zinc-400">⚙️ နည်းလမ်း (ခ) - Email/Password စနစ်ကို Activate လုပ်ရန်</p>
+                          <p className="text-[9px] font-black uppercase text-zinc-500 dark:text-zinc-300">⚙️ နည်းလမ်း (ခ) - Email/Password စနစ်ကို Activate လုပ်ရန်</p>
                           <p className="text-[9px] text-zinc-500 leading-normal font-medium">
                             Firebase Console တွင် Email စနစ်ကို ဖွင့်လိုပါက အောက်နားရှိ <strong>"Firebase Activation Help (မြန်မာဘာသာ)"</strong> ခလုတ်ကို နှိပ်၍ အဆင့်ဆင့်လုပ်ဆောင်ပုံ လမ်းညွှန်ချက်ကို ကြည့်ရှုနိုင်ပါသည်။
                           </p>
@@ -270,9 +270,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
 
             {!isLogin && (
               <div className="space-y-1 text-left">
-                <label className="text-[10px] font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest block ml-1">Full Name</label>
+                <label className="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest block ml-1">Full Name</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-zinc-600">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-zinc-500">
                     <User className="w-4 h-4" />
                   </div>
                   <input
@@ -289,9 +289,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
             )}
 
             <div className="space-y-1 text-left">
-              <label className="text-[10px] font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest block ml-1">Email Address</label>
+              <label className="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest block ml-1">Email Address</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-zinc-600">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-zinc-500">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
@@ -307,9 +307,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
             </div>
 
             <div className="space-y-1 text-left">
-              <label className="text-[10px] font-black text-slate-500 dark:text-zinc-500 uppercase tracking-widest block ml-1">Password</label>
+              <label className="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest block ml-1">Password</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-zinc-600">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-zinc-500">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -324,7 +324,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-zinc-650 hover:text-slate-600 dark:hover:text-zinc-400"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-400"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -353,7 +353,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
           <button
             type="button"
             onClick={() => setShowFirebaseGuide(!showFirebaseGuide)}
-            className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
+            className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
           >
             <HelpCircle className="w-3.5 h-3.5" />
             <span>Firebase Activation Help (မြန်မာဘာသာ)</span>
@@ -373,12 +373,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
                     <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                     Email/Password အကောင့်စနစ်အား ဖွင့်နည်းလမ်းညွှန် -
                   </h4>
-                  <p className="text-[9px] text-slate-500 dark:text-zinc-500 leading-normal font-medium">
+                  <p className="text-[9px] text-slate-500 dark:text-zinc-400 leading-normal font-medium">
                     Firebase စနစ်သည် မူလကနဦးတွင် Google ဖြင့်ဝင်ခြင်းကိုသာ ခွင့်ပြုထားသဖြင့် အီးမေးလ်ဖြင့် အကောင့်သစ်များ ဖွင့်နိုင်ရန် Console ထဲတွင် ဖွင့်ပေးရန် လိုအပ်ပါသည် -
                   </p>
                 </div>
                 
-                <ol className="list-decimal list-inside text-[9px] text-slate-600 dark:text-zinc-400 space-y-2 leading-relaxed font-semibold">
+                <ol className="list-decimal list-inside text-[9px] text-slate-600 dark:text-zinc-300 space-y-2 leading-relaxed font-semibold">
                   <li>
                     ဦးစွာ{' '}
                     <a 

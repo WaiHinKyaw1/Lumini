@@ -150,11 +150,11 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
           </div>
           <div className="pt-4 border-t border-white/5 flex gap-6">
             <div>
-              <p className="text-[9px] uppercase tracking-widest text-zinc-650 font-bold">Generated</p>
+              <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Generated</p>
               <p className="text-xl font-black text-white">{stats.totalGenerated} <span className="text-[9px] font-medium text-zinc-500">assets</span></p>
             </div>
             <div>
-              <p className="text-[9px] uppercase tracking-widest text-zinc-650 font-bold">Quota Level</p>
+              <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Quota Level</p>
               <p className="text-xl font-black text-green-400">UNLIMITED</p>
             </div>
           </div>
@@ -285,7 +285,7 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
                 </span>
                 <div className="space-y-1">
                   <h5 className="text-[11px] font-black uppercase text-zinc-200">{tut.title}</h5>
-                  <p className="text-[10px] text-zinc-550 leading-relaxed font-bold">{tut.desc}</p>
+                  <p className="text-[10px] text-zinc-500 leading-relaxed font-bold">{tut.desc}</p>
                 </div>
               </div>
             ))}

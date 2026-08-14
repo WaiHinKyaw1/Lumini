@@ -161,14 +161,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome to Lumina Studio</h1>
-          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-zinc-300 mt-1">
             Create videos, voiceovers and thumbnails with AI.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl px-5 py-3">
-            <span className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-500 block">Credits</span>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-400 block">Credits</span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-bold text-slate-900 dark:text-white">{stats.credits}</span>
               <button 
@@ -181,7 +181,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
           </div>
 
           <div className="bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl px-5 py-3">
-            <span className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-500 block">Generated</span>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-400 block">Generated</span>
             <span className="text-2xl font-bold text-slate-900 dark:text-white">{stats.totalGenerated}</span>
           </div>
         </div>
@@ -202,7 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
               className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
                 activeCategoryFilter === tab.id
                   ? 'bg-accent text-white border-accent'
-                  : 'bg-white dark:bg-[#0c0c0e] border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                  : 'bg-white dark:bg-[#0c0c0e] border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               {tab.label}
@@ -217,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search..."
-            className="w-full bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 focus:border-accent rounded-lg py-1.5 px-3 pl-9 text-xs text-slate-800 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-zinc-500"
+            className="w-full bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 focus:border-accent rounded-lg py-1.5 px-3 pl-9 text-xs text-slate-800 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-zinc-400"
           />
           <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -238,7 +238,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
                 <div className={`p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 ${action.color}`}>
                   {action.icon}
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-400 uppercase">
                   {action.cost} CR
                 </span>
               </div>
@@ -246,7 +246,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
               <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-accent transition-colors">
                 {action.title}
               </h4>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed mt-1.5">
+              <p className="text-xs text-slate-500 dark:text-zinc-300 leading-relaxed mt-1.5">
                 {action.desc}
               </p>
             </button>
@@ -256,7 +256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
 
       {filteredCategories.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-sm text-slate-400 dark:text-zinc-500">No modules found.</p>
+          <p className="text-sm text-slate-400 dark:text-zinc-400">No modules found.</p>
         </div>
       )}
     </div>

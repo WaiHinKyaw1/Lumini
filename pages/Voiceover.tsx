@@ -322,7 +322,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 className={`p-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center ${
                   tone === t.id 
                     ? 'bg-accent/10 border-accent text-accent shadow-md shadow-accent/5' 
-                    : 'bg-transparent border-slate-200 dark:border-white/5 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-white/5'
+                    : 'bg-transparent border-slate-200 dark:border-white/5 text-slate-500 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/5'
                 }`}
               >
                 <span className="movie-h2 !text-[10px] !mb-0 uppercase tracking-wider font-bold">{t.name}</span>
@@ -462,7 +462,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                   <p className="text-xs text-amber-600 dark:text-amber-400 font-bold leading-relaxed">
                     {parsedQuotaError.mmMessage}
                   </p>
-                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal leading-relaxed bg-[#0e0e11]/50 p-3.5 rounded-xl border border-white/5 space-y-1.5">
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-300 font-normal leading-relaxed bg-[#0e0e11]/50 p-3.5 rounded-xl border border-white/5 space-y-1.5">
                     <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">💡 ဖြေရှင်းနည်းလမ်းညွှန်များ -</span>
                     <p>၁။ <strong>ခေတ္တခဏ စောင့်ဆိုင်းပေးပါ -</strong> အခမဲ့ဗားရှင်း (Free Tier) သည် တစ်မိနစ်လျှင် အသံဖန်တီးမှု ၃ ကြိမ်သာ ခွင့်ပြုသောကြောင့် စက္ကန့် ၃၀ ခန့် စောင့်ပြီးမှ ပြန်လည်လုပ်ဆောင်ပေးပါ။</p>
                     <p>၂။ <strong>ကိုယ်ပိုင် API Key သုံးပါ -</strong> Profile သို့မဟုတ် Settings စာမျက်နှာတွင် သင်၏ကိုယ်ပိုင် Gemini API Key အား ထည့်သွင်းပါက ကန့်သတ်ချက်မရှိ စိုက်ကြိုက်အသုံးပြုနိုင်ပါမည်။</p>
