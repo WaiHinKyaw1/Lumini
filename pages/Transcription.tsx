@@ -5,6 +5,7 @@ import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 
 interface TranscriptionProps {
@@ -298,7 +299,8 @@ Rules:
         )}
       </div>
       {error && <div className="mt-3 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest">{error}</div>}
-      
+      <RecentHistory moduleName="transcription" onRestore={() => null} restoreLabel="Review" burmeseRestoreLabel="ပြန်ကြည့်မည်" />
+      <div className="mt-4" />
       <ModuleLogHistory moduleName="transcription" refreshTrigger={refreshTrigger} />
     </div>
   );

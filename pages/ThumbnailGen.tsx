@@ -6,6 +6,7 @@ import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 
 interface ThumbnailGenProps {
@@ -25,6 +26,18 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [useBrandKit, setUseBrandKit] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKitData | null>(null);
   const isMounted = useRef(true);
+
+  // Recent-task restore: repopulate the thumbnail generator inputs from a previous task
+  const handleRestoreThumbnail = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.topic === 'string') setTopic(input.topic);
+    if (typeof input.titleText === 'string') setTitleText(input.titleText);
+    if (typeof input.style === 'string' && styles.some((s) => s.name === input.style)) setStyle(input.style);
+    if (typeof input.useBrandKit === 'boolean') setUseBrandKit(input.useBrandKit);
+    setResult(null);
+    setHooks([]);
+    setError(null);
+  };
 
   useEffect(() => {
     const kit = getBrandKit();
@@ -141,6 +154,11 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
           'thumbnail',
           { topic, titleText, style, useBrandKit },
           { imageUrl: imageUrl?.substring(0, 200) + "...", hooks: hooksText }
+        );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'thumbnail', input: { topic, titleText, style, useBrandKit } },
+          })
         );
         setRefreshTrigger(prev => prev + 1);
       }
@@ -327,6 +345,8 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
         </div>
       )}
       
+      <RecentHistory moduleName="thumbnail" onRestore={handleRestoreThumbnail} />
+      <div className="mt-4" />
       <ModuleLogHistory moduleName="thumbnail" refreshTrigger={refreshTrigger} />
     </div>
   );

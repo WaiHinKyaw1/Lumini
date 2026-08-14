@@ -5,6 +5,7 @@ import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 import {
   analyzeVoice,
   applyClonePostProcessing,
@@ -58,6 +59,24 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloningRemote, setCloningRemote] = useState<boolean>(false);
   
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Recent-task restore: repopulate input fields from a previous generation
+  const handleRestoreVoiceover = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.text === 'string') setText(input.text);
+    // Logged 'character' may be an id or a name — resolve either
+    if (input.character) {
+      const byId = characters.find((c) => c.id === input.character);
+      const byName = characters.find((c) => c.name === input.character);
+      if (byId) setCharacterId(byId.id);
+      else if (byName) setCharacterId(byName.id);
+    }
+    if (input.tone) setTone(input.tone);
+    if (typeof input.voiceSpeed === 'number') setVoiceSpeed(input.voiceSpeed);
+    if (typeof input.voicePitch === 'number') setVoicePitch(input.voicePitch);
+    setMode('studio');
+    setError(null);
+  };
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isMounted = useRef(true);
 
@@ -411,6 +430,11 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           'voiceover',
           { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null },
           { status: 'success', info: 'Voiceover audio generated successfully' }
+        );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'voiceover', input: { text, characterId: char?.id || characterId, tone, voiceSpeed, voicePitch } },
+          })
         );
         setRefreshTrigger(prev => prev + 1);
       }
@@ -876,7 +900,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         );
       })()}
       
-      {mode !== 'clone' && <ModuleLogHistory moduleName="voiceover" refreshTrigger={refreshTrigger} />}
+      {mode !== 'clone' && (
+        <>
+          <RecentHistory moduleName="voiceover" onRestore={handleRestoreVoiceover} />
+          <div className="mt-4" />
+          <ModuleLogHistory moduleName="voiceover" refreshTrigger={refreshTrigger} />
+        </>
+      )}
     </div>
   );
 };

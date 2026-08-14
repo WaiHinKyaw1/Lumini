@@ -6,6 +6,7 @@ import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 interface MovieRecapProps {
   onSpendCredits: (amount: number) => boolean;
@@ -49,6 +50,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [zoomEnabled, setZoomEnabled] = useState(true);
   const [zoomInterval, setZoomInterval] = useState(5); 
   const [zoomDuration, setZoomDuration] = useState(3); 
+
+  // Recent-task restore: re-apply the recap prompt and aspect ratio from a previous task
+  const handleRestoreRecap = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.prompt === 'string') setAiPrompt(input.prompt);
+    if (typeof input.aspectRatio === 'string') setAspectRatio(input.aspectRatio);
+    setShowAIPrompt(true);
+    setError(null);
+  };
 
   // --- State: Playback & Processing ---
   const [isPlaying, setIsPlaying] = useState(false);
@@ -215,6 +225,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
              'movierecap',
              { prompt: aiPrompt, aspectRatio },
              { downloadLink: downloadLink?.substring(0, 150) + "..." }
+           );
+           window.dispatchEvent(
+             new CustomEvent('lumini:taskLogged', {
+               detail: { module: 'movierecap', input: { prompt: aiPrompt, aspectRatio } },
+             })
            );
            setRefreshTrigger(prev => prev + 1);
          }
@@ -794,6 +809,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         </div>
       </div>
       
+      <RecentHistory moduleName="movierecap" onRestore={handleRestoreRecap} />
+      <div className="mt-4" />
       <ModuleLogHistory moduleName="movierecap" refreshTrigger={refreshTrigger} />
     </div>
   );

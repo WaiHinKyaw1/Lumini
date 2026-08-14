@@ -5,6 +5,7 @@ import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 
 interface TranslationProps {
@@ -26,6 +27,18 @@ const Translation: React.FC<TranslationProps> = ({ onSpendCredits }) => {
   const [copySuccess, setCopySuccess] = useState(false);
 
   const MAX_CHARS = 30000;
+
+  // Recent-task restore: repopulate the translation inputs from a previous task
+  const handleRestoreTranslation = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.sourceText === 'string') setSourceText(input.sourceText);
+    if (typeof input.targetLang === 'string') setTargetLang(input.targetLang);
+    if (typeof input.includeDeepMeaning === 'boolean') setIncludeDeepMeaning(input.includeDeepMeaning);
+    if (typeof input.includeHooks === 'boolean') setIncludeHooks(input.includeHooks);
+    setTranslatedText(null);
+    setIsChecked(false);
+    setError(null);
+  };
 
   useEffect(() => {
     if (copySuccess) {
@@ -118,6 +131,11 @@ Translate the text into ${targetLang} following the order:
           'translation',
           { sourceText, targetLang, includeDeepMeaning, includeHooks },
           { resultLength: result?.length || 0, preview: result?.substring(0, 150) + "..." }
+        );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'translation', input: { sourceText, targetLang, includeDeepMeaning, includeHooks } },
+          })
         );
         setRefreshTrigger(prev => prev + 1);
       }
@@ -305,6 +323,8 @@ Translate the text into ${targetLang} following the order:
         </div>
       )}
       
+      <RecentHistory moduleName="translation" onRestore={handleRestoreTranslation} />
+      <div className="mt-4" />
       <ModuleLogHistory moduleName="translation" refreshTrigger={refreshTrigger} />
     </div>
   );

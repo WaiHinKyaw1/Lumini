@@ -5,6 +5,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
+import { RecentHistory } from '../components/RecentHistory';
 
 
 interface VideoStudioProps {
@@ -38,6 +39,14 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
   const [speed, setSpeed] = useState<number>(1.0); // virtual rate control for prompt context
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Recent-task restore: re-apply pipeline settings from a previous task
+  const handleRestoreVideoStudio = (input: any) => {
+    if (!input || typeof input !== 'object') return;
+    if (typeof input.tone === 'string') setTone(input.tone);
+    if (typeof input.voice === 'string') setVoice(input.voice);
+    if (typeof input.speed === 'number') setSpeed(input.speed);
+  };
 
   // Parse media duration
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,6 +132,11 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
           { fileName: file?.name || 'pasted', mimeType },
           { resultLength: scriptText.length, preview: scriptText.substring(0, 150) + "..." }
         );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'videostudio_transcribe', input: { fileName: file?.name || 'pasted' } },
+          })
+        );
         setRefreshTrigger(prev => prev + 1);
       }
     } catch (err: any) {
@@ -184,6 +198,11 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
           { originalScriptLength: transcript.length, duration, tone },
           { resultLength: translatedText.length, preview: translatedText.substring(0, 150) + "..." }
         );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'videostudio_translate', input: { duration, tone } },
+          })
+        );
         setRefreshTrigger(prev => prev + 1);
       }
     } catch (err: any) {
@@ -226,6 +245,11 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
           'videostudio_voiceover',
           { voice, speed, translationLength: translation.length },
           { status: 'success', info: 'Voiceover audio generated successfully' }
+        );
+        window.dispatchEvent(
+          new CustomEvent('lumini:taskLogged', {
+            detail: { module: 'videostudio_voiceover', input: { voice, speed } },
+          })
         );
         setRefreshTrigger(prev => prev + 1);
       }
@@ -665,6 +689,11 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
           </div>
         )}
 
+        <RecentHistory
+          moduleName={['videostudio_transcribe', 'videostudio_translate', 'videostudio_voiceover']}
+          onRestore={handleRestoreVideoStudio}
+        />
+        <div className="mt-4" />
         <ModuleLogHistory 
           moduleName={['videostudio_transcribe', 'videostudio_translate', 'videostudio_voiceover']} 
           refreshTrigger={refreshTrigger} 
