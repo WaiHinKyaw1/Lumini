@@ -9,12 +9,13 @@ interface LayoutProps {
   isDarkMode: boolean;
   toggleTheme: () => void;
   onOpenCredits: () => void;
+  onOpenRefuel?: () => void;
   user: any;
   onLoginGoogle?: () => void;
   onLogout?: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits, user, onLoginGoogle, onLogout }) => {
+const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPath, setPath, isDarkMode, toggleTheme, onOpenCredits, onOpenRefuel, user, onLoginGoogle, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -141,6 +142,16 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
               <span className="text-[10px] font-black text-accent dark:text-accent uppercase tracking-widest">{credits} CR</span>
               <svg className="w-3 h-3 text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
             </button>
+            {onOpenRefuel && (
+              <button 
+                onClick={onOpenRefuel}
+                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full hover:shadow-lg hover:shadow-orange-500/25 transition-all group"
+                title="Refuel Engine — ငွေမပေးဘဲ free credits ရယူမယ့်"
+              >
+                <svg className="w-3 h-3 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+                <span className="text-[10px] font-black uppercase tracking-widest">Refuel</span>
+              </button>
+            )}
 
             {user ? (
               <div className="flex items-center gap-1.5 ml-1">

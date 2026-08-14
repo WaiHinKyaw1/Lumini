@@ -126,6 +126,20 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     },
     { id: 'charon_main', name: 'CHARON', baseVoice: 'Charon', desc: 'Deep & Formal', bio: 'High-fidelity deep male voice for global content.' },
     { 
+      id: 'mya_mm', 
+      name: 'MYA', 
+      baseVoice: 'Kore', 
+      desc: 'မြန်မာပီသ အသံ',
+      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ချိုသာကြည်လင်တဲ့ အသံ - သတင်း၊ ပုံပြင်၊ movie recap အားလုံးအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။' 
+    },
+    { 
+      id: 'nyeins_mm', 
+      name: 'NYEIN', 
+      baseVoice: 'Alnilam', 
+      desc: 'မြန်မာပီသ အသံ',
+      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ခိုင်မာလေးနက်တဲ့ ယောက်္ကျားအသံ - ဇာတ်ကြီးဇတ်ချော၊ မှတ်ချက်နှင့် documentary အတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။' 
+    },
+    { 
       id: 'soesoe_mm', 
       name: 'SOE SOE', 
       baseVoice: 'Sulafat', 

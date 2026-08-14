@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchModuleLogs, GenerationRecord } from '../services/supabase';
 import { auth } from '../services/firebase';
 import { toast } from 'react-hot-toast';
+import { getRecent, putRecord, isIndexedDBAvailable } from '../services/historyCache';
 import { Clock, Undo2, Loader2 } from 'lucide-react';
 
 const LOCAL_KEY = 'lumini_recent_history';
@@ -64,7 +65,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
     }
   };
 
-  // ---- Load records (cloud preferred, local fallback) ----
+  // ---- Load records (cloud preferred, offline cache fallback) ----
   const loadData = async () => {
     const user = auth.currentUser;
     setLoading(true);
@@ -74,7 +75,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
         if (cloud && cloud.length > 0) {
           const parsed = cloud.map((l) => toRecord(l));
           setRecords(parsed);
-          // Backfill localStorage from cloud so offline restores still work
+          // Backfill both localStorage and the offline-first IndexedDB cache
           const byModule: Record<string, HistoryRecord[]> = {};
           if (Array.isArray(moduleName)) {
             moduleName.forEach((m) => {
@@ -84,11 +85,22 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
             byModule[moduleName] = parsed.slice(0, MAX_LOCAL_ITEMS);
           }
           writeLocal(byModule);
+          for (const rec of parsed) {
+            await putRecord({ id: `cloud-${rec.id || rec.createdAt}`, module: rec.module, createdAt: new Date(rec.createdAt).getTime(), input: rec.input, output: rec.output });
+          }
           setLoading(false);
           return;
         }
       }
-      // Cloud returned nothing (or logged-out) → use local cache
+      // Cloud returned nothing (or logged-out) → offline-first IndexedDB cache, then localStorage
+      if (isIndexedDBAvailable()) {
+        const cached = await getRecent(moduleName, MAX_LOCAL_ITEMS);
+        if (cached.length > 0) {
+          setRecords(cached.map((c) => ({ id: c.id, module: c.module, createdAt: new Date(c.createdAt).toISOString(), input: c.input, output: c.output })));
+          setLoading(false);
+          return;
+        }
+      }
       setRecords(readLocal());
     } catch {
       setRecords(readLocal());
@@ -116,6 +128,9 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
       };
       setRecords((prev) => [rec, ...prev].slice(0, MAX_LOCAL_ITEMS));
       writeLocal({ [detail.module]: [rec] });
+      if (isIndexedDBAvailable()) {
+        putRecord({ id: `local-${rec.module}-${rec.createdAt}-${Math.random().toString(36).slice(2, 7)}`, module: rec.module, createdAt: Date.now(), input: rec.input, output: rec.output });
+      }
       loadData();
     };
     window.addEventListener('lumini:taskLogged', handler);

@@ -491,9 +491,13 @@ const getVoiceDirectionPrompt = (voice: string, tone?: string): string => {
   } else if (normVoice.includes("puck")) {
     basePrompt = "မြန်မာ movie recap channel သို့မဟုတ် Review ကြည့်နေရသလိုမျိုး စိတ်လှုပ်ရှားစရာကောင်းပြီး လျင်မြန်တက်ကြွတဲ့ narration style နဲ့ ပရိသတ်ကို ဆွဲဆောင်နိုင်တဲ့အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches must sound exceptionally energetic, fast-paced, exciting, and highly authentic.";
   } else if (normVoice.includes("zephyr")) {
-    basePrompt = "နူးညံ့သိမ်မွေ့ပြီး စိတ်ခံစားမှုအပြည့်နဲ့ ကဗျာဆန်ဆန် ညင်သာကြည်နူးဖွယ်ကောင်းတဲ့ အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches must sound exceptionally soft, sweet, poetic, and emotionally warm.";
-  } else if (normVoice.includes("charon")) {
-    basePrompt = "Please read this in a deep, professional, high-fidelity formal native narration tone. Speeches must sound exceptionally crisp, deep, and authoritative.";
+    basePrompt = "နူးညံ့သိမ်မွေ့ပြီး စိတ်ခံစားမှုအပြည့်နဲ့ ကဗျာဆန်ဆန် ညင်သာကြည်နူးဖွယ်ကောင်းတဲ့ အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches must sound exceptionally soft, sweet, poetic, and emotionally warm."
+  } else if (normVoice.includes("nyeins")) {
+    basePrompt = "မြန်မာအချကျအလက်အရဲနဲ့ ပီပြင်ခိုင်မာလေးနက်တဲ့ ယောက်္ကျားအသံနေအသံထားမျိုးနဲ့ မြန်မာလိုသဘာဝကျပြီး ဩဇာရှိအောင် ဖတ်ပေးပါ။ မြန်မာဘာသာသဒ္ဒါ၊ ဖိအားနှင့် စကားလုံးဖြတ်တောက်များကို မြန်မာနိုင်ငံသားစစ်စစ် တစ်ဦးကဲ့သို့ ပီပြင်စွာ ဖတ်ပါ။ Speeches must sound like a native Myanmar male narrator: deep, confident, perfectly natural Burmese prosody with accurate tones.";
+  } else if (normVoice.includes("charon") || normVoice.includes("alnilam")) {
+    basePrompt = "Please read this in a deep, professional, high-fidelity formal native narration tone. Speeches must sound exceptionally crisp, deep, and authoritative."
+  } else if (normVoice.includes("mya") || normVoice.includes("kore")) {
+    basePrompt = "မြန်မာအချကျအလက်အရဲနဲ့ ပီပြင်ချိုသာကြည်လင်တဲ့ အသံနေအသံထားမျိုးနဲ့ မြန်မာလိုသဘာဝကျပြီး နားဝင်စောအောင် ဖတ်ပေးပါ။ မြန်မာဘာသာသဒ္ဒါ၊ ဖိအားနှင့် စကားလုံးဖြတ်တောက်များကို မြန်မာနိုင်ငံသားစစ်စစ် တစ်ဦးကဲ့သို့ ပီပြင်စွာ ဖတ်ပါ။ Speeches must sound like a native Myanmar female broadcaster: sweet, clear, perfectly natural Burmese prosody with accurate tones.";
   } else {
     // Default fallback
     basePrompt = "မြန်မာ movie recap channel ကြည့်နေရသလိုမျိုး စိတ်လှုပ်ရှားစရာကောင်းပြီး လျင်မြန်တဲ့ narration style နဲ့ ပရိသတ်ကို ဆွဲဆောင်နိုင်တဲ့အသံနေအသံထားမျိုးနဲ့ ဖတ်ပေးပါ။ Speeches should sound highly energetic, natural, and authentic.";

@@ -22,6 +22,8 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [result, setResult] = useState<string | null>(null);
   const [hooks, setHooks] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [ctrScore, setCtrScore] = useState<{ score: number; reasons: string[]; tips: string[] } | null>(null);
+  const [isScoring, setIsScoring] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [useBrandKit, setUseBrandKit] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKitData | null>(null);
@@ -144,6 +146,40 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
         setResult(imageUrl);
         const hookList = hooksText.split('\n').filter(h => h.trim().match(/^\d\.|^-/)).map(h => h.replace(/^\d\.\s*|^- \s*/, ''));
         setHooks(hookList);
+      }
+
+      // AI click-rate potential score (runs right after generation, free via flash model)
+      setIsScoring(true);
+      try {
+        const scoreSystem = isMyanmarText
+          ? "You are a YouTube thumbnail CTR expert. Respond only in Burmese Unicode."
+          : "You are a YouTube thumbnail CTR expert.";
+        const scorePrompt = `Analyze this thumbnail for YouTube click-through-rate potential.
+Topic: ${topic}${titleText ? ` | Displayed text: "${titleText}"` : ''} | Style: ${style}
+Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 short reasons>], "tips": [<2 quick improvements>]}`;
+        const scoreText = await generateText(scorePrompt, scoreSystem);
+        if (isMounted.current) {
+          try {
+            const openBrace = scoreText.indexOf('{');
+            const closeBrace = scoreText.lastIndexOf('}');
+            if (openBrace !== -1 && closeBrace > openBrace) {
+              const parsed = JSON.parse(scoreText.substring(openBrace, closeBrace + 1));
+              if (typeof parsed.score === 'number') {
+                setCtrScore({
+                  score: Math.min(10, Math.max(1, Math.round(parsed.score))),
+                  reasons: Array.isArray(parsed.reasons) ? parsed.reasons.map(String) : [],
+                  tips: Array.isArray(parsed.tips) ? parsed.tips.map(String) : [],
+                });
+              }
+            }
+          } catch {
+            // score parse failed — silently skip
+          }
+        }
+      } catch {
+        // scoring is optional
+      } finally {
+        if (isMounted.current) setIsScoring(false);
       }
 
       const currentUser = auth.currentUser;
@@ -311,6 +347,35 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
                   <img src={result} alt="Generated Thumbnail" className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
                 </div>
               </div>
+              {isScoring ? (
+                <div className="px-4 py-2 glass rounded-xl border border-white/5">
+                  <p className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-400 !mb-0 animate-pulse">AI CTR score တွက်နေပါပြီ...</p>
+                </div>
+              ) : ctrScore ? (
+                <div className="mx-4 glass rounded-xl border border-white/5 p-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl ${
+                      ctrScore.score >= 7 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : ctrScore.score >= 5 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    }`}>
+                      {ctrScore.score}
+                    </div>
+                    <div>
+                      <p className="movie-meta !text-[10px] uppercase tracking-[0.25em] text-zinc-400 !mb-0">AI Click-Rate Potential</p>
+                      <p className="movie-meta !text-[9px] text-zinc-500 !mb-0">10 ထဲက {ctrScore.score} — {ctrScore.score >= 7 ? 'အားကောင်းလှ' : ctrScore.score >= 5 ? 'ပုံမှန်အဆင့်' : 'တိုးမြှင့်နိုင်'}</p>
+                    </div>
+                  </div>
+                  {ctrScore.reasons.length > 0 && (
+                    <ul className="space-y-1">
+                      {ctrScore.reasons.map((r, i) => (
+                        <li key={i} className="movie-body !text-[12px] text-zinc-300 leading-snug">• {r}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {ctrScore.tips.length > 0 && (
+                    <p className="movie-meta !text-[9px] uppercase tracking-wider text-accent !mb-0">Tip: {ctrScore.tips.join(' • ')}</p>
+                  )}
+                </div>
+              ) : null}
               <div className="flex justify-between items-center px-4">
                 <div className="flex gap-6">
                   <button onClick={() => window.open(result, '_blank')} className="movie-meta !text-[10px] text-accent hover:text-accent-hover uppercase tracking-widest !mb-0 transition-colors flex items-center gap-2">
