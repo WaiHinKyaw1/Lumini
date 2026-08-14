@@ -81,7 +81,7 @@ export const analyzeVoice = async (
   const response = await fetch(audioDataUrl);
   const arrayBuffer = await response.arrayBuffer();
 
-  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
   const ctx = new AudioContextClass();
   const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
@@ -203,7 +203,7 @@ export const applyClonePostProcessing = async (
 ): Promise<{ blobUrl: string; dispose: () => void }> => {
   const response = await fetch(sourceUrl);
   const arrayBuffer = await response.arrayBuffer();
-  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
   const ctx = new AudioContextClass();
   const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
@@ -334,7 +334,7 @@ export const createElevenClone = async (
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    const detail = (err as any)?.detail?.message ?? res.statusText;
+    const detail = (err as { detail?: { message?: string } })?.detail?.message ?? res.statusText;
     throw new Error(detail);
   }
   const data = (await res.json()) as { voice_id: string };
@@ -362,7 +362,7 @@ export const synthesizeWithClone = async (
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    const detail = (err as any)?.detail?.message ?? res.statusText;
+    const detail = (err as { detail?: { message?: string } })?.detail?.message ?? res.statusText;
     throw new Error(detail);
   }
   return await res.blob();

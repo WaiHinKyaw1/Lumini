@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast';
 import { getRecent, putRecord, isIndexedDBAvailable } from '../services/historyCache';
 import { Clock, Undo2, Loader2 } from 'lucide-react';
 import { Skeleton } from './Skeleton';
+import type { JsonValue } from '../types';
 
 const LOCAL_KEY = 'lumini_recent_history';
 const MAX_LOCAL_ITEMS = 20;
@@ -13,14 +14,14 @@ export interface HistoryRecord {
   id?: string; // Supabase id (if cloud-synced)
   module: string;
   createdAt: string;
-  input: any;
-  output?: any;
+  input: JsonValue;
+  output?: JsonValue;
 }
 
 interface RecentHistoryProps {
   moduleName: string | string[];
   /** Called with a history record's input data when the user clicks "Use again" */
-  onRestore: (input: any) => void;
+  onRestore: (input: JsonValue) => void;
   restoreLabel?: string;
   burmeseRestoreLabel?: string;
 }
@@ -97,7 +98,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
       if (isIndexedDBAvailable()) {
         const cached = await getRecent(moduleName, MAX_LOCAL_ITEMS);
         if (cached.length > 0) {
-          setRecords(cached.map((c) => ({ id: c.id, module: c.module, createdAt: new Date(c.createdAt).toISOString(), input: c.input, output: c.output })));
+          setRecords(cached.map((c) => ({ id: c.id, module: c.module, createdAt: new Date(c.createdAt).toISOString(), input: c.input as JsonValue, output: c.output as JsonValue })));
           setLoading(false);
           return;
         }
@@ -117,7 +118,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
   // Listen for a custom DOM event that pages dispatch after a successful logGeneration
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { module: string; input: any; output?: any };
+      const detail = (e as CustomEvent).detail as { module: string; input: JsonValue; output?: JsonValue };
       if (!detail || !detail.module) return;
       const keys = Array.isArray(moduleName) ? moduleName : [moduleName];
       if (!keys.includes(detail.module)) return;
@@ -146,14 +147,16 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
     output: safeJson(log.output_data),
   });
 
-  const safeJson = (data: any): any => {
-    if (data == null) return data;
-    if (typeof data !== 'string') return data;
-    try {
-      return JSON.parse(data);
-    } catch {
-      return data;
+  const safeJson = (data: unknown): JsonValue | null => {
+    if (data == null) return null;
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data) as JsonValue;
+      } catch {
+        return data as string;
+      }
     }
+    return data as JsonValue;
   };
 
   const getModuleTitle = (mod: string): string => {
@@ -168,7 +171,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
     }
   };
 
-  const getInputSummary = (input: any): string => {
+  const getInputSummary = (input: JsonValue | null): string => {
     if (!input) return 'No input data';
     const src = typeof input === 'string' ? input : JSON.stringify(input);
     return src.length > 70 ? src.slice(0, 70) + '…' : src;
@@ -249,7 +252,7 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
 };
 
 /** Helper that pages can call after logGeneration to make this panel update instantly */
-export function notifyTaskLogged(module: string, input: any, output?: any) {
+export function notifyTaskLogged(module: string, input: JsonValue, output?: JsonValue) {
   window.dispatchEvent(
     new CustomEvent('lumini:taskLogged', { detail: { module, input, output } })
   );

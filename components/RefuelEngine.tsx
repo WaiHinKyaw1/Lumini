@@ -20,8 +20,8 @@ interface RefuelEngineProps {
 
 /** Tiny toast for self-contained notifications */
 const toast = (msg: string) => {
-  if (typeof (window as any).toaster === 'function') {
-    (window as any).toaster(msg);
+  if (typeof (window as unknown as { toaster?: (msg: string) => void }).toaster === 'function') {
+    (window as unknown as { toaster?: (msg: string) => void }).toaster(msg);
   } else {
     console.info('[RefuelEngine]', msg);
   }

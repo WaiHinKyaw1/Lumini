@@ -40,6 +40,13 @@ export const DAILY_REWARD_TABLE: Record<number, number> = {
 export const REFERRAL_REWARD = 75; // credits per side
 export const REFERRAL_MAX_REDEEM = 20; // cap to prevent abuse
 
+/** Single source of truth: app route -> first-visit mission id mapping */
+export const MISSION_ROUTE_MAP: Record<string, string> = {
+  transcription: 'first_transcription',
+  voiceover: 'first_voiceover',
+  recap: 'first_recap',
+};
+
 export const MISSIONS: Array<{
   id: string;
   title: string;

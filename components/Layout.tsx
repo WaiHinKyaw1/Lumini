@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,7 +11,7 @@ interface LayoutProps {
   toggleTheme: () => void;
   onOpenCredits: () => void;
   onOpenRefuel?: () => void;
-  user: any;
+  user: FirebaseUser | null;
   onLoginGoogle?: () => void;
   onLogout?: () => void;
 }
@@ -272,9 +273,9 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
         </div>
       </aside>
 
-      <main className="flex-1 px-4 py-4 w-full max-w-7xl mx-auto transition-all">
+      <section className="flex-1 px-4 py-4 w-full max-w-7xl mx-auto transition-all">
         {children}
-      </main>
+      </section>
 
     </div>
   );

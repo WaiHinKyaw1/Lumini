@@ -4,6 +4,8 @@ export interface BrandKitData {
   primaryColor: string;
   secondaryColor: string;
   fontFamily: string;
+  /** Alias kept for legacy access sites (SubtitleStudio) */
+  font?: string;
   logo: string | null;
 }
 

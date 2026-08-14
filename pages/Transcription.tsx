@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { analyzeDocumentStream } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
@@ -57,7 +57,7 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
 
   const extractAudioFromVideo = async (videoFile: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext)();
       const reader = new FileReader();
       
       reader.onload = async (e) => {
@@ -211,9 +211,9 @@ Rules:
         setRefreshTrigger(prev => prev + 1);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isMounted.current) {
-        setError(err.message || "Transcription failed");
+        setError((err as { message?: string })?.message || "Transcription failed");
       }
     } finally {
       if (isMounted.current) {

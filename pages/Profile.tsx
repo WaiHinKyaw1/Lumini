@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../services/firebase';
+import { STORAGE_KEYS } from '../services/storage';
 import { toast } from 'react-hot-toast';
+import type { User as FirebaseUser } from 'firebase/auth';
 
 interface ProfileProps {
   stats: { credits: number; totalGenerated: number };
@@ -8,7 +10,7 @@ interface ProfileProps {
 }
 
 const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -16,7 +18,7 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
 
   useEffect(() => {
     setUser(auth.currentUser);
-    const storedKey = localStorage.getItem('VITE_GEMINI_API_KEY') || '';
+    const storedKey = localStorage.getItem(STORAGE_KEYS.geminiApiKey) || '';
     setApiKey(storedKey);
     if (storedKey) {
       setIsSaved(true);
@@ -30,7 +32,7 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
     }
 
     try {
-      localStorage.setItem('VITE_GEMINI_API_KEY', apiKey.trim());
+      localStorage.setItem(STORAGE_KEYS.geminiApiKey, apiKey.trim());
       setIsSaved(true);
       toast.success('API Key သိမ်းဆည်းပြီးပါပြီ။ (API Key Saved successfully!)');
       if (onApiKeyChange) {
@@ -44,7 +46,7 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
   const handleClearKey = () => {
     if (window.confirm('ကျိန်းသေပါသလား? သင်၏ကိုယ်ပိုင် API Key အား ဖျက်ပါမည်။ (Are you sure you want to remove your custom API Key?)')) {
       try {
-        localStorage.removeItem('VITE_GEMINI_API_KEY');
+        localStorage.removeItem(STORAGE_KEYS.geminiApiKey);
         setApiKey('');
         setIsSaved(false);
         toast.success('ကိုယ်ပိုင် Key အား ဖျက်ပြီးပါပြီ။ Applet build parameters သို့ ပြန်ပြောင်းလိုက်ပါသည်။ (Custom key cleared. Default restored.)');
@@ -81,8 +83,9 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
         const errMsg = resData?.error?.message || 'Invalid Response';
         toast.error(`ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${errMsg} (Status Error)`);
       }
-    } catch (err: any) {
-      toast.error(`ချိတ်ဆက်ရန် အခက်အခဲရှိနေပါသည်: ${err.message || err}`);
+    } catch (err: unknown) {
+      const message = (err as { message?: string })?.message || String(err);
+      toast.error(`ချိတ်ဆက်ရန် အခက်အခဲရှိနေပါသည်: ${message}`);
     } finally {
       setIsTesting(false);
     }

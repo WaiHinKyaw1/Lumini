@@ -29,6 +29,35 @@ export interface UserStats {
   totalGenerated: number;
 }
 
+/** Firestore `users/{uid}` document shape — single source of truth for user stats */
+export interface FirestoreUserDoc {
+  id?: string;
+  email?: string;
+  credits?: number;
+  totalGenerated?: number;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  [field: string]: unknown;
+}
+
+/** JSON value accepted by storage / history payloads */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/** Plain JSON object (record) — useful for history-restore payloads */
+export type JsonRecord = { [key: string]: JsonValue };
+
+/** Google AI Studio host bridge (when running inside AI Studio) */
+export interface AiStudioWindow {
+  hasSelectedApiKey?: () => boolean | Promise<boolean>;
+  openSelectKey?: () => void | Promise<void>;
+}
+
 export interface CreditCosts {
   [ContentType.TRANSCRIPTION]: number;
   [ContentType.TRANSLATION]: number;

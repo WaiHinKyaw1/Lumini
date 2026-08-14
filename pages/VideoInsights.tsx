@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { analyzeDocumentStream } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
@@ -45,12 +45,14 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Recent-task restore: re-apply the recap configuration from a previous task
-  const handleRestoreInsights = (input: any) => {
+  const handleRestoreInsights = (input: JsonValue) => {
     if (!input || typeof input !== 'object') return;
-    if (typeof input.targetLang === 'string') setTargetLang(input.targetLang);
-    if (input.perspective === '1ST PERSON' || input.perspective === '3RD PERSON') setPerspective(input.perspective);
-    if (['PROFESSIONAL', 'EXTREME', 'SARCASTIC', 'EMOTIONAL', 'MYSTERY', 'COMEDY'].includes(input.tone)) setTone(input.tone);
-    if (['DEFAULT', 'DOCUMENTARY', 'MOVIE RECAP', 'CRAFTING'].includes(input.recapType)) setRecapType(input.recapType);
+    if (typeof (input as JsonRecord).targetLang === 'string') setTargetLang((input as JsonRecord).targetLang as string);
+    if ((input as JsonRecord).perspective === '1ST PERSON' || (input as JsonRecord).perspective === '3RD PERSON') setPerspective((input as JsonRecord).perspective as '1ST PERSON' | '3RD PERSON');
+    const tone = (input as JsonRecord).tone;
+    if (['PROFESSIONAL', 'EXTREME', 'SARCASTIC', 'EMOTIONAL', 'MYSTERY', 'COMEDY'].includes(String(tone))) setTone(String(tone) as never);
+    const recapType = (input as JsonRecord).recapType;
+    if (['DEFAULT', 'DOCUMENTARY', 'MOVIE RECAP', 'CRAFTING'].includes(String(recapType))) setRecapType(String(recapType) as never);
     setResult(null);
     setError(null);
   };
@@ -74,7 +76,7 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
       media.preload = 'metadata';
       media.onloadedmetadata = () => {
         window.URL.revokeObjectURL(media.src);
-        const secs = Math.floor((media as any).duration);
+        const secs = Math.floor((media as HTMLVideoElement).duration);
         const h = Math.floor(secs / 3600);
         const m = Math.floor((secs % 3600) / 60);
         const s = secs % 60;
@@ -158,9 +160,9 @@ Instructions:
         setRefreshTrigger(prev => prev + 1);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isMounted.current) {
-        setError(err.message || "Recap generation failed. Please try a smaller file.");
+        setError((err as { message?: string })?.message || "Recap generation failed. Please try a smaller file.");
       }
     } finally {
       if (isMounted.current) {

@@ -6,15 +6,20 @@ import RefuelEngine from './components/RefuelEngine';
 import {
   claimMission,
   getRefuelState,
-  recordReferralGiven,
   redeemReferralCode,
   REFERRAL_REWARD,
 } from './services/refuelEngine';
 import { AuthScreen } from './components/AuthScreen';
-import { UserStats } from './types';
+import { UserStats, FirestoreUserDoc } from './types';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db, OperationType, handleFirestoreError, testConnection } from './services/firebase';
+import { spendCreditsOp, addCreditsOp } from './services/firestoreOps';
+import { STORAGE_KEYS, readJson, writeJson } from './services/storage';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Skeleton } from './components/Skeleton';
+import { MISSION_ROUTE_MAP } from './services/refuelEngine';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 
 // Performance: Lazy loading pages
@@ -35,16 +40,13 @@ const INITIAL_STATS: UserStats = {
 };
 
 const getInitialStats = (): UserStats => {
-  try {
-    const cachedStats = localStorage.getItem('lumina_user_stats');
-    if (cachedStats) {
-      const parsed = JSON.parse(cachedStats);
-      if (typeof parsed.credits === 'number' && typeof parsed.totalGenerated === 'number') {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.warn("Failed to read local stats fallback: ", err);
+  const cachedStats = readJson<UserStats | null>(STORAGE_KEYS.userStats, null);
+  if (
+    cachedStats &&
+    typeof cachedStats.credits === 'number' &&
+    typeof cachedStats.totalGenerated === 'number'
+  ) {
+    return cachedStats;
   }
   return INITIAL_STATS;
 };
@@ -56,19 +58,15 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [isRefuelOpen, setIsRefuelOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
 
   const [manualKey, setManualKey] = useState('');
 
-  // Local storage synchronized wrapper
+  // Local storage synchronized wrapper (centralized via services/storage.ts)
   const setStats = (newStats: UserStats | ((prev: UserStats) => UserStats)) => {
     setStatsState(prev => {
       const updated = typeof newStats === 'function' ? newStats(prev) : newStats;
-      try {
-        localStorage.setItem('lumina_user_stats', JSON.stringify(updated));
-      } catch (err) {
-        // Ignore
-      }
+      writeJson(STORAGE_KEYS.userStats, updated);
       return updated;
     });
   };
@@ -162,8 +160,8 @@ const App: React.FC = () => {
           });
           toast.success('Successfully registered on Cloud Firestore!');
         }
-      } catch (error: any) {
-        const isOffline = error?.code === 'unavailable' || String(error).toLowerCase().includes('offline');
+      } catch (error) {
+        const isOffline = (error as { code?: string })?.code === 'unavailable' || String(error).toLowerCase().includes('offline');
         if (isOffline) {
           console.warn("Connection offline: utilizing local fallback.");
           toast('Running in local mode. Stats are cached locally.', { icon: '📡' });
@@ -178,14 +176,14 @@ const App: React.FC = () => {
       // Maintain responsive real-time state synchronization via Firestore Stream
       unsubscribeSnapshot = onSnapshot(userDocRef, (snapshot) => {
         if (snapshot.exists() && isMounted) {
-          const data = snapshot.data();
+          const data = snapshot.data() as FirestoreUserDoc;
           setStats({
-            credits: data.credits ?? INITIAL_STATS.credits,
-            totalGenerated: data.totalGenerated ?? INITIAL_STATS.totalGenerated
+            credits: typeof data.credits === 'number' ? data.credits : INITIAL_STATS.credits,
+            totalGenerated: typeof data.totalGenerated === 'number' ? data.totalGenerated : INITIAL_STATS.totalGenerated
           });
         }
       }, (error) => {
-        const isOffline = (error as any)?.code === 'unavailable' || String(error).toLowerCase().includes('offline');
+        const isOffline = (error as { code?: string })?.code === 'unavailable' || String(error).toLowerCase().includes('offline');
         if (isOffline) {
           console.warn("onSnapshot disconnected context in offline mode.");
           return;
@@ -211,24 +209,23 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkKey = async () => {
       // Check for AI Studio key selector first
-      const hasKey = await (window as any).aistudio?.hasSelectedApiKey?.();
+      const aiStudio = (window as unknown as { aistudio?: import('./types').AiStudioWindow }).aistudio;
+      const hasKey = await aiStudio?.hasSelectedApiKey?.();
       if (hasKey) {
         setHasApiKey(true);
       } else {
         // Fallback to checking environment variable or localStorage for deployed apps
-        let envKey = '';
-        try {
-          envKey = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
-        } catch (e) {
-          // Ignore
-        }
+        const envKey =
+          localStorage.getItem(STORAGE_KEYS.geminiApiKey) ||
+          (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
+          (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
         setHasApiKey(!!envKey);
       }
     };
     checkKey();
   }, []);
 
-  // Theme Toggle Logic
+  // Theme Toggle Logic (persisted across page reloads)
   useEffect(() => {
     const html = document.documentElement;
     if (isDarkMode) {
@@ -236,9 +233,10 @@ const App: React.FC = () => {
     } else {
       html.classList.remove('dark');
     }
+    writeJson('lumina_theme_dark', isDarkMode);
   }, [isDarkMode]);
 
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const toggleTheme = () => setIsDarkMode((prev) => !prev);
 
   const handleSaveManualKey = () => {
     if (!manualKey.trim()) {
@@ -246,7 +244,7 @@ const App: React.FC = () => {
       return;
     }
     try {
-      localStorage.setItem('VITE_GEMINI_API_KEY', manualKey.trim());
+      localStorage.setItem(STORAGE_KEYS.geminiApiKey, manualKey.trim());
       setHasApiKey(true);
       toast.success("API key stored successfully! Module activated.");
     } catch (e) {
@@ -255,9 +253,10 @@ const App: React.FC = () => {
   };
 
   const handleOpenKeySelector = async () => {
-    if ((window as any).aistudio?.openSelectKey) {
-      await (window as any).aistudio.openSelectKey();
-      const hasKey = await (window as any).aistudio?.hasSelectedApiKey?.();
+    const aiStudio = (window as unknown as { aistudio?: import('./types').AiStudioWindow }).aistudio;
+    if (aiStudio?.openSelectKey) {
+      await aiStudio.openSelectKey();
+      const hasKey = await aiStudio?.hasSelectedApiKey?.();
       setHasApiKey(!!hasKey);
     } else {
       toast.error("Google AI Studio environment not detected here. Please use the manual input box below.");
@@ -269,8 +268,8 @@ const App: React.FC = () => {
     try {
       await signInWithPopup(auth, provider);
       toast.success('Welcome back to Lumina Studio!');
-    } catch (error: any) {
-      toast.error(error.message || 'Authentication failed.');
+    } catch (error: unknown) {
+      toast.error((error as { message?: string })?.message || 'Authentication failed.');
     }
   };
 
@@ -278,50 +277,25 @@ const App: React.FC = () => {
     try {
       await signOut(auth);
       toast.success('Signed out successfully.');
-    } catch (error: any) {
-      toast.error(error.message || 'Logout failed.');
+    } catch (error: unknown) {
+      toast.error((error as { message?: string })?.message || 'Logout failed.');
     }
   };
 
   const spendCredits = (amount: number): boolean => {
-    if (stats.credits < amount) {
+    const result = spendCreditsOp(stats.credits, stats.totalGenerated, amount);
+    if (!result) {
       setIsCreditModalOpen(true);
       return false;
     }
-    
-    const newCredits = stats.credits - amount;
-    const newTotal = stats.totalGenerated + 1;
-    
-    // Quick optimistic interface sync
-    setStats({ credits: newCredits, totalGenerated: newTotal });
-
-    if (auth.currentUser) {
-      const userDocRef = doc(db, 'users', auth.currentUser.uid);
-      updateDoc(userDocRef, {
-        credits: newCredits,
-        totalGenerated: newTotal,
-        updatedAt: serverTimestamp()
-      }).catch((error) => {
-        handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
-      });
-    }
-    
+    // Quick optimistic interface sync (Firestore reconciles later via onSnapshot)
+    setStats(result);
     return true;
   };
 
   const addCredits = (amount: number) => {
-    const newCredits = stats.credits + amount;
-    setStats(prev => ({ ...prev, credits: newCredits }));
-
-    if (auth.currentUser) {
-      const userDocRef = doc(db, 'users', auth.currentUser.uid);
-      updateDoc(userDocRef, {
-        credits: newCredits,
-        updatedAt: serverTimestamp()
-      }).catch((error) => {
-        handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
-      });
-    }
+    const result = addCreditsOp(stats.credits, amount);
+    setStats((prev) => ({ ...prev, ...result }));
   };
 
   const renderPage = () => {
@@ -332,7 +306,8 @@ const App: React.FC = () => {
 
     // If no API key, only allow Dashboard and Profile
     if (!hasApiKey && currentPath !== 'dashboard' && currentPath !== 'profile' && currentPath !== 'brandkit') {
-      const isAiStudioEnv = typeof (window as any).aistudio !== 'undefined';
+      const aiStudio = (window as unknown as { aistudio?: import('./types').AiStudioWindow }).aistudio;
+      const isAiStudioEnv = typeof aiStudio !== 'undefined';
       return (
         <div className="flex items-center justify-center h-[60vh]">
           <div className="max-w-md w-full glass p-8 rounded-[2.5rem] border border-white/10 text-center space-y-6">
@@ -386,9 +361,17 @@ const App: React.FC = () => {
     }
 
     return (
+      <ErrorBoundary moduleName="Lumini">
       <Suspense fallback={
         <div className="flex items-center justify-center h-[60vh]">
-          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+          <div className="max-w-md w-full rounded-2xl bg-zinc-950/60 border border-white/5 overflow-hidden">
+            <Skeleton className="h-9 rounded-none border-b border-white/5" />
+            <div className="px-4 py-3 space-y-2.5">
+              <Skeleton className="h-7 w-full" />
+              <Skeleton className="h-7 w-5/6" />
+              <Skeleton className="h-7 w-4/6" />
+            </div>
+          </div>
         </div>
       }>
         {(() => {
@@ -407,6 +390,7 @@ const App: React.FC = () => {
           }
         })()}
       </Suspense>
+      </ErrorBoundary>
     );
   };
 
