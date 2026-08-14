@@ -6,6 +6,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
+import { merger, measureAudioDuration, estimateSyncSpeed } from '../services/videoMerger';
 
 
 interface VideoStudioProps {
@@ -27,7 +28,12 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
   const [transcript, setTranscript] = useState<string>('');
   const [translation, setTranslation] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string>('');
-  
+  // One-click final render states (auto sync voice with video)
+  const [mergedVideoUrl, setMergedVideoUrl] = useState<string>('');
+  const [isMerging, setIsMerging] = useState<boolean>(false);
+  const [mergeProgress, setMergeProgress] = useState<string>('');
+  const [mergeError, setMergeError] = useState<string>('');
+  const [autoMerge, setAutoMerge] = useState<boolean>(true);
   // Loading & Progress States
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -238,6 +244,44 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
       toast.success('Burmese voiceover generated successfully!');
 
       const currentUser = auth.currentUser;
+
+      // One-Click: auto-sync voiceover with original video timeline (free, client-side)
+      if (file && autoMerge && file.type.startsWith('video')) {
+        setIsMerging(true);
+        setMergeProgress('Syncing voiceover with video timeline...');
+        setMergeError('');
+        try {
+          const voiceRes = await fetch(synthesizedUrl);
+          const voiceBlob = await voiceRes.blob();
+          const voiceDur = await measureAudioDuration(voiceBlob);
+          const videoSpeed = estimateSyncSpeed(duration, voiceDur);
+          const speedInfo = videoSpeed > 1.05
+            ? ` (auto speed-matched ${videoSpeed.toFixed(2)}x to fit ${duration}s video)`
+            : '';
+          setMergeProgress(`Mixing audio & video${speedInfo}...`);
+          const mergedBlob = await merger.merge(file, voiceBlob, { videoSpeed });
+          const mergedURL = URL.createObjectURL(mergedBlob);
+          setMergedVideoUrl(mergedURL);
+          setMergeProgress('');
+          toast.success(`Video synced${speedInfo} — download your final MP4!`);
+          if (currentUser) {
+            await logGeneration(
+              currentUser.uid,
+              currentUser.email || '',
+              'videostudio_mixed',
+              { videoDuration: duration, voiceDuration: voiceDur, videoSpeed, autoMerge },
+              { status: 'success', info: 'Merged MP4 with synced Burmese voiceover' }
+            );
+          }
+        } catch (mergeErr: any) {
+          console.error('Merge failed', mergeErr);
+          setMergeError(mergeErr?.message || 'Merging failed.');
+          setMergeProgress('');
+        } finally {
+          setIsMerging(false);
+        }
+      }
+
       if (currentUser) {
         await logGeneration(
           currentUser.uid,
@@ -281,6 +325,10 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
     setTranscript('');
     setTranslation('');
     setAudioUrl('');
+    setMergedVideoUrl('');
+    setIsMerging(false);
+    setMergeProgress('');
+    setMergeError('');
     setDuration(0);
     setCurrentStep('SOURCE');
     setProgress(0);
@@ -624,6 +672,22 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
                 Synthesize Voice (10 CR)
               </button>
             </div>
+
+            {/* One-click auto-sync option: free client-side merge of voice + video */}
+            {inputMode === 'UPLOAD' && file?.type.startsWith('video') && (
+              <label className="flex items-center gap-3 glass px-4 py-3 rounded-xl border border-white/5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoMerge}
+                  onChange={(e) => setAutoMerge(e.target.checked)}
+                  className="w-4 h-4 accent-emerald-500"
+                />
+                <div className="text-left">
+                  <p className="text-xs font-bold text-white uppercase tracking-wider">One-Click Sync: အသံ + ရုပ်ပုံ Timeline အတိအကျကိုက်ညှိ</p>
+                  <p className="text-[10px] text-zinc-400">Voiceover ပြီးရင့် အသံကို ဗီဒီယို timeline နဲ့ အလိုအလျှောက် ချိန်ညှိပြီး final .MP4 ချက်ချင်း ထုတ်ပေးမယ် (free, ffmpeg.wasm)။</p>
+                </div>
+              </label>
+            )}
           </div>
         )}
 
@@ -660,6 +724,48 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
                     Download Audio (.WAV)
                   </a>
                 </div>
+
+                {/* One-click merged video: synced voice + original footage */}
+                {isMerging ? (
+                  <div className="glass p-6 rounded-xl border border-orange-500/20 space-y-4 bg-orange-500/5 animate-pulse">
+                    <h4 className="text-sm font-bold text-orange-400 uppercase tracking-widest">Syncing Audio & Video Timeline...</h4>
+                    <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden">
+                      <div className="h-2 bg-orange-500 rounded-full w-2/3 animate-pulse" />
+                    </div>
+                    <p className="text-[11px] text-zinc-400">{mergeProgress || 'Preparing ffmpeg...'}</p>
+                    <p className="text-[10px] text-zinc-500">ပထမအကြိမ် ffmpeg core download လုပ်ရသဖြင့် နှေးနိုင်သည် (တစ်ကြိမ်သာ)။ Browser ထဲမှာပဲ run သည် — free, open-source။</p>
+                  </div>
+                ) : mergedVideoUrl ? (
+                  <div className="glass p-6 rounded-xl border border-emerald-500/20 space-y-4 bg-emerald-500/5">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0118 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 7.746 6 7.125v-1.5M4.875 8.25C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0118 7.125v-1.5m1.125 2.625c-.621 0-1.125.504-1.125 1.125v1.5m2.625-2.625c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 016 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m-12 5.25v-5.25m0 5.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125m-12 0v-1.5c0-.621-.504-1.125-1.125-1.125M18 18.375v-5.25m0 5.25v-1.5c0-.621.504-1.125 1.125-1.125M18 13.125v1.5c0 .621.504 1.125 1.125 1.125M18 13.125c0-.621.504-1.125 1.125-1.125M6 13.125v1.5c0 .621-.504 1.125-1.125 1.125M6 13.125C6 12.504 5.496 12 4.875 12m-1.5 0h1.5m-1.5 0c-.621 0-1.125-.504-1.125-1.125v-1.5c0-.621.504-1.125 1.125-1.125m1.5 3.75c-.621 0-1.125-.504-1.125-1.125v-1.5c0-.621.504-1.125 1.125-1.125" />
+                        </svg>
+                      </div>
+                      <div className="text-left">
+                        <p className="movie-meta !text-[10px] text-emerald-400 uppercase tracking-widest !mb-0 font-bold">SYNCED FINAL VIDEO</p>
+                        <h4 className="text-sm font-bold text-white">Burmese Voice + Original Footage (Timeline Synced)</h4>
+                      </div>
+                    </div>
+                    <video src={mergedVideoUrl} controls className="w-full rounded-xl border border-white/5" />
+                    <div className="flex gap-3">
+                      <a
+                        href={mergedVideoUrl}
+                        download="myanmar_recap_final.mp4"
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-center text-xs font-bold uppercase tracking-widest transition-all shadow-md shadow-emerald-600/10"
+                      >
+                        Download Final Video (.MP4)
+                      </a>
+                    </div>
+                    <p className="text-[10px] text-zinc-400">မူရင်းအသံ ဖယ်ချားပြီး မြန်မာ voiceover ချိန်ညှိထည့်ထားသည်။ ရှည်နေလျှင် voiceover ကို speed-pitch preserve ဖြင့် ဗီဒီယို timeline နဲ့ auto ကိုက်ညှိထားသည်။</p>
+                  </div>
+                ) : mergeError ? (
+                  <div className="glass p-4 rounded-xl border border-red-500/20 bg-red-500/5">
+                    <p className="text-xs text-red-300">{mergeError}</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Audio (.WAV) ကို download ရယူပြီး CapCut/Filmora တွင် manual sync လုပ်နိုင်သည်။</p>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="p-6 text-center text-zinc-500">
