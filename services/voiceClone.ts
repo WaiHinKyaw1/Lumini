@@ -35,6 +35,7 @@ export interface VoiceProfile {
   createdAt: number;
   durationSeconds: number;
   dataUrl?: string; // stored audio (short, stored in localStorage)
+  voiceId?: string; // ElevenLabs instant voice clone id (optional, free tier)
   traits: {
     gender: 'male' | 'female' | 'unknown';
     pitchHz: number;        // estimated fundamental frequency
@@ -238,7 +239,8 @@ export const applyClonePostProcessing = async (
   }
   const wavBytes = encodeWav(interleaved, sampleRate, numChannels);
   const blob = new Blob([wavBytes], { type: 'audio/wav' });
-  return { blobUrl: URL.createObjectURL(blob), dispose: () => URL.revokeObjectURL(blob) };
+  const url = URL.createObjectURL(blob);
+  return { blobUrl: url, dispose: () => URL.revokeObjectURL(url) };
 };
 
 const encodeWav = (samples: Float32Array, sampleRate: number, numChannels: number): ArrayBuffer => {
@@ -274,8 +276,108 @@ const encodeWav = (samples: Float32Array, sampleRate: number, numChannels: numbe
 };
 
 /**
+ * Real voice cloning providers (optional, free tiers).
+ *
+ * ElevenLabs free plan:
+ * - 10,000 characters / month free, includes Instant Voice Cloning.
+ * - Get a free API key at https://elevenlabs.io (no credit card).
+ * - Multilingual v2 model supports Burmese script via cross-lingual TTS.
+ *
+ * Usage flow in Lumini:
+ * 1. Upload 10-30s voice sample -> create instant voice clone on ElevenLabs
+ *    (POST /v1/voices, multipart form with audio_file).
+ * 2. Generate speech with the clone:
+ *    POST /v1/text-to-speech/{voice_id}, model eleven_multilingual_v2,
+ *    output_format mp3_44100_128.
+ * 3. Store the voice_id per VoiceProfile so clones persist.
+ *
+ * The HF E2-F5-TTS Gradio space (mrfakename/E2-F5-TTS) was verified to
+ * produce real clones via gradio_client, but HF blocks direct browser calls
+ * (CORS: allow-origin equals the space only) and the queue needs websockets.
+ * It remains a self-host / Python-backend option documented in the app.
+ */
+
+/**
  * Read a File into a data URL (for preview storage).
  */
+
+export interface ElevenLabsCloneResult {
+  voiceId: string;
+  name: string;
+}
+
+const ELEVEN_API_KEY_STORAGE = 'lumini_elevenlabs_key';
+
+export const getElevenKey = (): string =>
+  localStorage.getItem(ELEVEN_API_KEY_STORAGE) ?? '';
+
+export const setElevenKey = (key: string): void =>
+  localStorage.setItem(ELEVEN_API_KEY_STORAGE, key);
+
+/** Create an instant voice clone on ElevenLabs from reference audio. */
+export const createElevenClone = async (
+  name: string,
+  audioBlob: Blob
+): Promise<ElevenLabsCloneResult> => {
+  const key = getElevenKey();
+  if (!key) throw new Error('NO_API_KEY');
+
+  const form = new FormData();
+  form.append('name', name);
+  form.append('files', audioBlob, 'voice_sample.webm');
+  form.append('description', `Lumini voice clone: ${name}`);
+
+  const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+    method: 'POST',
+    headers: { 'xi-api-key': key },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const detail = (err as any)?.detail?.message ?? res.statusText;
+    throw new Error(detail);
+  }
+  const data = (await res.json()) as { voice_id: string };
+  return { voiceId: data.voice_id, name };
+};
+
+/** Generate speech with a cloned voice (ElevenLabs multilingual v2). */
+export const synthesizeWithClone = async (
+  voiceId: string,
+  text: string
+): Promise<Blob> => {
+  const key = getElevenKey();
+  if (!key) throw new Error('NO_API_KEY');
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2 },
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const detail = (err as any)?.detail?.message ?? res.statusText;
+    throw new Error(detail);
+  }
+  return await res.blob();
+};
+
+/** Delete an instant voice clone (frees a voice slot). */
+export const deleteElevenClone = async (voiceId: string): Promise<void> => {
+  const key = getElevenKey();
+  if (!key) return;
+  await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
+    method: 'DELETE',
+    headers: { 'xi-api-key': key },
+  }).catch(() => {});
+};
+
 export const readFileAsDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -287,14 +389,14 @@ export const readFileAsDataUrl = (file: File): Promise<string> =>
 /**
  * Start recording from the microphone. Returns stop fn + stream.
  */
-export const startRecording = async (): Promise<{ stream: MediaStream; stop: () => Promise<string> }> => {
+export const startRecording = async (): Promise<{ stream: MediaStream; stop: () => Promise<Blob | string> }> => {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
   recorder.start();
   const stop = () =>
-    new Promise<string>((resolve) => {
+    new Promise<Blob | string>((resolve) => {
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks, { type: 'audio/webm' });

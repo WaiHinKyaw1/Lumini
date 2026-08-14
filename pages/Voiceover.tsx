@@ -13,6 +13,10 @@ import {
   removeClone,
   readFileAsDataUrl,
   startRecording,
+  createElevenClone,
+  synthesizeWithClone,
+  getElevenKey,
+  setElevenKey,
   type VoiceProfile,
 } from '../services/voiceClone';
 
@@ -49,7 +53,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloneUrl, setCloneUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [cloneStatus, setCloneStatus] = useState<string | null>(null);
+  const [cloneStatus, setCloneStatus] = useState<string>('');
+  const [elevenKey, setElevenKeyState] = useState<string>('');
+  const [cloningRemote, setCloningRemote] = useState<boolean>(false);
   
   const audioCtxRef = useRef<AudioContext | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -176,9 +182,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     const stopFn = (window as any).__cloneRecordingStop;
     if (!stopFn) { setIsRecording(false); return; }
     try {
-      const dataUrl = await stopFn();
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
+      const data = await stopFn();
+      // stop() may return a data URL (string) or a raw Blob
+      let dataUrl: string;
+      let blob: Blob;
+      if (typeof data === 'string') {
+        dataUrl = data;
+        const response = await fetch(dataUrl);
+        blob = await response.blob();
+      } else {
+        blob = data as Blob;
+        dataUrl = URL.createObjectURL(blob);
+      }
       const file = new File([blob], 'lumini_recording.webm', { type: 'audio/webm' });
       setCloneFile(file);
       setCloneUrl(dataUrl);
@@ -202,6 +217,26 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         audioUrl = URL.createObjectURL(cloneFile);
       }
       const profile = await analyzeVoice(audioUrl, cloneName.trim());
+
+      // Optional: also create a real instant voice clone on ElevenLabs (free tier)
+      // when the user has provided their own API key. This enables true zero-shot
+      // voice cloning: the generated speech sounds like the reference recording.
+      const key = elevenKey || getElevenKey();
+      if (key && cloneFile) {
+        try {
+          setCloningRemote(true);
+          setCloneStatus('Creating real voice clone on ElevenLabs (free tier)...');
+          const remote = await createElevenClone(profile.name, cloneFile);
+          profile.voiceId = remote.voiceId;
+          setCloneStatus(`Real voice clone "${remote.name}" created! Generating speech with it now.`);
+        } catch (e) {
+          console.warn('ElevenLabs clone failed, keeping client-side profile:', e);
+          profile.voiceId = undefined;
+        } finally {
+          setCloningRemote(false);
+        }
+      }
+
       const newClones = [profile, ...clones].slice(0, 5); // max 5 saved clones (free)
       saveClones(newClones);
       setClones(newClones);
@@ -210,7 +245,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       setCloneFile(null);
       if (cloneUrl) { URL.revokeObjectURL(cloneUrl); }
       setCloneUrl(null);
-      setCloneStatus('Voice cloned successfully! Generate audio using this profile.');
+      setCloneStatus(profile.voiceId
+        ? 'Voice cloned successfully (real neural clone)! Generate audio in your voice.'
+        : 'Voice cloned successfully! Generate audio using this profile.');
     } catch (err: any) {
       setCloneStatus('Voice analysis failed. Use a clean 10-30s recording with speech only.');
     } finally {
@@ -336,21 +373,29 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     const clonePrefix = activeClone?.prompt || '';
 
     try {
-      let blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone);
+      let blobUrl: string;
 
-      // Post-process towards the cloned voice if one is active
-      if (isMounted.current && activeClone) {
-        try {
-          const pitchShift = Math.round(((activeClone.traits.pitchHz - 155) / 155) * 100);
-          const { blobUrl: processedUrl, dispose } = await applyClonePostProcessing(blobUrl, pitchShift);
-          if (isMounted.current) {
-            blobUrl = processedUrl;
-            (window as any).__cloneProcessedDispose = dispose;
-          } else {
-            dispose();
+      if (isMounted.current && activeClone?.voiceId) {
+        // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
+        const audioBlob = await synthesizeWithClone(activeClone.voiceId, text);
+        blobUrl = URL.createObjectURL(audioBlob);
+      } else {
+        blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone);
+
+        // Post-process towards the cloned voice if one is active
+        if (isMounted.current && activeClone) {
+          try {
+            const pitchShift = Math.round(((activeClone.traits.pitchHz - 155) / 155) * 100);
+            const { blobUrl: processedUrl, dispose } = await applyClonePostProcessing(blobUrl, pitchShift);
+            if (isMounted.current) {
+              blobUrl = processedUrl;
+              (window as any).__cloneProcessedDispose = dispose;
+            } else {
+              dispose();
+            }
+          } catch (e) {
+            console.warn('Clone post-processing skipped:', e);
           }
-        } catch (e) {
-          console.warn('Clone post-processing skipped:', e);
         }
       }
 
@@ -450,6 +495,41 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             မိမိအသံ ၁၀-၃၀ စက္ကန့် အသံဖမ်းပေးရုံဖြင့် ကိုယ့်အသံနဲ့ အသံဖလှယ်နိုင်ပါတယ်။ F5-TTS စတဲ့ free open-source voice cloning model တွေရဲ့ အရည်အသွေးကို အခြေခံထားပြီး Web Audio API ဖြင့် အသံခွဲခြမ်းစိတ်ဖြာစစ်ဆေးပေးပါတယ်။
           </p>
 
+          {/* ElevenLabs real-clone option (free tier, optional) */}
+          <div className="space-y-2 p-3 bg-black/20 border border-white/10 rounded-lg">
+            <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block text-accent">Real Neural Clone (Optional)</label>
+            <p className="movie-meta !text-[8.5px] text-zinc-500 !mb-0 leading-relaxed">
+              ElevenLabs free plan ဖြင့် နမူနာအသံနဲ့ တကယ့်အသံ cloning (လစဉ် ၁၀,၀၀၀ characters အခမဲ့)။ Key မထည့်ရင် client-side voice shaping သာ သုံးပါမည်။
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={elevenKey}
+                onChange={(e) => { setElevenKeyState(e.target.value); setElevenKey(e.target.value); }}
+                placeholder="ElevenLabs API key (xi-api-key)"
+                className="flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 movie-body !text-[11px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const hasKey = (elevenKey || getElevenKey()) !== '';
+                  setCloneStatus(hasKey ? 'ElevenLabs key saved. Next clone will use real neural cloning.' : 'No key set — using free client-side voice shaping.');
+                }}
+                className="px-3 rounded-lg movie-meta !text-[9px] uppercase tracking-[0.2em] bg-white/10 hover:bg-white/15 text-zinc-300 transition-all"
+              >
+                Save
+              </button>
+            </div>
+            <a
+              href="https://elevenlabs.io/app/settings/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="movie-meta !text-[8px] text-accent hover:underline !mb-0"
+            >
+              Get free API key → elevenlabs.io (no credit card)
+            </a>
+          </div>
+
           {/* Reference capture */}
           <div className="space-y-2">
             <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Reference Voice (10-30s)</label>
@@ -497,12 +577,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             />
             <button
               onClick={handleCreateClone}
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || cloningRemote}
               className={`px-4 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
-                isAnalyzing ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
+                isAnalyzing || cloningRemote ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
               }`}
             >
-              {isAnalyzing ? 'Analyzing...' : 'Clone'}
+              {cloningRemote ? 'Cloning...' : isAnalyzing ? 'Analyzing...' : 'Clone'}
             </button>
           </div>
 
