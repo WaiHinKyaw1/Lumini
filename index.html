@@ -235,6 +235,134 @@
             color: var(--ui-text-primary);
         }
 
+        /* Shared module baseline: compact Dashboard rhythm, consistent controls, and theme-safe surfaces. */
+        .app-main .module-page {
+            width: 100%;
+            max-width: 72rem;
+            margin-inline: auto;
+            padding-bottom: 2rem;
+        }
+
+        .app-main .module-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .app-main .module-header-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            flex: 0 0 auto;
+            border-radius: 0.75rem;
+            display: grid;
+            place-items: center;
+        }
+
+        .app-main .module-panel {
+            background: var(--ui-surface);
+            border: 1px solid var(--ui-border);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+        }
+
+        .app-main .module-control {
+            border: 1px solid var(--ui-border-strong) !important;
+            background: var(--ui-surface-solid) !important;
+            color: var(--ui-text-primary) !important;
+            border-radius: 0.625rem;
+            transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+        }
+
+        .app-main .module-control:focus {
+            border-color: var(--ui-focus) !important;
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-focus) 18%, transparent);
+            outline: none;
+        }
+
+        .app-main .module-action {
+            min-height: 2.25rem;
+            border-radius: 0.625rem;
+            font-size: 0.75rem;
+            line-height: 1.35;
+            font-weight: 600;
+            transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+        }
+
+        .app-main .module-action:active {
+            transform: scale(0.98);
+        }
+
+        .app-main .module-grid {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .app-main .module-grid > * {
+            min-width: 0;
+        }
+
+        .app-main .module-page :is(input, textarea, select) {
+            border-color: var(--ui-border-strong);
+            background-color: var(--ui-surface-solid);
+        }
+
+        .app-main .module-page :is(input, textarea, select):disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .app-main .module-page button {
+            border-color: var(--ui-border-strong);
+        }
+
+        .app-main .module-page :is(input, textarea, select) {
+            color: var(--ui-text-primary) !important;
+        }
+
+        .app-main .module-page button:focus-visible,
+        .app-main .module-page :is(input, textarea, select):focus-visible {
+            outline: 2px solid var(--ui-focus);
+            outline-offset: 2px;
+        }
+
+        /* Normalize dark-first utility classes when the app is in Light mode. */
+        html:not(.dark) .app-main .module-page [class*="border-white"] {
+            border-color: var(--ui-border-strong) !important;
+        }
+
+        html:not(.dark) .app-main .module-page [class*="bg-white/5"],
+        html:not(.dark) .app-main .module-page [class*="bg-white/10"],
+        html:not(.dark) .app-main .module-page [class*="bg-black/"],
+        html:not(.dark) .app-main .module-page [class*="bg-zinc-950"] {
+            background-color: var(--ui-surface-muted) !important;
+        }
+
+        html:not(.dark) .app-main .module-page :is(.text-zinc-300, .text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700) {
+            color: var(--ui-text-secondary) !important;
+        }
+
+        @media (max-width: 640px) {
+            .app-main .module-page {
+                padding-bottom: 1.5rem;
+            }
+
+            .app-main .module-header {
+                gap: 0.625rem;
+                margin-bottom: 1.125rem;
+            }
+
+            .app-main .module-header-icon {
+                width: 2.25rem;
+                height: 2.25rem;
+                border-radius: 0.625rem;
+            }
+
+            .app-main .module-panel {
+                border-radius: 0.625rem;
+            }
+        }
+
         .glass {
             background: var(--ui-surface);
             backdrop-filter: blur(12px);

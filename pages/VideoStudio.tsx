@@ -474,7 +474,7 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
   };
 
   return (
-    <div className="max-w-3xl mx-auto pb-12 px-4 transition-all duration-300">
+    <div className="module-page max-w-3xl mx-auto pb-12 px-4 transition-all duration-300">
 
       
       {/* Page Title */}

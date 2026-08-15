@@ -281,7 +281,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
   const selectedItem = queue.find(i => i.id === selectedItemId);
 
   return (
-    <div className="max-w-6xl mx-auto pb-10">
+    <div className="module-page max-w-6xl mx-auto pb-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
         <div className="flex items-center gap-4">

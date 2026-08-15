@@ -504,7 +504,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const audioOutputDur = audioDuration > 0 ? audioDuration / audioSpeed : 0;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20">
+    <div className="module-page max-w-4xl mx-auto pb-8">
       <AnimatePresence>
         {isProcessing && (
           <motion.div

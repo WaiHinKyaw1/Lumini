@@ -500,7 +500,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const selectedChar = characters.find(c => c.id === characterId);
 
   return (
-    <div className="max-w-xl mx-auto pb-4">
+    <div className="module-page max-w-xl mx-auto pb-4">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center shadow-md shadow-accent/20">
           <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

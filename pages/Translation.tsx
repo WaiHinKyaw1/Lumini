@@ -186,7 +186,7 @@ Translate the text into ${targetLang} following the order:
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-6">
+    <div className="module-page max-w-4xl mx-auto pb-6">
       
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">

@@ -155,7 +155,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
     .filter(category => category.items.length > 0);
 
   return (
-    <div className="space-y-8 pb-16 select-none">
+    <div className="module-page space-y-6 pb-8 select-none">
       
       {/* Welcome & Stats */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
