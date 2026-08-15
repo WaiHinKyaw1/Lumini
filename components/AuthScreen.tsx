@@ -22,8 +22,7 @@ import {
   AlertCircle,
   Chrome,
   KeyRound,
-  CheckCircle2,
-  HelpCircle
+  CheckCircle2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -416,16 +415,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
           </button>
         </form>
 
-        {/* Minimal setup note */}
-        <div className="mt-8 pt-5 border-t border-slate-200/50 dark:border-zinc-900 text-center">
-          <p className="inline-flex items-center gap-1.5 text-[9px] font-bold text-slate-400 dark:text-zinc-500">
-            <HelpCircle className="w-3 h-3" />
-            <span>
-              Email ဖြင့် Register မရပါက Firebase Console → Authentication → Sign-in method တွင်{' '}
-              <span className="font-black text-accent">Email/Password</span> provider ကို Enable လုပ်ပေးပါ။
-            </span>
-          </p>
-        </div>
       </motion.div>
     </div>
   );

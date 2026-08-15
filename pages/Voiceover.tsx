@@ -532,16 +532,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             </div>
           </div>
 
-          <p className="movie-body !text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-            မိမိအသံ ၁၀-၃၀ စက္ကန့် အသံဖမ်းပေးရုံဖြင့် ကိုယ့်အသံနဲ့ အသံဖလှယ်နိုင်ပါတယ်။ F5-TTS စတဲ့ free open-source voice cloning model တွေရဲ့ အရည်အသွေးကို အခြေခံထားပြီး Web Audio API ဖြင့် အသံခွဲခြမ်းစိတ်ဖြာစစ်ဆေးပေးပါတယ်။
-          </p>
-
           {/* ElevenLabs real-clone option (free tier, optional) */}
           <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg">
             <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block text-accent">Real Neural Clone (Optional)</label>
-            <p className="movie-meta !text-[8.5px] text-zinc-500 !mb-0 leading-relaxed">
-              ElevenLabs free plan ဖြင့် နမူနာအသံနဲ့ တကယ့်အသံ cloning (လစဉ် ၁၀,၀၀၀ characters အခမဲ့)။ Key မထည့်ရင် client-side voice shaping သာ သုံးပါမည်။
-            </p>
             <div className="flex gap-2">
               <input
                 type="password"
@@ -561,14 +554,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 Save
               </button>
             </div>
-            <a
-              href="https://elevenlabs.io/app/settings/api-keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="movie-meta !text-[8px] text-accent hover:underline !mb-0"
-            >
-              Get free API key → elevenlabs.io (no credit card)
-            </a>
           </div>
 
           {/* Reference capture */}
@@ -670,26 +655,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                   </div>
                 ))}
               </div>
-              <p className="movie-meta !text-[8px] text-zinc-500 !mb-0 uppercase tracking-widest">
-                {activeClone ? 'Active clone will shape the synthesized voice.' : 'Select a clone to activate voice shaping.'}
-              </p>
             </div>
           )}
 
-          {/* Model guide */}
-          <details className="group">
-            <summary className="movie-meta !text-[9px] uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-accent transition-colors list-none flex items-center gap-1.5">
-              <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              Free Open-Source Voice Models Guide
-            </summary>
-            <div className="mt-2 p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg movie-body !text-[10px] text-slate-600 dark:text-zinc-400 leading-relaxed space-y-1.5">
-              <p><strong className="text-accent">F5-TTS</strong> (github.com/SWivid/F5-TTS) — Zero-shot voice cloning from 5-15s audio; quality rivals ElevenLabs. Code MIT, weights CC-BY-NC-4.0.</p>
-              <p><strong className="text-accent">E2-TTS</strong> — F5-TTS ၏ multilingual sister model; ဘာသာစကားအခြေခံပိုကျယ်သည်။</p>
-              <p><strong className="text-accent">မြန်မာဘာသာ</strong> — F5-TTS ၏ မူရင်းမော်ဒလ်သည် English/Chinese သာ ဖြစ်သောကြောင့် မြန်မာအသံပီသမှုအတွက် Burmese prompt engine ကို Web Audio API အသံခွဲခြမ်းစိတ်ဖြာမှုဖြင့် ပေါင်းစပ်ထားပါသည်။ အဆင့်မြင့် F5-TTS ကို ကိုယ့်စက်မှာ self-host လုပ်ပြီး Burmese corpus ဖြင့် fine-tune လုပ်နိုင်သည်။</p>
-            </div>
-          </details>
         </div>
       ) : (
       /* ===================== SYNTHESIS STUDIO ===================== */
@@ -716,15 +684,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               <option key={clone.id} value={clone.id}>{clone.name}{clone.voiceId ? ' • neural clone' : ' • style fallback'}</option>
             ))}
           </select>
-          <p className="movie-meta !text-[9px] leading-relaxed text-slate-500 dark:text-zinc-400 !mb-0">
-            {activeClone
-              ? activeClone.voiceId && getElevenKey()
-                ? `Script အသံကို ${activeClone.name} neural clone နဲ့ ဖန်တီးပါမယ်။`
-                : `${activeClone.name} ရဲ့ voice profile ကို အသုံးပြုပြီး free style shaping နဲ့ ဖန်တီးပါမယ်။`
-              : clones.length > 0
-                ? 'သိမ်းထားတဲ့အသံကို ရွေးပြီး script အသံဖန်တီးနိုင်ပါတယ်။'
-                : 'Voice Clone Studio မှာ နမူနာအသံတစ်ခု create လုပ်ပြီး ဒီနေရာမှာ ပြန်ရွေးသုံးနိုင်ပါတယ်။'}
-          </p>
         </div>
 
         {/* Talent Selection */}
@@ -810,12 +769,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
               <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em]">Input Script</label>
-              <div className="group relative">
-                <svg className="w-3.5 h-3.5 text-slate-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div className="absolute bottom-full left-0 mb-1.5 w-44 p-1.5 bg-midnight text-[8px] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 pointer-events-none z-50">
-                  Use tags like <span className="text-accent">[NILAR]</span> or <span className="text-accent">[THIHA]</span> to switch voices in the same script.
-                </div>
-              </div>
             </div>
             <div className="flex gap-3">
               <button onClick={handlePaste} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-accent hover:text-accent dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Paste</button>
@@ -936,11 +889,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                   <p className="text-xs text-amber-600 dark:text-amber-400 font-bold leading-relaxed">
                     {parsedQuotaError.mmMessage}
                   </p>
-                  <div className="text-[10px] text-slate-600 dark:text-zinc-300 font-normal leading-relaxed bg-slate-50 dark:bg-[#0e0e11]/50 p-3.5 rounded-xl border border-slate-200 dark:border-white/5 space-y-1.5">
-                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">💡 ဖြေရှင်းနည်းလမ်းညွှန်များ -</span>
-                    <p>၁။ <strong>ခေတ္တခဏ စောင့်ဆိုင်းပေးပါ -</strong> အခမဲ့ဗားရှင်း (Free Tier) သည် တစ်မိနစ်လျှင် အသံဖန်တီးမှု ၃ ကြိမ်သာ ခွင့်ပြုသောကြောင့် စက္ကန့် ၃၀ ခန့် စောင့်ပြီးမှ ပြန်လည်လုပ်ဆောင်ပေးပါ။</p>
-                    <p>၂။ <strong>ကိုယ်ပိုင် API Key သုံးပါ -</strong> Profile သို့မဟုတ် Settings စာမျက်နှာတွင် သင်၏ကိုယ်ပိုင် Gemini API Key အား ထည့်သွင်းပါက ကန့်သတ်ချက်မရှိ စိုက်ကြိုက်အသုံးပြုနိုင်ပါမည်။</p>
-                  </div>
                 </div>
               </div>
             ) : (

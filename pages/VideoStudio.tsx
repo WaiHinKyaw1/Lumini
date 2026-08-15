@@ -653,9 +653,6 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
                   )}
                 </div>
                 
-                <p className="text-[10px] text-orange-500/80 bg-orange-500/5 border border-orange-500/10 p-3 rounded-lg leading-relaxed">
-                  💡 <strong>Tip for Mobile/No OOM:</strong> For files larger than 40MB, try converting to audio format or pasting the script directly via the text tab for near-instant processing.
-                </p>
               </div>
             ) : (
               <div className="space-y-3">
