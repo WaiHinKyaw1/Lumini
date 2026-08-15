@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateImage, generateText } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
@@ -30,12 +30,12 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const isMounted = useRef(true);
 
   // Recent-task restore: repopulate the thumbnail generator inputs from a previous task
-  const handleRestoreThumbnail = (input: any) => {
+  const handleRestoreThumbnail = (input: JsonValue) => {
     if (!input || typeof input !== 'object') return;
-    if (typeof input.topic === 'string') setTopic(input.topic);
-    if (typeof input.titleText === 'string') setTitleText(input.titleText);
-    if (typeof input.style === 'string' && styles.some((s) => s.name === input.style)) setStyle(input.style);
-    if (typeof input.useBrandKit === 'boolean') setUseBrandKit(input.useBrandKit);
+    if (typeof (input as JsonRecord).topic === 'string') setTopic((input as JsonRecord).topic as string);
+    if (typeof (input as JsonRecord).titleText === 'string') setTitleText((input as JsonRecord).titleText as string);
+    if (typeof (input as JsonRecord).style === 'string' && styles.some((s) => s.name === (input as JsonRecord).style)) setStyle((input as JsonRecord).style as string);
+    if ((input as JsonRecord).useBrandKit === true || (input as JsonRecord).useBrandKit === false) setUseBrandKit((input as JsonRecord).useBrandKit as boolean);
     setResult(null);
     setHooks([]);
     setError(null);
@@ -199,9 +199,9 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
         setRefreshTrigger(prev => prev + 1);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isMounted.current) {
-        setError(err.message || "Failed to generate thumbnail");
+        setError((err as { message?: string })?.message || "Failed to generate thumbnail");
       }
     } finally {
       if (isMounted.current) {

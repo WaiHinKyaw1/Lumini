@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { generateSubtitles, generateText, generateSpeech } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
@@ -165,9 +165,9 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
         setBatchLog(prev => `${prev}  ✓ final video download စတင်${videoSpeed > 1.05 ? ` (${videoSpeed.toFixed(2)}x auto speed-match)` : ''}\n`);
         syncBatchItem(item.id, { status: 'done', finishedAt: Date.now() });
         setBatchLog(prev => `${prev}→ ${item.name} ပြီးဆုံး\n`);
-      } catch (err: any) {
-        syncBatchItem(item.id, { status: 'failed', error: err?.message || 'Unknown error', finishedAt: Date.now() });
-        setBatchLog(prev => `${prev}  ✗ error: ${err?.message || 'failed'}\n`);
+      } catch (err: unknown) {
+        syncBatchItem(item.id, { status: 'failed', error: (err as { message?: string })?.message || 'Unknown error', finishedAt: Date.now() });
+        setBatchLog(prev => `${prev}  ✗ error: ${(err as { message?: string })?.message || 'failed'}\n`);
       }
     }
     setProgress(100);
@@ -186,11 +186,11 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
     } as Record<BatchStatus, string>)[status] || '';
 
   // Recent-task restore: re-apply pipeline settings from a previous task
-  const handleRestoreVideoStudio = (input: any) => {
+  const handleRestoreVideoStudio = (input: JsonValue) => {
     if (!input || typeof input !== 'object') return;
-    if (typeof input.tone === 'string') setTone(input.tone);
-    if (typeof input.voice === 'string') setVoice(input.voice);
-    if (typeof input.speed === 'number') setSpeed(input.speed);
+    if (typeof (input as JsonRecord).tone === 'string') setTone((input as JsonRecord).tone as string);
+    if (typeof (input as JsonRecord).voice === 'string') setVoice((input as JsonRecord).voice as string);
+    if (typeof (input as JsonRecord).speed === 'number') setSpeed((input as JsonRecord).speed as number);
   };
 
   // Parse media duration
@@ -205,7 +205,7 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
       media.preload = 'metadata';
       media.onloadedmetadata = () => {
         window.URL.revokeObjectURL(media.src);
-        setDuration(Math.floor((media as any).duration || 0));
+        setDuration(Math.floor((media as HTMLVideoElement).duration || 0));
       };
       media.src = URL.createObjectURL(selectedFile);
     }
@@ -284,9 +284,9 @@ const VideoStudio: React.FC<VideoStudioProps> = ({ onSpendCredits }) => {
         );
         setRefreshTrigger(prev => prev + 1);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.message || 'Transcription failed.');
+      toast.error((err as { message?: string })?.message || 'Transcription failed.');
       setCurrentStep('SOURCE');
     } finally {
       setIsProcessing(false);
@@ -350,9 +350,9 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
         );
         setRefreshTrigger(prev => prev + 1);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.message || 'Translation failed.');
+      toast.error((err as { message?: string })?.message || 'Translation failed.');
     } finally {
       setIsProcessing(false);
     }
@@ -412,9 +412,9 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
               { status: 'success', info: 'Merged MP4 with synced Burmese voiceover' }
             );
           }
-        } catch (mergeErr: any) {
+        } catch (mergeErr: unknown) {
           console.error('Merge failed', mergeErr);
-          setMergeError(mergeErr?.message || 'Merging failed.');
+          setMergeError((mergeErr as { message?: string })?.message || 'Merging failed.');
           setMergeProgress('');
         } finally {
           setIsMerging(false);
@@ -436,11 +436,11 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
         );
         setRefreshTrigger(prev => prev + 1);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      let userMsg = err.message || 'Voiceover generation failed.';
+      let userMsg = (err as { message?: string })?.message || 'Voiceover generation failed.';
       try {
-        const msg = err.message || "";
+        const msg = (err as { message?: string })?.message || "";
         const openBrace = msg.indexOf('{');
         const closeBrace = msg.lastIndexOf('}');
         if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {

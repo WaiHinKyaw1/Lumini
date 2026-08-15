@@ -7,7 +7,7 @@ interface ModuleLogHistoryProps {
   moduleName: string | string[];
   title?: string;
   burmeseTitle?: string;
-  refreshTrigger?: any; // Allows outer component to trigger reload on action completion
+  refreshTrigger?: number; // Allows outer component to trigger reload on action completion
 }
 
 export const ModuleLogHistory: React.FC<ModuleLogHistoryProps> = ({
@@ -53,8 +53,8 @@ export const ModuleLogHistory: React.FC<ModuleLogHistoryProps> = ({
       } else {
         toast.error("ဖျက်ရန် အဆင်မပြေပါ (Failed to delete)");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Error deleting log");
+    } catch (error: unknown) {
+      toast.error((error as { message?: string })?.message || "Error deleting log");
     }
   };
 
@@ -106,8 +106,8 @@ export const ModuleLogHistory: React.FC<ModuleLogHistoryProps> = ({
       <div className="space-y-3">
         {logs.map((log) => {
           const isExpanded = expandedId === log.id;
-          let inputObj: any = null;
-          let outputObj: any = null;
+          let inputObj: unknown = null;
+          let outputObj: unknown = null;
           try {
             inputObj = JSON.parse(log.input_data);
           } catch (_) {

@@ -292,7 +292,7 @@ interface SpeechSegment {
 }
 
 // Parses text into speaker segments if speaker tags such as [NILAR] or [THIHA] are present
-const parseSpeechSegments = (text: string, defaultVoice: string, voiceMap?: any): SpeechSegment[] => {
+const parseSpeechSegments = (text: string, defaultVoice: string, voiceMap?: Record<string, string>): SpeechSegment[] => {
   const segments: SpeechSegment[] = [];
   const normalizedVoiceMap: Record<string, string> = {
     'THIHA': 'Fenrir',
@@ -540,8 +540,8 @@ const synthesizeSingleChunk = async (
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (!base64Audio) throw new Error("No audio generated");
       return base64Audio;
-    } catch (err: any) {
-      const errorMsg = err.message ? err.message.toUpperCase() : "";
+    } catch (err: unknown) {
+      const errorMsg = (err as { message?: string })?.message ? (err as { message?: string })?.message.toUpperCase() : "";
       const isQuotaError = errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("QUOTA EXCEEDED") || errorMsg.includes("429");
       
       if (isQuotaError && attempt < MAX_RETRIES) {
@@ -555,7 +555,7 @@ const synthesizeSingleChunk = async (
       console.error(`Audio synthesis failed for script segment:`, err);
       if (isQuotaError) {
         let retrySeconds = 45;
-        const msgStr = err.message || "";
+        const msgStr = (err as { message?: string })?.message || "";
         const match = msgStr.match(/retry in ([\d\.]+)s/i);
         if (match && match[1]) {
           retrySeconds = Math.ceil(parseFloat(match[1]));
@@ -564,7 +564,7 @@ const synthesizeSingleChunk = async (
         throw new Error(JSON.stringify({
           isQuotaError: true,
           retryAfter: retrySeconds,
-          message: err.message || "Quota exceeded",
+          message: (err as { message?: string })?.message || "Quota exceeded",
           mmMessage: "လူကြီးမင်း၏ တစ်မိနစ်လျှင် အခမဲ့အသုံးပြုခွင့် ကန့်သတ်ချက် (Free Tier Quota Limit) ပြည့်သွားပါပြီ။ Gemini TTS အသံဖန်တီးမှုစနစ် (Free Level) သည် တစ်မိနစ်လျှင် အများဆုံး ၃ ကြိမ်သာ အသုံးပြုခွင့်ပေးထားပါသည်။ ကျေးဇူးပြု၍ ခေတ္တစောင့်ဆိုင်းပေးပါ သို့မဟုတ် ကိုယ်ပိုင် API Key အသုံးပြုပါ။"
         }));
       }
@@ -579,7 +579,7 @@ export const generateSpeech = async (
   voice: string = 'Kore', 
   speedOffset: number = 0, 
   pitchOffset: number = 0,
-  voiceMap?: any,
+  voiceMap?: Record<string, string>,
   tone?: string
 ) => {
   const ai = getAIClient();

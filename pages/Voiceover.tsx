@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSpeech, playAudio } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
@@ -61,19 +61,19 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Recent-task restore: repopulate input fields from a previous generation
-  const handleRestoreVoiceover = (input: any) => {
+  const handleRestoreVoiceover = (input: JsonValue) => {
     if (!input || typeof input !== 'object') return;
-    if (typeof input.text === 'string') setText(input.text);
+    if (typeof (input as JsonRecord).text === 'string') setText((input as JsonRecord).text as string);
     // Logged 'character' may be an id or a name — resolve either
-    if (input.character) {
-      const byId = characters.find((c) => c.id === input.character);
-      const byName = characters.find((c) => c.name === input.character);
+    if ((input as JsonRecord).character) {
+      const byId = characters.find((c) => c.id === String((input as JsonRecord).character));
+      const byName = characters.find((c) => c.name === String((input as JsonRecord).character));
       if (byId) setCharacterId(byId.id);
       else if (byName) setCharacterId(byName.id);
     }
-    if (input.tone) setTone(input.tone);
-    if (typeof input.voiceSpeed === 'number') setVoiceSpeed(input.voiceSpeed);
-    if (typeof input.voicePitch === 'number') setVoicePitch(input.voicePitch);
+    if ((input as JsonRecord).tone) setTone(String((input as JsonRecord).tone));
+    if (typeof (input as JsonRecord).voiceSpeed === 'number') setVoiceSpeed((input as JsonRecord).voiceSpeed as number);
+    if (typeof (input as JsonRecord).voicePitch === 'number') setVoicePitch((input as JsonRecord).voicePitch as number);
     setMode('studio');
     setError(null);
   };
@@ -204,7 +204,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     try {
       const { stop } = await startRecording();
       const recordingStop = stop;
-      (window as any).__cloneRecordingStop = recordingStop;
+      (window as unknown as { __cloneRecordingStop?: () => void }).__cloneRecordingStop = recordingStop;
     } catch {
       setIsRecording(false);
       setCloneStatus('Microphone access denied.');
@@ -212,7 +212,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   };
 
   const handleStopRecording = async () => {
-    const stopFn = (window as any).__cloneRecordingStop;
+    const stopFn = (window as unknown as { __cloneRecordingStop?: () => void }).__cloneRecordingStop;
     if (!stopFn) { setIsRecording(false); return; }
     try {
       const data = await stopFn();
@@ -224,7 +224,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         const response = await fetch(dataUrl);
         blob = await response.blob();
       } else {
-        blob = data as Blob;
+        blob = data as unknown as Blob;
         dataUrl = URL.createObjectURL(blob);
       }
       const file = new File([blob], 'lumini_recording.webm', { type: 'audio/webm' });
@@ -281,7 +281,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       setCloneStatus(profile.voiceId
         ? 'Voice cloned successfully (real neural clone)! Generate audio in your voice.'
         : 'Voice cloned successfully! Generate audio using this profile.');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setCloneStatus('Voice analysis failed. Use a clean 10-30s recording with speech only.');
     } finally {
       setIsAnalyzing(false);
@@ -367,12 +367,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         });
         audioCtxRef.current = ctx;
       }
-    } catch (err: any) { 
+    } catch (err: unknown) { 
         if (isMounted.current) {
-            setError(err.message || "Preview failed."); 
+            setError((err as { message?: string })?.message || "Preview failed."); 
             setIsPreviewing(null); 
             try {
-              const msg = err.message || "";
+              const msg = (err as { message?: string })?.message || "";
               const openBrace = msg.indexOf('{');
               const closeBrace = msg.lastIndexOf('}');
               if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
@@ -422,7 +422,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             const { blobUrl: processedUrl, dispose } = await applyClonePostProcessing(blobUrl, pitchShift);
             if (isMounted.current) {
               blobUrl = processedUrl;
-              (window as any).__cloneProcessedDispose = dispose;
+              (window as unknown as { __cloneProcessedDispose?: () => void }).__cloneProcessedDispose = dispose;
             } else {
               dispose();
             }
@@ -452,11 +452,11 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         );
         setRefreshTrigger(prev => prev + 1);
       }
-    } catch (err: any) { 
+    } catch (err: unknown) { 
         if (isMounted.current) {
-          setError(err.message || "Synthesis failed."); 
+          setError((err as { message?: string })?.message || "Synthesis failed."); 
           try {
-            const msg = err.message || "";
+            const msg = (err as { message?: string })?.message || "";
             const openBrace = msg.indexOf('{');
             const closeBrace = msg.lastIndexOf('}');
             if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {

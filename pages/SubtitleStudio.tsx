@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSubtitles } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
@@ -33,9 +33,9 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
   const isMounted = useRef(true);
 
   // Recent-task restore: re-apply the subtitle language setting from a previous task
-  const handleRestoreSubtitles = (input: any) => {
+  const handleRestoreSubtitles = (input: JsonValue) => {
     if (!input || typeof input !== 'object') return;
-    if (typeof input.language === 'string') setLanguage(input.language);
+    if (typeof (input as JsonRecord).language === 'string') setLanguage((input as JsonRecord).language as string);
     setError(null);
   };
 
@@ -93,7 +93,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
 
   const extractAudioFromVideo = async (videoFile: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext)();
       const reader = new FileReader();
       
       reader.onload = async (e) => {
@@ -226,10 +226,10 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
       setQueue((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, status: 'completed', result } : i))
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isMounted.current) {
         setQueue((prev) =>
-          prev.map((i) => (i.id === item.id ? { ...i, status: 'failed', error: err.message } : i))
+          prev.map((i) => (i.id === item.id ? { ...i, status: 'failed', error: (err as { message?: string })?.message } : i))
         );
         throw err;
       }
@@ -250,8 +250,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
       if (!isMounted.current) return;
       try {
         await processFile(item);
-      } catch (err: any) {
-        if (err.message === "Insufficient credits") {
+      } catch (err: unknown) {
+        if ((err as { message?: string })?.message === "Insufficient credits") {
           setError("Some files could not be processed due to insufficient credits.");
         }
       }
