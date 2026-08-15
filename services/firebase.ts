@@ -62,7 +62,7 @@ export interface FirestoreErrorInfo {
 // Catch and translate Firestore operation errors
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  const errorCode = (error as any)?.code || '';
+  const errorCode = (error as { code?: string })?.code || '';
 
   // Intercept offline or network connection issues to avoid triggering unhandled fatal crashed rejections
   const isOfflineError = 

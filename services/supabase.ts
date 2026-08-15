@@ -38,8 +38,8 @@ export async function logGeneration(
   userId: string,
   userEmail: string,
   module: string,
-  inputData: any,
-  outputData: any
+  inputData: unknown,
+  outputData: unknown
 ): Promise<boolean> {
   if (!supabase || !isSupabaseConfigured) {
     console.warn('Supabase not configured or available for logging.');
@@ -60,7 +60,7 @@ export async function logGeneration(
       .insert([record]);
 
     if (error) {
-      console.warn('Supabase logging failed directly, trying secondary format:', error.message);
+      console.warn('Supabase logging failed directly, trying secondary format:', (error as { message?: string })?.message);
       // Try fallback schema structures or log to local console
       return false;
     }
@@ -85,7 +85,7 @@ export async function deleteRecord(id: string): Promise<boolean> {
       .eq('id', id);
 
     if (error) {
-      console.error('Failed to delete from Supabase:', error.message);
+      console.error('Failed to delete from Supabase:', (error as { message?: string })?.message);
       return false;
     }
     return true;
@@ -117,7 +117,7 @@ export async function fetchModuleLogs(userId: string, modules: string | string[]
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Failed to fetch module logs:', error.message);
+      console.error('Failed to fetch module logs:', (error as { message?: string })?.message);
       return [];
     }
     return data || [];

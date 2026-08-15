@@ -102,23 +102,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
         }
         toast.success('Welcome! Your registration with Lumini Studio is complete.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Authentication Error:', err);
-      let userFriendlyMsg = err.message;
+      const code = (err as { code?: string })?.code;
+      let userFriendlyMsg = (err as { message?: string })?.message || 'Authentication failed.';
 
-      if (err.code === 'auth/invalid-credential') {
+      if (code === 'auth/invalid-credential') {
         userFriendlyMsg = 'အီးမေးလ် သို့မဟုတ် လျှို့ဝှက်ကုဒ် မှားယွင်းနေပါသည်။ ပြန်လည်စစ်ဆေးပေးပါ။';
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (code === 'auth/email-already-in-use') {
         userFriendlyMsg = 'ဤအီးမေးလ်လိပ်စာသည် အကောင့်ဖွင့်ပြီးသားဖြစ်နေပါသည်။ Login ဝင်ပါ။';
-      } else if (err.code === 'auth/weak-password') {
+      } else if (code === 'auth/weak-password') {
         userFriendlyMsg = 'လျှို့ဝှက်ကုဒ်သည် အနည်းဆုံး စာလုံး ၆ လုံး ရှိရပါမည်။';
-      } else if (err.code === 'auth/invalid-email') {
+      } else if (code === 'auth/invalid-email') {
         userFriendlyMsg = 'အီးမေးလ်ပုံစံ မမှန်ကန်ပါ။ မှန်ကန်သော အီးမေးလ်လိပ်စာကို ရိုက်ထည့်ပေးပါ။';
-      } else if (err.code === 'auth/user-not-found') {
+      } else if (code === 'auth/user-not-found') {
         userFriendlyMsg = 'ဤအီးမေးလ်ဖြင့် ဖန်တီးထားသော အကောင့်မရှိသေးပါ။';
-      } else if (err.code === 'auth/wrong-password') {
+      } else if (code === 'auth/wrong-password') {
         userFriendlyMsg = 'လျှို့ဝှက်ကုဒ် မမှန်ကန်ပါ။ ပြန်လည်စစ်ဆေးပါ။';
-      } else if (err.code === 'auth/operation-not-allowed') {
+      } else if (code === 'auth/operation-not-allowed') {
         userFriendlyMsg = 'Email/Password စနစ်ကို Firebase console တွင် မဖွင့်ရသေးပါ။ Google ဖြင့် ဝင်ရောက်ပါ။';
       }
 
@@ -141,8 +142,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
       await sendPasswordResetEmail(auth, addr);
       setResetSent(true);
       toast.success('အီးမေးလ်ထဲသို့ password ပြန်လည်သတ်မှတ်လင့်ခ် ပို့ပြီးပါပြီ');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to send reset email.');
+    } catch (err: unknown) {
+      toast.error((err as { message?: string })?.message || 'Failed to send reset email.');
     } finally {
       setIsLoading(false);
     }
@@ -158,10 +159,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
       try {
         await signInWithPopup(auth, provider);
         toast.success('Successfully authenticated via Google!');
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Google Sign In Error:', err);
-        setError(err.message || 'Failed signing in with Google.');
-        toast.error(err.message || 'Google Sign In failed.');
+        const message = (err as { message?: string })?.message || 'Failed signing in with Google.';
+        setError(message);
+        toast.error(message);
       } finally {
         setIsLoading(false);
       }

@@ -18,6 +18,23 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        outDir: 'dist',
+        sourcemap: false,
+        rollupOptions: {
+          output: {
+            // Code splitting: dedicated vendor chunks so long-term cache stays valid
+            manualChunks: {
+              react: ['react', 'react-dom', 'react/jsx-runtime'],
+              firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+              supabase: ['@supabase/supabase-js'],
+              ffmpeg: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+              google: ['@google/genai'],
+              ui: ['framer-motion', 'lucide-react', 'react-hot-toast'],
+            },
+          },
+        },
       }
     };
 });

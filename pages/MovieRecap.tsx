@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
-import { CREDIT_COSTS, ContentType } from '../types';
+import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
@@ -52,10 +52,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [zoomDuration, setZoomDuration] = useState(3); 
 
   // Recent-task restore: re-apply the recap prompt and aspect ratio from a previous task
-  const handleRestoreRecap = (input: any) => {
+  const handleRestoreRecap = (input: JsonValue) => {
     if (!input || typeof input !== 'object') return;
-    if (typeof input.prompt === 'string') setAiPrompt(input.prompt);
-    if (typeof input.aspectRatio === 'string') setAspectRatio(input.aspectRatio);
+    if (typeof (input as JsonRecord).prompt === 'string') setAiPrompt((input as JsonRecord).prompt as string);
+    if (typeof (input as JsonRecord).aspectRatio === 'string') setAspectRatio((input as JsonRecord).aspectRatio as string);
     setShowAIPrompt(true);
     setError(null);
   };
@@ -149,7 +149,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   // --- AI Video Generation ---
   useEffect(() => {
     const checkApiKey = async () => {
-      const selected = await (window as any).aistudio?.hasSelectedApiKey?.();
+      const selected = await (window as unknown as { aistudio?: { hasSelectedApiKey?: () => boolean | Promise<boolean>; openSelectKey?: () => void | Promise<void> } }).aistudio?.hasSelectedApiKey?.();
       if (selected) {
         setHasKey(true);
       } else {
@@ -164,8 +164,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   }, []);
 
   const handleOpenKey = async () => {
-    if ((window as any).aistudio?.openSelectKey) {
-      await (window as any).aistudio?.openSelectKey();
+    if ((window as unknown as { aistudio?: { hasSelectedApiKey?: () => boolean | Promise<boolean>; openSelectKey?: () => void | Promise<void> } }).aistudio?.openSelectKey) {
+      await (window as unknown as { aistudio?: { hasSelectedApiKey?: () => boolean | Promise<boolean>; openSelectKey?: () => void | Promise<void> } }).aistudio?.openSelectKey();
       setHasKey(true);
     } else {
       setHasKey(true);
@@ -234,8 +234,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
            setRefreshTrigger(prev => prev + 1);
          }
       }
-    } catch (err: any) {
-      setError(err.message || "Video generation failed");
+    } catch (err: unknown) {
+      setError((err as { message?: string })?.message || "Video generation failed");
     } finally {
       setIsGeneratingVideo(false);
     }
@@ -494,8 +494,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         };
         processLoop();
 
-    } catch (err: any) {
-        setError("Generation Failed: " + err.message);
+    } catch (err: unknown) {
+        setError("Generation Failed: " + (err as { message?: string })?.message);
         setIsProcessing(false);
     }
   };
