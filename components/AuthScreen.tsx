@@ -173,7 +173,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginGoogle }) => {
   const strength = passwordStrength(password);
 
   return (
-    <div className="w-full min-h-[85vh] flex flex-col items-center justify-center p-4 relative">
+    <div className="auth-screen w-full min-h-[85vh] flex flex-col items-center justify-center p-4 relative">
       {/* Soft ambient glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-accent/8 rounded-full blur-[120px] pointer-events-none" />
 
