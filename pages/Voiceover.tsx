@@ -74,6 +74,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     if ((input as JsonRecord).tone) setTone(String((input as JsonRecord).tone));
     if (typeof (input as JsonRecord).voiceSpeed === 'number') setVoiceSpeed((input as JsonRecord).voiceSpeed as number);
     if (typeof (input as JsonRecord).voicePitch === 'number') setVoicePitch((input as JsonRecord).voicePitch as number);
+    if (typeof (input as JsonRecord).clone === 'string') {
+      const savedClone = clones.find((clone) =>
+        clone.id === String((input as JsonRecord).clone) || clone.name === String((input as JsonRecord).clone),
+      );
+      if (savedClone) setClone(savedClone.id);
+    }
     setMode('studio');
     setError(null);
   };
@@ -174,11 +180,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
   // --- Voice Clone Studio handlers ---
   const activeClone = clones.find((c) => c.id === activeCloneId);
+  const hasNeuralClone = Boolean(activeClone?.voiceId && getElevenKey());
 
   const setClone = (id: string | null) => {
     setActiveCloneId(id);
     if (id) localStorage.setItem('lumini_active_clone', id);
     else localStorage.removeItem('lumini_active_clone');
+    setIsChecked(false);
+    setAudioUrl(null);
+    setError(null);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -446,11 +456,21 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           currentUser.email || '',
           'voiceover',
           { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null, cloneMode: canUseRemoteClone ? 'neural' : activeClone ? 'style-fallback' : 'built-in' },
-          { status: 'success', info: 'Voiceover audio generated successfully' }
-        );
+{ status: 'success', info: 'Voiceover audio generated successfully' }
+          );
         window.dispatchEvent(
           new CustomEvent('lumini:taskLogged', {
-            detail: { module: 'voiceover', input: { text, characterId: char?.id || characterId, tone, voiceSpeed, voicePitch } },
+            detail: {
+              module: 'voiceover',
+              input: {
+                text,
+                characterId: char?.id || characterId,
+                tone,
+                voiceSpeed,
+                voicePitch,
+                clone: activeClone?.name || null,
+              },
+            },
           })
         );
         setRefreshTrigger(prev => prev + 1);
@@ -626,12 +646,21 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 {clones.map((c) => (
                   <div
                     key={c.id}
-                    className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer ${
+                    className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border transition-all cursor-pointer ${
                       activeCloneId === c.id
                         ? 'border-accent bg-accent/10'
-                        : 'border-white/10 bg-black/10 hover:border-white/25'
+                        : 'border-slate-200 bg-slate-50 hover:border-accent/50 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25'
                     }`}
                     onClick={() => setClone(c.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setClone(c.id);
+                      }
+                    }}
+                    aria-pressed={activeCloneId === c.id}
                   >
                     <div className="flex flex-col">
                       <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-widest">{c.name}</span>
@@ -639,11 +668,20 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                         {c.traits.gender === 'unknown' ? 'Neutral' : c.traits.gender} • {Math.round(c.traits.pitchHz)}Hz • {c.traits.tone} • {c.durationSeconds}s ref
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {activeCloneId === c.id && (
                         <span className="px-2 py-0.5 bg-accent text-white rounded-md movie-meta !text-[7px] uppercase tracking-widest !mb-0">Active</span>
                       )}
                       <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setClone(c.id); setMode('studio'); }}
+                        className="rounded-md border border-accent/40 bg-accent/10 px-2 py-1 movie-meta !text-[8px] uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-white"
+                      >
+                        Use in script
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete saved voice clone ${c.name}`}
                         onClick={(e) => { e.stopPropagation(); handleDeleteClone(c.id); }}
                         className="p-1.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:border-rose-500 hover:bg-rose-500 hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400 transition-all"
                       >
@@ -663,12 +701,17 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       /* ===================== SYNTHESIS STUDIO ===================== */
       <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Saved clone selection for this script */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="saved-voice-clone" className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0">Use saved voice clone</label>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-black/20">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <label htmlFor="saved-voice-clone" className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0 block">Voice for this script</label>
+              <p className="movie-meta !text-[9px] !mb-0 mt-1 text-slate-500 dark:text-zinc-400">
+                {activeClone ? 'Saved clone selected' : 'Built-in voice selected'}
+              </p>
+            </div>
             {activeClone && (
-              <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 movie-meta !text-[8px] uppercase tracking-widest text-accent !mb-0">
-                {activeClone.voiceId && getElevenKey() ? 'Neural clone ready' : 'Style fallback'}
+              <span className="shrink-0 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 movie-meta !text-[8px] uppercase tracking-widest text-accent !mb-0">
+                {hasNeuralClone ? 'Neural clone ready' : 'Style fallback'}
               </span>
             )}
           </div>
@@ -677,13 +720,32 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             aria-label="Choose a saved voice clone for this script"
             value={activeCloneId || ''}
             onChange={(event) => setClone(event.target.value || null)}
-            className="w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 movie-body !text-[12px] text-slate-900 outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
+            className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 movie-body !text-[12px] text-slate-900 outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
           >
             <option value="">Use built-in voice model</option>
             {clones.map((clone) => (
               <option key={clone.id} value={clone.id}>{clone.name}{clone.voiceId ? ' • neural clone' : ' • style fallback'}</option>
             ))}
           </select>
+          {activeClone ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
+              <div className="min-w-0">
+                <p className="movie-h2 !text-[11px] !mb-0 truncate uppercase tracking-widest text-slate-800 dark:text-zinc-100">{activeClone.name}</p>
+                <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-400">{activeClone.traits.tone} tone • {Math.round(activeClone.traits.pitchHz)}Hz • {activeClone.durationSeconds}s reference</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClone(null)}
+                className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-1 movie-meta !text-[8px] uppercase tracking-widest text-slate-600 transition-colors hover:border-accent hover:text-accent dark:border-white/15 dark:bg-black/20 dark:text-zinc-300"
+              >
+                Use built-in
+              </button>
+            </div>
+          ) : (
+            <p className="movie-meta !text-[9px] !mb-0 text-slate-500 dark:text-zinc-400">
+              {clones.length > 0 ? 'Choose a saved profile to use its voice with this script.' : 'No saved voice clones available.'}
+            </p>
+          )}
         </div>
 
         {/* Talent Selection */}
