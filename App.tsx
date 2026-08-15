@@ -317,7 +317,7 @@ const App: React.FC = () => {
               </svg>
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Gemini API Key</h1>
+              <h1 className="movie-h1 !mb-0 uppercase tracking-tighter">Gemini API Key</h1>
               <p className="text-zinc-400 text-xs leading-relaxed px-2">
                 {isAiStudioEnv 
                   ? "To run this application, select your Gemini API key from Google AI Studio."
@@ -409,7 +409,7 @@ const App: React.FC = () => {
         onLoginGoogle={handleLoginGoogle}
         onLogout={handleLogout}
       >
-        <main role="main" className="min-h-[calc(100vh-56px)]">{renderPage()}</main>
+        <main role="main" className="app-main min-h-[calc(100vh-56px)]">{renderPage()}</main>
       </Layout>
       <CreditModal 
         isOpen={isCreditModalOpen} 

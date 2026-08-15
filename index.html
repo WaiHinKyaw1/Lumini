@@ -42,83 +42,242 @@
         }
     </script>
     <style>
-        body { 
-            font-family: 'Inter', sans-serif;
+        :root {
+            color-scheme: light;
+            --ui-page: #f5f5f5;
+            --ui-surface: rgba(255, 255, 255, 0.88);
+            --ui-surface-solid: #ffffff;
+            --ui-surface-muted: #f1f5f9;
+            --ui-border: #e2e8f0;
+            --ui-border-strong: #cbd5e1;
+            --ui-text-primary: #172033;
+            --ui-text-secondary: #475569;
+            --ui-text-muted: #64748b;
+            --ui-text-subtle: #94a3b8;
+            --ui-accent: #ea580c;
+            --ui-accent-hover: #c2410c;
+            --ui-focus: #f97316;
+        }
+
+        html.dark {
+            color-scheme: dark;
+            --ui-page: #0a0a0a;
+            --ui-surface: rgba(17, 17, 20, 0.86);
+            --ui-surface-solid: #121214;
+            --ui-surface-muted: #1a1a1f;
+            --ui-border: rgba(255, 255, 255, 0.10);
+            --ui-border-strong: rgba(255, 255, 255, 0.16);
+            --ui-text-primary: #f4f4f5;
+            --ui-text-secondary: #d4d4d8;
+            --ui-text-muted: #a1a1aa;
+            --ui-text-subtle: #71717a;
+            --ui-accent: #fb923c;
+            --ui-accent-hover: #fdba74;
+            --ui-focus: #fb923c;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans Myanmar', ui-sans-serif, system-ui, sans-serif;
+            background: var(--ui-page);
+            color: var(--ui-text-primary);
             -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
             transition: background-color 0.3s ease, color 0.3s ease;
             line-height: 1.6;
         }
 
-        /* Unified dark-mode text palette: brighter secondary text for readability */
-        .dark .movie-h1,
-        .dark .movie-h2 { color: #E4E4E7; }
-        .dark .movie-body { color: #B4B4BB; }
-        .dark .movie-meta { color: #8B8B94; }
-        
-        /* Dark Mode Glass */
-        .dark .glass { 
-            background: rgba(10, 10, 10, 0.7); 
-            backdrop-filter: blur(12px); 
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        /* Shared semantic typography: every module uses the same role-based scale. */
+        .movie-h1,
+        .movie-h2,
+        .movie-body,
+        .movie-meta {
+            font-family: 'Inter', 'Noto Sans Myanmar', ui-sans-serif, system-ui, sans-serif;
         }
-        
-        /* Light Mode Glass/Card */
+
+        .movie-h1.movie-h1 {
+            font-size: 1.25rem !important;
+            line-height: 1.45 !important;
+            font-weight: 700;
+            color: var(--ui-text-primary) !important;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .movie-h2.movie-h2 {
+            font-size: 1rem !important;
+            line-height: 1.5 !important;
+            font-weight: 600;
+            color: var(--ui-text-primary) !important;
+            margin-bottom: 0.5rem;
+        }
+
+        .movie-body.movie-body {
+            font-size: 0.875rem !important;
+            line-height: 1.65 !important;
+            font-weight: 400;
+            color: var(--ui-text-secondary) !important;
+            margin-bottom: 0.5rem;
+        }
+
+        .movie-meta.movie-meta {
+            font-size: 0.75rem !important;
+            line-height: 1.5 !important;
+            font-weight: 500;
+            color: var(--ui-text-muted) !important;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Explicit semantic helpers for new or non-movie UI. */
+        .ui-text-primary { color: var(--ui-text-primary) !important; }
+        .ui-text-secondary { color: var(--ui-text-secondary) !important; }
+        .ui-text-muted { color: var(--ui-text-muted) !important; }
+        .ui-surface { background-color: var(--ui-surface) !important; }
+        .ui-surface-solid { background-color: var(--ui-surface-solid) !important; }
+        .ui-border { border-color: var(--ui-border) !important; }
+
+        /* Application-wide role scale: page titles, section titles, and form labels. */
+        .app-main h1,
+        .app-main h2,
+        .app-main h3,
+        .app-main h4 {
+            font-family: 'Inter', 'Noto Sans Myanmar', ui-sans-serif, system-ui, sans-serif;
+            color: var(--ui-text-primary);
+        }
+
+        .app-main h1 { font-size: 1.25rem !important; line-height: 1.45 !important; font-weight: 700; }
+        .app-main h2 { font-size: 1rem !important; line-height: 1.5 !important; font-weight: 600; }
+        .app-main h3 { font-size: 0.875rem !important; line-height: 1.55 !important; font-weight: 600; }
+        .app-main h4 { font-size: 0.75rem !important; line-height: 1.5 !important; font-weight: 600; }
+
+        .app-main label {
+            color: var(--ui-text-secondary);
+            font-size: 0.75rem !important;
+            line-height: 1.5 !important;
+            font-weight: 600;
+        }
+
+        .app-main input,
+        .app-main textarea,
+        .app-main select {
+            color: var(--ui-text-primary);
+            font-size: 0.875rem !important;
+            line-height: 1.6 !important;
+        }
+
+        .app-main input::placeholder,
+        .app-main textarea::placeholder {
+            color: var(--ui-text-muted);
+            opacity: 1;
+        }
+
+        .app-main p:not(.movie-meta) {
+            font-size: 0.875rem;
+            line-height: 1.65;
+            color: var(--ui-text-secondary);
+        }
+
+        /* The auth screen uses the same role-based scale before the app shell mounts. */
+        .auth-screen h1 {
+            font-family: 'Inter', 'Noto Sans Myanmar', ui-sans-serif, system-ui, sans-serif;
+            font-size: 1.25rem !important;
+            line-height: 1.45 !important;
+            font-weight: 700;
+            color: var(--ui-text-primary) !important;
+        }
+
+        .auth-screen p {
+            font-size: 0.875rem !important;
+            line-height: 1.65 !important;
+            color: var(--ui-text-secondary) !important;
+        }
+
+        .auth-screen label {
+            font-size: 0.75rem !important;
+            line-height: 1.5 !important;
+            font-weight: 600;
+            color: var(--ui-text-secondary) !important;
+        }
+
+        .auth-screen input,
+        .auth-screen textarea,
+        .auth-screen select {
+            font-size: 0.875rem !important;
+            line-height: 1.6 !important;
+            color: var(--ui-text-primary);
+        }
+
+        .auth-screen input::placeholder,
+        .auth-screen textarea::placeholder {
+            color: var(--ui-text-muted);
+            opacity: 1;
+        }
+
+        /* Improve low-contrast neutral utilities only in light mode. Colored buttons keep their white text. */
+        html:not(.dark) .app-main .text-zinc-400,
+        html:not(.dark) .app-main .text-zinc-500,
+        html:not(.dark) .app-main .text-slate-400,
+        html:not(.dark) .app-main .text-gray-400 {
+            color: var(--ui-text-muted) !important;
+        }
+
+        html:not(.dark) .app-main h1.text-white,
+        html:not(.dark) .app-main h2.text-white,
+        html:not(.dark) .app-main h3.text-white,
+        html:not(.dark) .app-main h4.text-white {
+            color: var(--ui-text-primary) !important;
+        }
+
+        /* Prevent common light-theme failures while preserving white text on colored controls. */
+        html:not(.dark) .movie-h1,
+        html:not(.dark) .movie-h2,
+        html:not(.dark) .movie-body,
+        html:not(.dark) .movie-meta {
+            color: var(--ui-text-primary);
+        }
+
         .glass {
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--ui-surface);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+            border: 1px solid var(--ui-border);
+            box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06);
             transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .movie-h1 {
-            font-size: 20px;
-            font-weight: 700;
-            color: #FAFAFA;
-            letter-spacing: -0.02em;
-            margin-bottom: 8px;
+        .dark .glass {
+            box-shadow: 0 4px 18px -6px rgba(0, 0, 0, 0.45);
         }
 
-        .movie-h2 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #FAFAFA;
-            margin-bottom: 8px;
+        .gradient-text {
+            background: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #c2410c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .movie-body {
-            font-size: 14px;
-            font-weight: 400;
-            color: #A3A3A3;
-            line-height: 1.6;
-            margin-bottom: 8px;
-        }
-
-        .movie-meta {
-            font-size: 12px;
-            font-weight: 500;
-            color: #737373;
-            margin-bottom: 8px;
-        }
-
-        .gradient-text { 
-            background: linear-gradient(135deg, #F97316 0%, #FDBA74 100%); 
-            -webkit-background-clip: text; 
-            -webkit-text-fill-color: transparent; 
-        }
-        
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark ::-webkit-scrollbar-thumb { background: #1f1f1f; }
+        .dark ::-webkit-scrollbar-thumb { background: #3f3f46; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        .dark ::-webkit-scrollbar-thumb:hover { background: #2f2f2f; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
-        /* Ensure Myanmar text has enough line height to prevent clipping */
-        input, textarea, select, p, span, h1, h2, h3, h4 {
+        /* Myanmar glyphs need generous line-height to avoid clipping. */
+        input, textarea, select, p, span, h1, h2, h3, h4, h5, h6, label, button {
             line-height: 1.6;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--ui-focus);
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
         }
     </style>
 <script type="importmap">

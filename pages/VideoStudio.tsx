@@ -485,7 +485,7 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
           </svg>
         </div>
         <div>
-          <h1 className="movie-h2 !text-2xl !mb-0 uppercase tracking-tighter">Video Recap Studio</h1>
+          <h1 className="movie-h1 !mb-0 uppercase tracking-tighter">Video Recap Studio</h1>
           <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Pipeline transcription • translation • Myanmar Voiceover</p>
         </div>
       </div>

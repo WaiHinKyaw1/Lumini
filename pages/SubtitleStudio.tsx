@@ -291,7 +291,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
             </svg>
           </div>
           <div>
-            <h1 className="movie-h1 !text-2xl !mb-0 uppercase tracking-tighter">Subtitle Studio</h1>
+            <h1 className="movie-h1 !mb-0 uppercase tracking-tighter">Subtitle Studio</h1>
             <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">AI Transcription & SRT Generator • {CREDIT_COSTS[ContentType.SUBTITLE]} Credits</p>
           </div>
         </div>

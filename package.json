@@ -1,6 +1,7 @@
 {
   "name": "lumina-ai-studio",
   "private": true,
+  "packageManager": "pnpm@10.4.1",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
