@@ -402,18 +402,21 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       voiceMap[c.name] = c.baseVoice;
     });
 
-    // Append clone style traits to the main voice prompt when a clone is active
+    // Reuse the selected saved clone for this script. A real ElevenLabs clone
+    // is used when its local key is available; otherwise the analyzed profile
+    // guides the free Gemini voice and post-processing fallback.
     const clonePrefix = activeClone?.prompt || '';
+    const canUseRemoteClone = Boolean(activeClone?.voiceId && getElevenKey());
 
     try {
       let blobUrl: string;
 
-      if (isMounted.current && activeClone?.voiceId) {
+      if (isMounted.current && canUseRemoteClone && activeClone?.voiceId) {
         // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
         const audioBlob = await synthesizeWithClone(activeClone.voiceId, text);
         blobUrl = URL.createObjectURL(audioBlob);
       } else {
-        blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone);
+        blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone, clonePrefix);
 
         // Post-process towards the cloned voice if one is active
         if (isMounted.current && activeClone) {
@@ -442,7 +445,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           currentUser.uid,
           currentUser.email || '',
           'voiceover',
-          { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null },
+          { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null, cloneMode: canUseRemoteClone ? 'neural' : activeClone ? 'style-fallback' : 'built-in' },
           { status: 'success', info: 'Voiceover audio generated successfully' }
         );
         window.dispatchEvent(
@@ -491,13 +494,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       </div>
 
       {/* Mode switcher: Synthesis Studio / Voice Clone */}
-      <div className="flex mb-4 bg-white/5 dark:bg-black/30 border border-white/10 rounded-xl p-1" role="tablist">
+      <div className="flex mb-4 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-1" role="tablist">
         <button
           role="tab"
           aria-selected={mode === 'studio'}
           onClick={() => setMode('studio')}
           className={`flex-1 py-2 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all ${
-            mode === 'studio' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'text-zinc-400 hover:text-zinc-200'
+            mode === 'studio' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'border border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-zinc-400 dark:hover:border-white/10 dark:hover:text-zinc-200'
           }`}
         >
           Synthesis Studio
@@ -507,7 +510,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           aria-selected={mode === 'clone'}
           onClick={() => setMode('clone')}
           className={`flex-1 py-2 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all ${
-            mode === 'clone' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'text-zinc-400 hover:text-zinc-200'
+            mode === 'clone' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'border border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-zinc-400 dark:hover:border-white/10 dark:hover:text-zinc-200'
           }`}
         >
           Voice Clone Studio
@@ -516,7 +519,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
       {mode === 'clone' ? (
         /* ===================== VOICE CLONE STUDIO ===================== */
-        <div className="glass p-4 rounded-xl border border-white/5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center shadow-md shadow-fuchsia-500/20 flex-shrink-0">
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -534,7 +537,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </p>
 
           {/* ElevenLabs real-clone option (free tier, optional) */}
-          <div className="space-y-2 p-3 bg-black/20 border border-white/10 rounded-lg">
+          <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg">
             <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block text-accent">Real Neural Clone (Optional)</label>
             <p className="movie-meta !text-[8.5px] text-zinc-500 !mb-0 leading-relaxed">
               ElevenLabs free plan ဖြင့် နမူနာအသံနဲ့ တကယ့်အသံ cloning (လစဉ် ၁၀,၀၀၀ characters အခမဲ့)။ Key မထည့်ရင် client-side voice shaping သာ သုံးပါမည်။
@@ -553,7 +556,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                   const hasKey = (elevenKey || getElevenKey()) !== '';
                   setCloneStatus(hasKey ? 'ElevenLabs key saved. Next clone will use real neural cloning.' : 'No key set — using free client-side voice shaping.');
                 }}
-                className="px-3 rounded-lg movie-meta !text-[9px] uppercase tracking-[0.2em] bg-white/10 hover:bg-white/15 text-zinc-300 transition-all"
+                className="px-3 rounded-lg border border-slate-300 bg-slate-100 movie-meta !text-[9px] uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-accent hover:bg-accent/10 dark:border-white/10 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/15"
               >
                 Save
               </button>
@@ -573,7 +576,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Reference Voice (10-30s)</label>
             <div className="grid grid-cols-2 gap-2">
               <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border-2 border-dashed transition-all cursor-pointer ${
-                cloneFile ? 'border-accent bg-accent/5' : 'border-white/10 bg-black/10 hover:border-white/25'
+                cloneFile ? 'border-accent bg-accent/5' : 'border-slate-300 bg-slate-50 hover:border-accent/50 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25'
               }`}>
                 <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -587,7 +590,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border transition-all ${
                   isRecording
                     ? 'border-rose-500/50 bg-rose-500/10 text-rose-400 animate-pulse'
-                    : 'border-white/10 bg-black/10 hover:border-white/25 text-zinc-400'
+                    : 'border-slate-300 bg-slate-50 hover:border-accent/50 text-slate-500 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25 dark:text-zinc-400'
                 }`}
               >
                 {isRecording ? (
@@ -657,7 +660,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteClone(c.id); }}
-                        className="p-1.5 rounded-md bg-white/10 text-zinc-400 hover:bg-rose-500 hover:text-white transition-all"
+                        className="p-1.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:border-rose-500 hover:bg-rose-500 hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400 transition-all"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -681,7 +684,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               </svg>
               Free Open-Source Voice Models Guide
             </summary>
-            <div className="mt-2 p-3 bg-black/20 border border-white/10 rounded-lg movie-body !text-[10px] text-zinc-400 leading-relaxed space-y-1.5">
+            <div className="mt-2 p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg movie-body !text-[10px] text-slate-600 dark:text-zinc-400 leading-relaxed space-y-1.5">
               <p><strong className="text-accent">F5-TTS</strong> (github.com/SWivid/F5-TTS) — Zero-shot voice cloning from 5-15s audio; quality rivals ElevenLabs. Code MIT, weights CC-BY-NC-4.0.</p>
               <p><strong className="text-accent">E2-TTS</strong> — F5-TTS ၏ multilingual sister model; ဘာသာစကားအခြေခံပိုကျယ်သည်။</p>
               <p><strong className="text-accent">မြန်မာဘာသာ</strong> — F5-TTS ၏ မူရင်းမော်ဒလ်သည် English/Chinese သာ ဖြစ်သောကြောင့် မြန်မာအသံပီသမှုအတွက် Burmese prompt engine ကို Web Audio API အသံခွဲခြမ်းစိတ်ဖြာမှုဖြင့် ပေါင်းစပ်ထားပါသည်။ အဆင့်မြင့် F5-TTS ကို ကိုယ့်စက်မှာ self-host လုပ်ပြီး Burmese corpus ဖြင့် fine-tune လုပ်နိုင်သည်။</p>
@@ -690,13 +693,47 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         </div>
       ) : (
       /* ===================== SYNTHESIS STUDIO ===================== */
-      <div className="glass p-4 rounded-xl border border-white/5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* Saved clone selection for this script */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="saved-voice-clone" className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0">Use saved voice clone</label>
+            {activeClone && (
+              <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 movie-meta !text-[8px] uppercase tracking-widest text-accent !mb-0">
+                {activeClone.voiceId && getElevenKey() ? 'Neural clone ready' : 'Style fallback'}
+              </span>
+            )}
+          </div>
+          <select
+            id="saved-voice-clone"
+            aria-label="Choose a saved voice clone for this script"
+            value={activeCloneId || ''}
+            onChange={(event) => setClone(event.target.value || null)}
+            className="w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 movie-body !text-[12px] text-slate-900 outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
+          >
+            <option value="">Use built-in voice model</option>
+            {clones.map((clone) => (
+              <option key={clone.id} value={clone.id}>{clone.name}{clone.voiceId ? ' • neural clone' : ' • style fallback'}</option>
+            ))}
+          </select>
+          <p className="movie-meta !text-[9px] leading-relaxed text-slate-500 dark:text-zinc-400 !mb-0">
+            {activeClone
+              ? activeClone.voiceId && getElevenKey()
+                ? `Script အသံကို ${activeClone.name} neural clone နဲ့ ဖန်တီးပါမယ်။`
+                : `${activeClone.name} ရဲ့ voice profile ကို အသုံးပြုပြီး free style shaping နဲ့ ဖန်တီးပါမယ်။`
+              : clones.length > 0
+                ? 'သိမ်းထားတဲ့အသံကို ရွေးပြီး script အသံဖန်တီးနိုင်ပါတယ်။'
+                : 'Voice Clone Studio မှာ နမူနာအသံတစ်ခု create လုပ်ပြီး ဒီနေရာမှာ ပြန်ရွေးသုံးနိုင်ပါတယ်။'}
+          </p>
+        </div>
+
         {/* Talent Selection */}
         <div className="relative z-30" ref={dropdownRef}>
           <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-1 block">Voice Model</label>
           <button 
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg hover:border-accent/50 transition-all"
+            aria-label="Choose a built-in voice model"
+            className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/20 border border-slate-300 dark:border-white/15 rounded-lg hover:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
           >
             <div className="flex flex-col items-start text-left">
               <span className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">{selectedChar?.name}</span>
@@ -706,7 +743,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute left-0 right-0 mt-1.5 bg-midnight border border-white/10 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-midnight border border-slate-200 dark:border-white/15 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
               <div className="max-h-[180px] overflow-y-auto custom-scrollbar p-1.5 space-y-1">
                 {characters.map((char) => (
                   <div
@@ -722,8 +759,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                     </div>
                     <button
                       onClick={(e) => handlePreview(e, char.id)}
-                      className={`p-1.5 rounded-md transition-all ${
-                        isPreviewing === char.id ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/10 text-zinc-400 hover:bg-accent hover:text-white'
+                      aria-label={`Preview ${char.name} voice`}
+                      className={`p-1.5 rounded-md border transition-all ${
+                        isPreviewing === char.id ? 'border-rose-500 bg-rose-500 text-white animate-pulse' : 'border-slate-200 bg-slate-100 text-slate-500 hover:border-accent hover:bg-accent hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400'
                       }`}
                     >
                       {isPreviewing === char.id ? '...' : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
@@ -780,8 +818,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={handlePaste} className="movie-meta !text-[9px] uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors !mb-0">Paste</button>
-              <button onClick={handleClear} className="movie-meta !text-[9px] uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-colors !mb-0">Clear</button>
+              <button onClick={handlePaste} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-accent hover:text-accent dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Paste</button>
+              <button onClick={handleClear} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-rose-400 hover:text-rose-500 dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Clear</button>
             </div>
           </div>
           <textarea
@@ -805,7 +843,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             <input 
               type="range" min="-100" max="100" step="1" value={voiceSpeed} 
               onChange={(e) => setVoiceSpeed(parseInt(e.target.value))}
-              className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
           <div className="space-y-1">
@@ -816,7 +854,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             <input 
               type="range" min="-100" max="100" step="1" value={voicePitch} 
               onChange={(e) => setVoicePitch(parseInt(e.target.value))}
-              className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
         </div>
@@ -827,7 +865,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
  aria-label="အသံထုတ်ရန်"            disabled={isChecked && isProcessing}
             className={`w-full py-2.5 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
               !isChecked 
-                ? 'bg-zinc-100 hover:bg-zinc-200 text-midnight dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'
+                ? 'border border-slate-300 bg-zinc-100 hover:bg-zinc-200 text-midnight dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'
                 : isProcessing ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
             }`}
           >
@@ -842,7 +880,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           <div className="glass p-4 rounded-2xl border border-emerald-500/30 flex items-center gap-6">
             <button 
               onClick={togglePlayback} 
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10'}`}
+              className={`w-12 h-12 rounded-full border border-emerald-500/30 flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10'}`}
             >
               {isPlaying ? (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
@@ -855,8 +893,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">{voiceSpeed}% Vel • {voicePitch}% Ptch</p>
             </div>
             <div className="flex gap-4">
-              <a href={audioUrl} download="lumina_voiceover.wav" className="px-5 py-2.5 bg-accent hover:bg-accent-hover text-white rounded-xl movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95">Export</a>
-              <button onClick={() => setAudioUrl(null)} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-colors !mb-0">Discard</button>
+              <a href={audioUrl} download="lumina_voiceover.wav" className="px-5 py-2.5 border border-accent/40 bg-accent hover:bg-accent-hover text-white rounded-xl movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95">Export</a>
+              <button onClick={() => setAudioUrl(null)} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[10px] uppercase tracking-widest text-slate-500 hover:border-rose-400 hover:text-rose-500 dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Discard</button>
             </div>
           </div>
         </div>
@@ -898,7 +936,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                   <p className="text-xs text-amber-600 dark:text-amber-400 font-bold leading-relaxed">
                     {parsedQuotaError.mmMessage}
                   </p>
-                  <div className="text-[10px] text-zinc-500 dark:text-zinc-300 font-normal leading-relaxed bg-[#0e0e11]/50 p-3.5 rounded-xl border border-white/5 space-y-1.5">
+                  <div className="text-[10px] text-slate-600 dark:text-zinc-300 font-normal leading-relaxed bg-slate-50 dark:bg-[#0e0e11]/50 p-3.5 rounded-xl border border-slate-200 dark:border-white/5 space-y-1.5">
                     <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">💡 ဖြေရှင်းနည်းလမ်းညွှန်များ -</span>
                     <p>၁။ <strong>ခေတ္တခဏ စောင့်ဆိုင်းပေးပါ -</strong> အခမဲ့ဗားရှင်း (Free Tier) သည် တစ်မိနစ်လျှင် အသံဖန်တီးမှု ၃ ကြိမ်သာ ခွင့်ပြုသောကြောင့် စက္ကန့် ၃၀ ခန့် စောင့်ပြီးမှ ပြန်လည်လုပ်ဆောင်ပေးပါ။</p>
                     <p>၂။ <strong>ကိုယ်ပိုင် API Key သုံးပါ -</strong> Profile သို့မဟုတ် Settings စာမျက်နှာတွင် သင်၏ကိုယ်ပိုင် Gemini API Key အား ထည့်သွင်းပါက ကန့်သတ်ချက်မရှိ စိုက်ကြိုက်အသုံးပြုနိုင်ပါမည်။</p>

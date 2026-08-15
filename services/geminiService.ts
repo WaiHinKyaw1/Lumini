@@ -512,12 +512,14 @@ const synthesizeSingleChunk = async (
   voice: string,
   speedPrompt: string,
   pitchPrompt: string,
-  tone?: string
+  tone?: string,
+  voiceStylePrompt?: string
 ): Promise<string> => {
   const cleanText = text.trim();
   const directionPrompt = getVoiceDirectionPrompt(voice, tone);
   const qualityInstruction = "CRITICAL HIGH-FIDELITY REQUIREMENT: Speak with perfect clarity, standard loud vocal volume, and crystal-clear professional voice quality. There must be absolutely ZERO background noise, ZERO echo, ZERO static hiss, and NO robot-like digital artifacts. Do NOT whisper, do NOT muffle, do NOT fade out, and do NOT voice-block. Maintain equal strong projection and a natural, highly-articulated speaking pace from the first word to the very last word. အဓိကသတိပြုရန် - အသံဖန်တီးရာတွင် ဆူညံ့သံများ၊ နောက်ခံလေသံများ (static / background noise) လုံးဝမပါဝင်ဘဲ စတူဒီယိုထဲ၌ သွင်းထားသကဲ့သို့ အလွန်ကြည်လင်ပြတ်သား ကျယ်လောင်သော အသံဖြင့်သာ ဖတ်ပေးပါ။ အစမှအဆုံးအထိ အသံဝါးသွားခြင်း၊ တိုးသွားခြင်း သို့မဟုတ် တီးတိုးပြောခြင်း လုံးဝမရှိစေရ။";
-  const storytellingPrompt = `${directionPrompt} ${qualityInstruction} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
+  const cloneStylePrompt = voiceStylePrompt ? ` Apply this saved voice profile's style characteristics while keeping the words unchanged: ${voiceStylePrompt}` : '';
+  const storytellingPrompt = `${directionPrompt} ${qualityInstruction}${cloneStylePrompt} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
 
   const MAX_RETRIES = 3;
   let attempt = 0;
@@ -580,7 +582,8 @@ export const generateSpeech = async (
   speedOffset: number = 0, 
   pitchOffset: number = 0,
   voiceMap?: Record<string, string>,
-  tone?: string
+  tone?: string,
+  voiceStylePrompt?: string
 ) => {
   const ai = getAIClient();
   const rawText = text.trim();
@@ -645,7 +648,7 @@ export const generateSpeech = async (
       const batch = subChunks.slice(i, i + BATCH_SIZE);
       const promises = batch.map(async (chunk, index) => {
         const actualIndex = i + index;
-        const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone);
+        const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone, voiceStylePrompt);
         if (b64) {
           base64Chunks[actualIndex] = b64;
         }
@@ -660,7 +663,7 @@ export const generateSpeech = async (
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
       const chunk = subChunks[i];
-      const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone);
+      const b64 = await synthesizeSingleChunk(ai, chunk.text, chunk.voice, speedPrompt, pitchPrompt, tone, voiceStylePrompt);
       if (b64) {
         base64Chunks[i] = b64;
       }
