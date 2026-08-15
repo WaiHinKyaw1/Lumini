@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
               supabase: ['@supabase/supabase-js'],
               ffmpeg: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
               google: ['@google/genai'],
-              ui: ['framer-motion', 'lucide-react', 'react-hot-toast'],
+              ui: ['motion', 'lucide-react', 'react-hot-toast'],
             },
           },
         },
