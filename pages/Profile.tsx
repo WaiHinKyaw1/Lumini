@@ -113,7 +113,7 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-12 animate-in fade-in duration-300">
+    <div className="module-page mx-auto w-full max-w-5xl space-y-5 pb-8 animate-in fade-in duration-300">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="movie-meta !mb-1 uppercase tracking-[0.18em]">Account center</p>
