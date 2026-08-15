@@ -425,7 +425,7 @@ const App: React.FC = () => {
         onLoginGoogle={handleLoginGoogle}
         onLogout={handleLogout}
       >
-        {renderPage()}
+        <main role="main" className="min-h-[calc(100vh-56px)]">{renderPage()}</main>
       </Layout>
       <CreditModal 
         isOpen={isCreditModalOpen} 

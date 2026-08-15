@@ -824,7 +824,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         <div className="pt-1">
           <button
             onClick={isChecked ? handleGenerate : handleCheck}
-            disabled={isChecked && isProcessing}
+ aria-label="အသံထုတ်ရန်"            disabled={isChecked && isProcessing}
             className={`w-full py-2.5 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
               !isChecked 
                 ? 'bg-zinc-100 hover:bg-zinc-200 text-midnight dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'

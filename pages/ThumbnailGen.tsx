@@ -308,7 +308,7 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
 
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !topic}
+ aria-label="Thumbnail generate လုပ်ရန်"              disabled={isGenerating || !topic}
               className={`w-full py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.25em] transition-all shadow-2xl ${
                 isGenerating || !topic 
                   ? 'bg-white/5 text-zinc-600 cursor-not-allowed' 

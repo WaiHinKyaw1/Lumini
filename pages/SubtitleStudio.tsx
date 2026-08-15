@@ -339,7 +339,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
             </div>
 
             <button
-              onClick={handleBatchProcess}
+              onClick={handleBatchProcess} aria-label="Subtitle batch processing စတင်ရန်"
               disabled={isProcessingAll || queue.filter(i => i.status === 'pending').length === 0}
               className={`w-full mt-6 py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-lg ${
                 isProcessingAll || queue.filter(i => i.status === 'pending').length === 0

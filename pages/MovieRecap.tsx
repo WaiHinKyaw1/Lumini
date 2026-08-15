@@ -760,7 +760,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 )}
             </div>
 
-            <button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] transition-all relative overflow-hidden shadow-2xl ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed shadow-none' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}>
+            <button onClick={handleGenerate} aria-label="Movie Recap ထုတ်လုပ်ရန်" disabled={isProcessing || !videoUrl} className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] transition-all relative overflow-hidden shadow-2xl ${isProcessing || !videoUrl ? 'bg-slate-200 dark:bg-white/5 text-slate-400 cursor-not-allowed shadow-none' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}>
                 {isProcessing ? `Rendering Synthesis ${progress}%` : 'Execute Master Render'}
                 {!isProcessing && videoUrl && (
                    <motion.div 
