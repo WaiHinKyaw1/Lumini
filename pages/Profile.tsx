@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { toast } from 'react-hot-toast';
 import { auth } from '../services/firebase';
 import { STORAGE_KEYS } from '../services/storage';
-import { toast } from 'react-hot-toast';
-import type { User as FirebaseUser } from 'firebase/auth';
 
 interface ProfileProps {
   stats: { credits: number; totalGenerated: number };
+  isDarkMode: boolean;
+  onToggleTheme: () => void;
   onApiKeyChange?: (hasKey: boolean) => void;
+  onLogout?: () => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
+const Icon: React.FC<{ path: string; className?: string }> = ({ path, className = 'h-4 w-4' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={path} />
+  </svg>
+);
+
+const Profile: React.FC<ProfileProps> = ({
+  stats,
+  isDarkMode,
+  onToggleTheme,
+  onApiKeyChange,
+  onLogout,
+}) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -20,280 +35,246 @@ const Profile: React.FC<ProfileProps> = ({ stats, onApiKeyChange }) => {
     setUser(auth.currentUser);
     const storedKey = localStorage.getItem(STORAGE_KEYS.geminiApiKey) || '';
     setApiKey(storedKey);
-    if (storedKey) {
-      setIsSaved(true);
-    }
+    setIsSaved(Boolean(storedKey));
   }, []);
 
-  const handleSaveKey = () => {
-    if (!apiKey.trim()) {
-      toast.error('ကျေးဇူးပြု၍ API Key အား မှန်ကန်စွာ ထည့်သွင်းပါ (Please enter a valid API Key).');
+  const initials = useMemo(() => {
+    const source = user?.displayName || user?.email || 'U';
+    return source.trim().charAt(0).toUpperCase();
+  }, [user]);
+
+  const handleSaveKey = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
+      toast.error('ကျေးဇူးပြု၍ API Key ထည့်သွင်းပါ။');
       return;
     }
 
     try {
-      localStorage.setItem(STORAGE_KEYS.geminiApiKey, apiKey.trim());
+      localStorage.setItem(STORAGE_KEYS.geminiApiKey, trimmedKey);
+      setApiKey(trimmedKey);
       setIsSaved(true);
-      toast.success('API Key သိမ်းဆည်းပြီးပါပြီ။ (API Key Saved successfully!)');
-      if (onApiKeyChange) {
-        onApiKeyChange(true);
-      }
-    } catch (e) {
-      toast.error('သိမ်းဆည်းရန်အတွက် အခက်အခဲရှိနေပါသည် (Failed to save API key locally).');
+      onApiKeyChange?.(true);
+      toast.success('API Key ကို ဒီ browser ထဲမှာ သိမ်းဆည်းပြီးပါပြီ။');
+    } catch {
+      toast.error('API Key သိမ်းဆည်းရာမှာ အခက်အခဲရှိနေပါတယ်။');
     }
   };
 
   const handleClearKey = () => {
-    if (window.confirm('ကျိန်းသေပါသလား? သင်၏ကိုယ်ပိုင် API Key အား ဖျက်ပါမည်။ (Are you sure you want to remove your custom API Key?)')) {
-      try {
-        localStorage.removeItem(STORAGE_KEYS.geminiApiKey);
-        setApiKey('');
-        setIsSaved(false);
-        toast.success('ကိုယ်ပိုင် Key အား ဖျက်ပြီးပါပြီ။ Applet build parameters သို့ ပြန်ပြောင်းလိုက်ပါသည်။ (Custom key cleared. Default restored.)');
-        if (onApiKeyChange) {
-          onApiKeyChange(false);
-        }
-      } catch (e) {
-        toast.error('Failed to clear key.');
-      }
+    if (!window.confirm('သိမ်းဆည်းထားသော API Key ကို ဖျက်မလား?')) {
+      return;
+    }
+
+    try {
+      localStorage.removeItem(STORAGE_KEYS.geminiApiKey);
+      setApiKey('');
+      setIsSaved(false);
+      onApiKeyChange?.(false);
+      toast.success('Custom API Key ကို ဖျက်ပြီးပါပြီ။');
+    } catch {
+      toast.error('API Key ဖျက်ရာမှာ အခက်အခဲရှိနေပါတယ်။');
     }
   };
 
   const handleTestKey = async () => {
-    if (!apiKey.trim()) {
-      toast.error('ပထမဦးစွာ API Key ရိုက်ထည့်ပါ (Please input a key first).');
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
+      toast.error('စမ်းသပ်ရန် API Key ထည့်သွင်းပါ။');
       return;
     }
 
     setIsTesting(true);
     try {
-      // Direct validation ping
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'Hello, respond with OK if you are working.' }] }] })
-      });
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(trimmedKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with OK.' }] }] }),
+        },
+      );
+      const data = (await response.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        error?: { message?: string };
+      };
 
-      const resData = await response.json();
-      if (response.ok && resData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        toast.success('ကိုယ်ပိုင် API Key သည် အပြည့်အဝ အလုပ်လုပ်ပါသည်။ (API Key is live & working!)', {
-          duration: 4000
-        });
+      if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        toast.success('API Key အလုပ်လုပ်နေပါတယ်။');
       } else {
-        const errMsg = resData?.error?.message || 'Invalid Response';
-        toast.error(`ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${errMsg} (Status Error)`);
+        toast.error(data.error?.message || 'API Key ကို စစ်ဆေးလို့ မရသေးပါ။');
       }
-    } catch (err: unknown) {
-      const message = (err as { message?: string })?.message || String(err);
-      toast.error(`ချိတ်ဆက်ရန် အခက်အခဲရှိနေပါသည်: ${message}`);
+    } catch {
+      toast.error('API service ချိတ်ဆက်ရာမှာ အခက်အခဲရှိနေပါတယ်။');
     } finally {
       setIsTesting(false);
     }
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto pb-16">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-2">
-        <div className="space-y-1">
-          <h1 className="movie-h2 !text-lg uppercase tracking-[0.2em] !mb-0 font-black text-white">
-            Profile & Settings
-          </h1>
-          <p className="movie-meta !text-[9px] uppercase tracking-widest text-zinc-500">
-            Manage your account details, credits, and custom Gemini credentials
-          </p>
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-12 animate-in fade-in duration-300">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="movie-meta !mb-1 uppercase tracking-[0.18em]">Account center</p>
+          <h1 className="movie-h1 !mb-0">Profile &amp; Settings</h1>
+          <p className="movie-body !mb-0 mt-1 max-w-xl">သင့်အကောင့်၊ credit balance နဲ့ app preferences တွေကို တစ်နေရာတည်းမှာ စီမံပါ။</p>
         </div>
-      </div>
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Account active
+        </div>
+      </header>
 
-      {/* Profile Info Details Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="col-span-1 md:col-span-2 rounded-3xl bg-zinc-950 border border-white/5 p-6 flex flex-col md:flex-row gap-6 items-center">
-          <div className="relative group shrink-0">
+      <section className="glass overflow-hidden rounded-3xl">
+        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+          <div className="flex min-w-0 items-center gap-4 sm:gap-5">
             {user?.photoURL ? (
-              <img 
-                src={user.photoURL} 
-                alt="user pfp" 
-                className="w-24 h-24 rounded-[2rem] border-2 border-accent object-cover shadow-2xl transition-transform duration-500 group-hover:scale-105"
+              <img
+                src={user.photoURL}
+                alt="Profile avatar"
+                className="h-16 w-16 shrink-0 rounded-2xl border border-orange-500/30 object-cover shadow-lg sm:h-20 sm:w-20"
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-24 h-24 rounded-[2rem] bg-accent/20 border-2 border-accent flex items-center justify-center text-accent text-3xl font-black shadow-2xl">
-                {user?.email?.[0].toUpperCase() || 'U'}
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-orange-500/15 text-2xl font-bold text-orange-600 shadow-inner dark:text-orange-400 sm:h-20 sm:w-20">
+                {initials}
               </div>
             )}
-            <div className="absolute -bottom-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-zinc-950 animate-pulse" />
-          </div>
-
-          <div className="space-y-3 text-center md:text-left flex-1 min-w-0">
-            <div>
-              <span className="px-2.5 py-1 rounded-md bg-accent/10 border border-accent/20 text-accent text-[8px] font-black uppercase tracking-widest inline-block">
-                STUDIO PRO MEMBER
-              </span>
-              <h3 className="text-xl font-bold text-white mt-1.5 truncate">
-                {user?.displayName || 'Studio Creator'}
-              </h3>
-              <p className="text-xs text-zinc-400 font-mono truncate">{user?.email}</p>
+            <div className="min-w-0">
+              <p className="movie-meta !mb-1 uppercase tracking-[0.16em]">Your workspace</p>
+              <h2 className="truncate !mb-1">{user?.displayName || 'Studio Creator'}</h2>
+              <p className="truncate text-sm text-slate-500 dark:text-zinc-400">{user?.email || 'No email address'}</p>
             </div>
-
-            <div className="pt-2 border-t border-white/5 flex flex-wrap gap-x-6 gap-y-2 text-[10px] uppercase text-zinc-500 font-bold tracking-widest">
-              <div>
-                User ID: <span className="font-mono text-zinc-300 font-medium lowercase select-all">{user?.uid || 'N/A'}</span>
-              </div>
+          </div>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              aria-label="Sign out လုပ်ရန်"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/40 sm:w-auto"
+            >
+              <Icon path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              Sign out
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 border-t border-slate-200/80 dark:border-white/10 sm:grid-cols-3">
+          <div className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:border-b-0 sm:border-r sm:px-7">
+            <p className="movie-meta !mb-1 uppercase tracking-wider">Available credits</p>
+            <p className="text-2xl font-bold tracking-tight text-orange-600 dark:text-orange-400">{stats.credits} <span className="text-xs font-semibold tracking-widest">CR</span></p>
+          </div>
+          <div className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:border-b-0 sm:border-r sm:px-7">
+            <p className="movie-meta !mb-1 uppercase tracking-wider">Generated assets</p>
+            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">{stats.totalGenerated}</p>
+          </div>
+          <div className="px-5 py-4 sm:px-7">
+            <p className="movie-meta !mb-1 uppercase tracking-wider">API access</p>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
+              <span className={`h-2 w-2 rounded-full ${isSaved ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-zinc-600'}`} aria-hidden="true" />
+              {isSaved ? 'Custom key active' : 'Default access'}
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Dynamic Compact Stats Grid */}
-        <div className="rounded-3xl bg-zinc-950 border border-white/5 p-6 flex flex-col justify-between space-y-4">
-          <div>
-            <span className="movie-meta !text-[9px] uppercase tracking-[0.2em] text-zinc-500">Available Balance</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-4xl font-black text-accent tracking-tighter">{stats.credits}</span>
-              <span className="text-[10px] font-black text-accent uppercase tracking-widest">CR</span>
-            </div>
-          </div>
-          <div className="pt-4 border-t border-white/5 flex gap-6">
-            <div>
-              <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Generated</p>
-              <p className="text-xl font-black text-white">{stats.totalGenerated} <span className="text-[9px] font-medium text-zinc-500">assets</span></p>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
+        <section className="glass rounded-3xl p-5 sm:p-7" aria-labelledby="api-settings-title">
+          <div className="mb-6 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <Icon path="M15.75 5.25a3 3 0 013 3m0 0a3 3 0 013 3m-3-3a3 3 0 01-3 3m3-3a3 3 0 00-3-3M12 12l-2.25 2.25m0 0L7.5 16.5m2.25-2.25l2.25 2.25m-2.25-2.25l-2.25-2.25M15 7.5l-3 3" className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Quota Level</p>
-              <p className="text-xl font-black text-green-400">UNLIMITED</p>
+              <h2 id="api-settings-title" className="!mb-1">Gemini API Key</h2>
+              <p className="movie-body !mb-0">Custom key အသုံးပြုလိုပါက ဒီနေရာမှာ ထည့်သွင်းနိုင်ပါတယ်။ Key ကို သင့် browser ထဲမှာပဲ သိမ်းထားပါတယ်။</p>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* API Key configuration Section */}
-      <div className="rounded-[2.5rem] bg-zinc-950 border border-white/5 p-8 space-y-8 relative overflow-hidden text-left">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-white">
-            <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-            </svg>
-            <h2 className="text-md uppercase tracking-widest font-black">ကိုယ်ပိုင် Gemini API Key ထည့်သွင်းရန် (Dynamic Custom Key)</h2>
-          </div>
-          <p className="text-xs text-zinc-400 leading-relaxed max-w-3xl">
-            Lumina TTS (အသံဖန်တီးမှု) စနစ်ကို Shared Quota (အခမဲ့အသုံးပြုခွင့်) ဖြင့် မိနစ်အလိုက် အကန့်အသတ် ဆောက်ရွက်ထားပါသည်။ 
-            ၎င်းအကန့်အသတ်များကို ကျော်ဖြတ်ပြီး မည်သည့်ကန့်သတ်ချက်မှမရှိဘဲ စိတ်ကြိုက်မြန်ဆန်စွာ အသုံးပြုနိုင်ရန် သင်၏ကိုယ်ပိုင် Gemini API Key အား ထည့်သွင်းအသုံးပြုနိုင်ပါသည်။
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 block">
-              YOUR GEMINI API KEY
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
+          <form className="space-y-4" onSubmit={handleSaveKey}>
+            <div>
+              <label htmlFor="gemini-api-key" className="mb-2 block">API key</label>
+              <div className="relative">
                 <input
+                  id="gemini-api-key"
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
+                  onChange={(event) => setApiKey(event.target.value)}
                   placeholder="AIzaSy..."
-                  className="w-full bg-zinc-950 border border-white/10 focus:border-accent rounded-xl py-3 px-4 text-xs font-mono text-white outline-none focus:ring-1 focus:ring-accent tracking-widest transition-all placeholder:text-zinc-700"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-slate-200 bg-white/70 px-4 py-3 pr-12 font-mono text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/10 dark:bg-black/20"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  onClick={() => setShowKey((visible) => !visible)}
+                  aria-label={showKey ? 'API key ဖျောက်ရန်' : 'API key ပြရန်'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/40 dark:hover:bg-white/10 dark:hover:text-zinc-100"
                 >
-                  {showKey ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTestKey}
-                  disabled={isTesting || !apiKey.trim()}
-                  className="px-5 py-3 bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 text-white font-black uppercase tracking-widest text-[10px] rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
-                >
-                  {isTesting ? (
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  )}
-                  Test Active Status
-                </button>
-                <button
-                  onClick={handleSaveKey}
-                  className="px-6 py-3 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-accent/10 transition-all active:scale-95"
-                >
-                  Save & Apply
+                  <Icon path={showKey ? 'M3 3l18 18M10.584 10.587a2 2 0 002.829 2.829M9.88 4.24A10.4 10.4 0 0112 4c4.478 0 8.268 2.943 9.542 7a10.5 10.5 0 01-2.024 3.667M6.228 6.228C4.46 7.57 3.17 9.16 2.458 11c.946 3.015 3.554 5.42 6.543 6.88' : 'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7zM15 12a3 3 0 11-6 0 3 3 0 016 0z'} />
                 </button>
               </div>
             </div>
-          </div>
-
-          {isSaved && (
-            <div className="flex items-center justify-between p-4 bg-green-500/10 border border-green-500/20 rounded-2xl text-xs text-green-400">
-              <div className="flex items-center gap-2.5">
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <span className="font-bold">✓ သင်၏ကိုယ်ပိုင် API Key အား အောင်မြင်စွာ သိမ်းဆည်းထားပြီးပါပြီ (Current key active)</span>
-              </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={handleClearKey}
-                className="text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-400 transition-colors"
-                title="Disconnect your API Key"
+                onClick={handleTestKey}
+                disabled={isTesting || !apiKey.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/5"
               >
-                Clear Custom Key
+                {isTesting && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />}
+                {isTesting ? 'Checking...' : 'Test key'}
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-orange-600/15 transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+              >
+                <Icon path="M5 13l4 4L19 7" />
+                Save key
+              </button>
+            </div>
+          </form>
+
+          {isSaved && (
+            <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                <Icon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                Custom key is active
+              </div>
+              <button type="button" onClick={handleClearKey} className="text-left text-xs font-semibold text-slate-500 transition hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 sm:text-right">
+                Remove key
               </button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Step-by-step Burmese API Key acquisition Tutorial */}
-        <div className="pt-6 border-t border-white/5 space-y-4">
-          <h4 className="text-[11px] font-black uppercase text-accent tracking-widest">
-            အဆင့်ဆင့်လုပ်ဆောင်ရန် လမ်းညွှန်ချက် (How to get free API Key for free)
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              {
-                step: '01',
-                title: 'Google AI Studio သို့ သွားပါ',
-                desc: 'ကိုယ်ပိုင် Web browser ဖြင့် aistudio.google.com သို့ ဝင်ရောက်ပြီး ဂျီမေးလ်ဖြင့် အခမဲ့ Sign in ပြုလုပ်ပါ။'
-              },
-              {
-                step: '02',
-                title: 'Create API Key နှိပ်ပါ',
-                desc: '"Create API Key" ခလုတ်အားနှိပ်၍ "Create API Key in new project" ကို ရွေးချယ်ပြီး အခမဲ့ ရယူပါ။'
-              },
-              {
-                step: '03',
-                title: 'သိမ်းဆည်းပြီး စတင်သုံးပါ',
-                desc: 'ရရှိလာသော API Key အား Copy ကူးယူပြီး အပေါ်ရှိ Input Box တွင် ထည့်သွင်းသိမ်းဆည်းကာ စတင် အသုံးပြုပါ။'
-              }
-            ].map((tut) => (
-              <div key={tut.step} className="p-4.5 rounded-2xl bg-white/5 border border-white/5 flex gap-3.5 relative overflow-hidden group">
-                <span className="font-mono text-xl font-bold text-accent/20 group-hover:text-accent/40 transition-colors select-none mt-1">
-                  {tut.step}
-                </span>
-                <div className="space-y-1">
-                  <h5 className="text-[11px] font-black uppercase text-zinc-200">{tut.title}</h5>
-                  <p className="text-[10px] text-zinc-500 leading-relaxed font-bold">{tut.desc}</p>
-                </div>
-              </div>
-            ))}
+        <section className="glass rounded-3xl p-5 sm:p-7" aria-labelledby="preferences-title">
+          <div className="mb-6 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-500/10 text-slate-600 dark:text-zinc-300">
+              <Icon path="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 id="preferences-title" className="!mb-1">Appearance</h2>
+              <p className="movie-body !mb-0">App ရဲ့ အရောင်ပုံစံကို ရွေးချယ်ပါ။</p>
+            </div>
           </div>
-        </div>
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            aria-label={isDarkMode ? 'Light mode ပြောင်းရန်' : 'Dark mode ပြောင်းရန်'}
+            className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/60 px-4 py-3 text-left transition hover:border-orange-500/40 hover:bg-orange-500/5 dark:border-white/10 dark:bg-black/20 dark:hover:bg-orange-500/10"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-slate-800 dark:text-zinc-100">{isDarkMode ? 'Dark mode' : 'Light mode'}</span>
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-zinc-400">သင်ရွေးထားသော theme</span>
+            </span>
+            <span className="rounded-lg bg-slate-100 p-2 text-orange-600 dark:bg-white/10 dark:text-orange-400">
+              <Icon path={isDarkMode ? 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z' : 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z'} />
+            </span>
+          </button>
+          <div className="mt-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">Privacy note</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">API key နဲ့ preference တွေကို ဒီ browser ရဲ့ local storage မှာပဲ သိမ်းထားပါတယ်။</p>
+          </div>
+        </section>
       </div>
     </div>
   );

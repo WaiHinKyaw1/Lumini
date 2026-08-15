@@ -385,7 +385,7 @@ const App: React.FC = () => {
             case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
             case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
             case 'video': return <VideoStudio onSpendCredits={spendCredits} />;
-            case 'profile': return <Profile stats={stats} onApiKeyChange={(hasKey) => setHasApiKey(hasKey)} />;
+            case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onApiKeyChange={(hasKey) => setHasApiKey(hasKey)} onLogout={handleLogout} />;
             default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
           }
         })()}
