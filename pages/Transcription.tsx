@@ -59,12 +59,12 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
     return new Promise((resolve, reject) => {
       const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext)();
       const reader = new FileReader();
-      
+
       reader.onload = async (e) => {
         try {
           const arrayBuffer = e.target?.result as ArrayBuffer;
           const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-          
+
           // Convert to WAV
           const numOfChan = audioBuffer.numberOfChannels;
           const length = audioBuffer.length * numOfChan * 2 + 44;
@@ -124,14 +124,14 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
           base64Reader.onload = () => resolve((base64Reader.result as string).split(',')[1]);
           base64Reader.onerror = reject;
           base64Reader.readAsDataURL(blob);
-          
+
         } catch (err) {
           reject(err);
         } finally {
           if (audioCtx.state !== 'closed') audioCtx.close();
         }
       };
-      
+
       reader.onerror = reject;
       reader.readAsArrayBuffer(videoFile);
     });
@@ -156,7 +156,7 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
     try {
       let base64 = "";
       let mimeType = file.type;
-      
+
       // If it's a video, extract audio to speed up upload drastically
       if (file.type.startsWith('video/')) {
         try {
@@ -179,7 +179,7 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
         });
         base64 = await base64Promise;
       }
-      
+
       const systemInstruction = "You are a professional Transcriber. Your goal is to convert audio/video speech into accurate text. Follow the user's formatting rules strictly.";
       const prompt = `Transcribe the audio content into PURE TRANSCRIPTION format.
 Rules:
@@ -224,47 +224,47 @@ Rules:
 
   return (
     <div className="module-page max-w-xl mx-auto pb-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
-          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2.5 rounded-xl bg-accent/10 flex items-center justify-center">
+          <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </div>
         <div>
-          <h1 className="movie-h2 !text-xl !mb-0 uppercase tracking-tighter">Transcript Master</h1>
-          <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">Media to Text • {CREDIT_COSTS[ContentType.TRANSCRIPTION]} Credits</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Transcript Master</h1>
+          <p className="text-xs text-slate-500 dark:text-zinc-300 mt-1">Media to Text • {CREDIT_COSTS[ContentType.TRANSCRIPTION]} Credits</p>
         </div>
       </div>
 
-      <div className="glass p-6 rounded-2xl border border-white/5 space-y-6">
+      <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4">
         {!result && !isProcessing ? (
           <div className="text-center">
             <input type="file" onChange={handleFileChange} accept="video/*,audio/*,.mp4,.mov,.mkv,.mp3,.wav,.m4a" className="hidden" id="trans-upload" />
             <label
               htmlFor="trans-upload"
-              className={`flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed rounded-2xl transition-all cursor-pointer ${
-                file 
-                  ? 'border-accent bg-accent/5' 
-                  : 'border-white/10 hover:border-accent/40 hover:bg-white/5'
+              className={`flex flex-col items-center justify-center gap-3 p-6 sm:p-8 border-2 border-dashed rounded-2xl transition-all cursor-pointer ${
+                file
+                  ? 'border-accent bg-accent/5'
+                  : 'border-gray-300 dark:border-white/10 hover:border-accent/40 hover:bg-gray-50 dark:hover:bg-white/5'
               }`}
             >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file ? 'bg-accent/20 text-accent' : 'bg-white/5 text-zinc-500'}`}>
+              <div className={`p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 ${file ? 'text-accent' : 'text-slate-400 dark:text-zinc-400'}`}>
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
               </div>
               <div className="space-y-1">
-                <h3 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">{file ? 'File Locked' : 'Drop Media'}</h3>
-                <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500 truncate max-w-[200px]">{file ? file.name : 'MP3, MP4, WAV'}</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white !mb-0">{file ? 'File Locked' : 'Drop Media'}</h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-300 leading-relaxed mt-1.5 truncate max-w-[200px]">{file ? file.name : 'MP3, MP4, WAV'}</p>
               </div>
             </label>
 
             <button
               onClick={handleProcess}
  aria-label="Transcription စတင်ရန်"              disabled={!file}
-              className={`w-full mt-6 py-4 rounded-xl movie-meta !text-[12px] uppercase tracking-[0.2em] transition-all shadow-xl ${
-                file 
-                  ? 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]' 
+              className={`w-full mt-4 py-2 px-4 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all ${
+                file
+                  ? 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
                   : 'bg-white/5 text-zinc-600 cursor-not-allowed'
               }`}
             >
@@ -280,17 +280,17 @@ Rules:
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 dark:border-white/10">
               <div className="flex items-center gap-2">
                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
-                 <h3 className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">Transcript Output</h3>
+                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 !mb-0">Transcript Output</h3>
               </div>
               <div className="flex gap-4">
-                <button onClick={() => {setResult(null); setFile(null);}} className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 hover:text-accent transition-colors !mb-0">Discard</button>
-                <button onClick={() => navigator.clipboard.writeText(result || '')} className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 !mb-0">Copy Result</button>
+                <button onClick={() => {setResult(null); setFile(null);}} className="text-[10px] font-semibold uppercase text-slate-400 dark:text-zinc-400 hover:text-accent transition-colors !mb-0">Discard</button>
+                <button onClick={() => navigator.clipboard.writeText(result || '')} className="px-4 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-all active:scale-[0.98] !mb-0">Copy Result</button>
               </div>
             </div>
-            <div className="p-4 rounded-xl bg-black/40 border border-white/5 max-h-[400px] overflow-y-auto movie-body !text-[14px] leading-[1.8] text-zinc-300 custom-scrollbar">
+            <div className="p-4 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 max-h-[400px] overflow-y-auto text-sm text-slate-800 dark:text-zinc-100 leading-[1.8] custom-scrollbar">
               {result?.split('\n').map((line, i) => (
                 <p key={i} className="mb-4 last:mb-0">{line}</p>
               ))}
@@ -298,9 +298,9 @@ Rules:
           </div>
         )}
       </div>
-      {error && <div className="mt-3 p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest">{error}</div>}
+      {error && <div className="mt-2 p-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-center text-[10px] font-semibold text-rose-500 uppercase tracking-wide">{error}</div>}
       <RecentHistory moduleName="transcription" onRestore={() => null} restoreLabel="Review" burmeseRestoreLabel="ပြန်ကြည့်မည်" />
-      <div className="mt-4" />
+      <div className="mt-3" />
       <ModuleLogHistory moduleName="transcription" refreshTrigger={refreshTrigger} />
     </div>
   );

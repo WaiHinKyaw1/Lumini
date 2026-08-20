@@ -30,10 +30,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [text, setText] = useState('');
   const [characterId, setCharacterId] = useState('thiha_mm');
   const [tone, setTone] = useState('recap_trend');
-  
+
   // Advanced Controls: -100% to 100%
-  const [voiceSpeed, setVoiceSpeed] = useState(0); 
-  const [voicePitch, setVoicePitch] = useState(0); 
+  const [voiceSpeed, setVoiceSpeed] = useState(0);
+  const [voicePitch, setVoicePitch] = useState(0);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -57,7 +57,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloneStatus, setCloneStatus] = useState<string>('');
   const [elevenKey, setElevenKeyState] = useState<string>('');
   const [cloningRemote, setCloningRemote] = useState<boolean>(false);
-  
+
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Recent-task restore: repopulate input fields from a previous generation
@@ -102,62 +102,62 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const MAX_CHARS = 15000;
 
   const characters = [
-    { 
-      id: 'thiha_mm', 
-      name: 'THIHA', 
-      baseVoice: 'Fenrir', 
+    {
+      id: 'thiha_mm',
+      name: 'THIHA',
+      baseVoice: 'Fenrir',
       desc: 'Powerful & Commanding',
-      bio: 'ဩဇာရှိသောအသံ - သတင်း၊ ကြေညာချက်များနှင့် အစီအစဉ်များအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ စကားပြောပြတ်သားပြီး ခန့်ညားသောပုံစံဖြစ်သည်။' 
+      bio: 'ဩဇာရှိသောအသံ - သတင်း၊ ကြေညာချက်များနှင့် အစီအစဉ်များအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ စကားပြောပြတ်သားပြီး ခန့်ညားသောပုံစံဖြစ်သည်။'
     },
-    { 
-      id: 'nilar_mm', 
-      name: 'NILAR', 
-      baseVoice: 'Kore', 
+    {
+      id: 'nilar_mm',
+      name: 'NILAR',
+      baseVoice: 'Kore',
       desc: 'Sweet & Natural',
       bio: 'ချိုသာကြည်လင်သောအသံ - Vlog၊ ပုံပြင်များနှင့် နေ့စဉ်စကားပြောများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ နားထောင်ရသူကို စိတ်အေးချမ်းစေသည့်ပုံစံဖြစ်သည်။'
     },
-    { 
-      id: 'minkhant_mm', 
-      name: 'MIN KHANT', 
-      baseVoice: 'Puck', 
+    {
+      id: 'minkhant_mm',
+      name: 'MIN KHANT',
+      baseVoice: 'Puck',
       desc: 'Energetic & Youthful',
       bio: 'တက်ကြွသောအသံ - Review၊ နည်းပညာအကြောင်းအရာများနှင့် လူငယ်အကြိုက် ဗီဒီယိုများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်ဆန်ပြီး လန်းဆန်းသောပုံစံဖြစ်သည်။'
     },
-    { 
-      id: 'maythu_mm', 
-      name: 'MAY THU', 
-      baseVoice: 'Zephyr', 
+    {
+      id: 'maythu_mm',
+      name: 'MAY THU',
+      baseVoice: 'Zephyr',
       desc: 'Soft & Poetic',
       bio: 'နူးညံ့သိမ်မွေ့သောအသံ - ကဗျာ၊ စာပေနှင့် စိတ်ခံစားမှုအသားပေး အကြောင်းအရာများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အပြောညင်သာပြီး ထိရှလွယ်သောပုံစံဖြစ်သည်။'
     },
     { id: 'charon_main', name: 'CHARON', baseVoice: 'Charon', desc: 'Deep & Formal', bio: 'High-fidelity deep male voice for global content.' },
-    { 
-      id: 'mya_mm', 
-      name: 'MYA', 
-      baseVoice: 'Kore', 
+    {
+      id: 'mya_mm',
+      name: 'MYA',
+      baseVoice: 'Kore',
       desc: 'မြန်မာပီသ အသံ',
-      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ချိုသာကြည်လင်တဲ့ အသံ - သတင်း၊ ပုံပြင်၊ movie recap အားလုံးအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။' 
+      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ချိုသာကြည်လင်တဲ့ အသံ - သတင်း၊ ပုံပြင်၊ movie recap အားလုံးအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။'
     },
-    { 
-      id: 'nyeins_mm', 
-      name: 'NYEIN', 
-      baseVoice: 'Alnilam', 
+    {
+      id: 'nyeins_mm',
+      name: 'NYEIN',
+      baseVoice: 'Alnilam',
       desc: 'မြန်မာပီသ အသံ',
-      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ခိုင်မာလေးနက်တဲ့ ယောက်္ကျားအသံ - ဇာတ်ကြီးဇတ်ချော၊ မှတ်ချက်နှင့် documentary အတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။' 
+      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ခိုင်မာလေးနက်တဲ့ ယောက်္ကျားအသံ - ဇာတ်ကြီးဇတ်ချော၊ မှတ်ချက်နှင့် documentary အတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။'
     },
-    { 
-      id: 'soesoe_mm', 
-      name: 'SOE SOE', 
-      baseVoice: 'Sulafat', 
+    {
+      id: 'soesoe_mm',
+      name: 'SOE SOE',
+      baseVoice: 'Sulafat',
       desc: 'Warm & Authentic',
-      bio: 'မြန်မာပီသသောနွေးထွေးအသံ - စိတ်ခံစားမှုအပြည့် ဇာတ်ကြီးဇာတ်ချော၊ သတင်းမှတ်ချက်နှင့် ဇာတ်လမ်းတိုများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အသံညိုနှင့် နားဝင်ပီသသောပုံစံဖြစ်သည်။' 
+      bio: 'မြန်မာပီသသောနွေးထွေးအသံ - စိတ်ခံစားမှုအပြည့် ဇာတ်ကြီးဇာတ်ချော၊ သတင်းမှတ်ချက်နှင့် ဇာတ်လမ်းတိုများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အသံညိုနှင့် နားဝင်ပီသသောပုံစံဖြစ်သည်။'
     },
-    { 
-      id: 'winhtet_mm', 
-      name: 'WIN HTET', 
-      baseVoice: 'Alnilam', 
+    {
+      id: 'winhtet_mm',
+      name: 'WIN HTET',
+      baseVoice: 'Alnilam',
       desc: 'Bold & Resonant',
-      bio: 'ပီသခိုင်မာသောယောက်္ကျားအသံ - အားကစား၊ ကြေညာချက်၊ ဗီဒီယိုမှတ်ချက်နှင့် ခန့်ညားရမည့်အကြောင်းအရာများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အသံပြင်းပြင်းနှင့် ယုံကြည်စိတ်အပြည့်ပုံစံဖြစ်သည်။' 
+      bio: 'ပီသခိုင်မာသောယောက်္ကျားအသံ - အားကစား၊ ကြေညာချက်၊ ဗီဒီယိုမှတ်ချက်နှင့် ခန့်ညားရမည့်အကြောင်းအရာများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အသံပြင်းပြင်းနှင့် ယုံကြည်စိတ်အပြည့်ပုံစံဖြစ်သည်။'
     },
   ];
 
@@ -356,31 +356,31 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         }
         stopAudio();
     }
-    
+
     setIsPreviewing(charId);
     const char = characters.find(c => c.id === charId);
     if (!char) return;
 
     try {
       const sampleText = char.name.includes('THIHA') || char.name.includes('NILAR') || char.name.includes('MIN KHANT') || char.name.includes('MAY THU')
-        ? `မင်္ဂလာပါ။ ကျွန်တော့်အမည်က ${char.name.split(' ')[0]} ဖြစ်ပြီး၊ လုမီနာ အေအိုင်ရဲ့ အဆင့်မြင့် အသံပိုင်ရှင်ဖြစ်ပါတယ်။` 
+        ? `မင်္ဂလာပါ။ ကျွန်တော့်အမည်က ${char.name.split(' ')[0]} ဖြစ်ပြီး၊ လုမီနာ အေအိုင်ရဲ့ အဆင့်မြင့် အသံပိုင်ရှင်ဖြစ်ပါတယ်။`
         : `Hello! This is ${char.name}. How can I help you today?`;
-      
+
       const blobUrl = await generateSpeech(sampleText, char.baseVoice, 0, 0);
       if (isMounted.current) {
-        const { ctx } = await playAudio(blobUrl, () => { 
+        const { ctx } = await playAudio(blobUrl, () => {
             if (isMounted.current) {
-                setIsPreviewing(null); 
-                audioCtxRef.current = null; 
+                setIsPreviewing(null);
+                audioCtxRef.current = null;
             }
-            URL.revokeObjectURL(blobUrl); 
+            URL.revokeObjectURL(blobUrl);
         });
         audioCtxRef.current = ctx;
       }
-    } catch (err: unknown) { 
+    } catch (err: unknown) {
         if (isMounted.current) {
-            setError((err as { message?: string })?.message || "Preview failed."); 
-            setIsPreviewing(null); 
+            setError((err as { message?: string })?.message || "Preview failed.");
+            setIsPreviewing(null);
             try {
               const msg = (err as { message?: string })?.message || "";
               const openBrace = msg.indexOf('{');
@@ -405,7 +405,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
     setIsProcessing(true);
     const char = characters.find(c => c.id === characterId);
-    
+
     // Create a voice map for multi-voice tagging (includes voice clones)
     const voiceMap: Record<string, string> = {};
     characters.forEach(c => {
@@ -448,7 +448,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       if (isMounted.current) {
         setAudioUrl(blobUrl);
       }
-      
+
       const currentUser = auth.currentUser;
       if (currentUser) {
         await logGeneration(
@@ -475,9 +475,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         );
         setRefreshTrigger(prev => prev + 1);
       }
-    } catch (err: unknown) { 
+    } catch (err: unknown) {
         if (isMounted.current) {
-          setError((err as { message?: string })?.message || "Synthesis failed."); 
+          setError((err as { message?: string })?.message || "Synthesis failed.");
           try {
             const msg = (err as { message?: string })?.message || "";
             const openBrace = msg.indexOf('{');
@@ -491,9 +491,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             }
           } catch (_) {}
         }
-    } 
-    finally { 
-        if (isMounted.current) setIsProcessing(false); 
+    }
+    finally {
+        if (isMounted.current) setIsProcessing(false);
     }
   };
 
@@ -501,20 +501,20 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
   return (
     <div className="module-page max-w-xl mx-auto pb-4">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center shadow-md shadow-accent/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2.5 rounded-xl bg-accent/10 flex items-center justify-center">
+          <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </div>
         <div>
-          <h1 className="movie-h2 !text-lg !mb-0 uppercase tracking-tighter">Voiceover Studio</h1>
-          <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Voiceover Studio</h1>
+          <p className="text-xs text-slate-500 dark:text-zinc-300 mt-1">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
         </div>
       </div>
 
       {/* Mode switcher: Synthesis Studio / Voice Clone */}
-      <div className="flex mb-4 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-1" role="tablist">
+      <div className="flex mb-4 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-1" role="tablist">
         <button
           role="tab"
           aria-selected={mode === 'studio'}
@@ -539,29 +539,29 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
       {mode === 'clone' ? (
         /* ===================== VOICE CLONE STUDIO ===================== */
-        <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center shadow-md shadow-fuchsia-500/20 flex-shrink-0">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
               </svg>
             </div>
             <div>
-              <h2 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">Voice Clone Studio</h2>
-              <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">Zero-Shot Cloning • Free Open Models • {cloneCost} Credits</p>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white !mb-0">Voice Clone Studio</h2>
+              <p className="text-xs text-slate-500 dark:text-zinc-300 leading-relaxed mt-1">Zero-Shot Cloning • Free Open Models • {cloneCost} Credits</p>
             </div>
           </div>
 
           {/* ElevenLabs real-clone option (free tier, optional) */}
-          <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg">
-            <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block text-accent">Real Neural Clone (Optional)</label>
+          <div className="space-y-2 p-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-accent block">Real Neural Clone (Optional)</label>
             <div className="flex gap-2">
               <input
                 type="password"
                 value={elevenKey}
                 onChange={(e) => { setElevenKeyState(e.target.value); setElevenKey(e.target.value); }}
                 placeholder="ElevenLabs API key (xi-api-key)"
-                className="flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 movie-body !text-[11px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
+                className="flex-1 bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
               />
               <button
                 type="button"
@@ -569,7 +569,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                   const hasKey = (elevenKey || getElevenKey()) !== '';
                   setCloneStatus(hasKey ? 'ElevenLabs key saved. Next clone will use real neural cloning.' : 'No key set — using free client-side voice shaping.');
                 }}
-                className="px-3 rounded-lg border border-slate-300 bg-slate-100 movie-meta !text-[9px] uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-accent hover:bg-accent/10 dark:border-white/10 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/15"
+                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-100 dark:border-white/10 dark:bg-white/10 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition-all hover:border-accent hover:bg-accent/10 dark:hover:bg-white/15"
               >
                 Save
               </button>
@@ -578,15 +578,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
           {/* Reference capture */}
           <div className="space-y-2">
-            <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Reference Voice (10-30s)</label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 block">Reference Voice (10-30s)</label>
             <div className="grid grid-cols-2 gap-2">
               <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border-2 border-dashed transition-all cursor-pointer ${
-                cloneFile ? 'border-accent bg-accent/5' : 'border-slate-300 bg-slate-50 hover:border-accent/50 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25'
+                cloneFile ? 'border-accent bg-accent/5' : 'border-gray-300 bg-gray-50 hover:border-accent/50 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/25'
               }`}>
-                <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-slate-400 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                <span className="movie-meta !text-[8px] uppercase tracking-widest text-zinc-400 !mb-0">Upload Audio</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-400 !mb-0">Upload Audio</span>
                 <input type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" onChange={handleFileChange} className="hidden" />
               </label>
               <button
@@ -605,7 +605,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                   </svg>
                 )}
-                <span className="movie-meta !text-[8px] uppercase tracking-widest !mb-0">{isRecording ? 'Stop & Save' : 'Record Mic'}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide !mb-0">{isRecording ? 'Stop & Save' : 'Record Mic'}</span>
               </button>
             </div>
             {cloneFile && (
@@ -619,13 +619,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               value={cloneName}
               onChange={(e) => setCloneName(e.target.value.slice(0, 40))}
               placeholder="Voice profile name (e.g. My Voice)"
-              className="flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 movie-body !text-[12px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
+              className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
             />
             <button
               onClick={handleCreateClone}
               disabled={isAnalyzing || cloningRemote}
-              className={`px-4 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
-                isAnalyzing || cloningRemote ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
+              className={`px-4 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                isAnalyzing || cloningRemote ? 'bg-gray-100 dark:bg-white/5 text-slate-400 dark:text-zinc-400 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
               }`}
             >
               {cloningRemote ? 'Cloning...' : isAnalyzing ? 'Analyzing...' : 'Clone'}
@@ -633,7 +633,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </div>
 
           {cloneStatus && (
-            <p className={`movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-center ${cloneStatus.includes('successfully') || cloneStatus.includes('successfully') ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide text-center !mb-0 ${cloneStatus.includes('successfully') || cloneStatus.includes('successfully') ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
               {cloneStatus}
             </p>
           )}
@@ -641,7 +641,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           {/* Saved clones */}
           {clones.length > 0 && (
             <div className="space-y-1.5">
-              <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">My Voice Library</label>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 block">My Voice Library</label>
               <div className="space-y-1.5">
                 {clones.map((c) => (
                   <div
@@ -663,19 +663,19 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                     aria-pressed={activeCloneId === c.id}
                   >
                     <div className="flex flex-col">
-                      <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-widest">{c.name}</span>
-                      <span className="movie-meta !text-[8px] !mb-0 uppercase mt-0.5 text-zinc-500">
+                      <span className="text-xs font-bold !mb-0">{c.name}</span>
+                      <span className="text-[10px] uppercase mt-0.5 text-slate-400 dark:text-zinc-400 !mb-0">
                         {c.traits.gender === 'unknown' ? 'Neutral' : c.traits.gender} • {Math.round(c.traits.pitchHz)}Hz • {c.traits.tone} • {c.durationSeconds}s ref
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {activeCloneId === c.id && (
-                        <span className="px-2 py-0.5 bg-accent text-white rounded-md movie-meta !text-[7px] uppercase tracking-widest !mb-0">Active</span>
+                        <span className="px-2 py-0.5 bg-accent text-white rounded-md text-[9px] font-semibold uppercase tracking-wide !mb-0">Active</span>
                       )}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setClone(c.id); setMode('studio'); }}
-                        className="rounded-md border border-accent/40 bg-accent/10 px-2 py-1 movie-meta !text-[8px] uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-white"
+                        className="rounded-lg border border-accent/40 bg-accent/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent transition-colors hover:bg-accent hover:text-white"
                       >
                         Use in script
                       </button>
@@ -683,7 +683,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                         type="button"
                         aria-label={`Delete saved voice clone ${c.name}`}
                         onClick={(e) => { e.stopPropagation(); handleDeleteClone(c.id); }}
-                        className="p-1.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:border-rose-500 hover:bg-rose-500 hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400 transition-all"
+                        className="p-1.5 rounded-lg border border-gray-200 bg-gray-100 dark:border-white/10 dark:bg-white/10 text-slate-500 dark:text-zinc-400 hover:border-rose-500 hover:bg-rose-500 hover:text-white transition-all"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -699,18 +699,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         </div>
       ) : (
       /* ===================== SYNTHESIS STUDIO ===================== */
-      <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Saved clone selection for this script */}
-        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-black/20">
+        <div className="space-y-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <label htmlFor="saved-voice-clone" className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0 block">Voice for this script</label>
-              <p className="movie-meta !text-[9px] !mb-0 mt-1 text-slate-500 dark:text-zinc-400">
+              <label htmlFor="saved-voice-clone" className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 !mb-0 block">Voice for this script</label>
+              <p className="text-[10px] !mb-0 mt-1 text-slate-500 dark:text-zinc-400">
                 {activeClone ? 'Saved clone selected' : 'Built-in voice selected'}
               </p>
             </div>
             {activeClone && (
-              <span className="shrink-0 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 movie-meta !text-[8px] uppercase tracking-widest text-accent !mb-0">
+              <span className="shrink-0 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent !mb-0">
                 {hasNeuralClone ? 'Neural clone ready' : 'Style fallback'}
               </span>
             )}
@@ -720,7 +720,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             aria-label="Choose a saved voice clone for this script"
             value={activeCloneId || ''}
             onChange={(event) => setClone(event.target.value || null)}
-            className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 movie-body !text-[12px] text-slate-900 outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
+            className="w-full appearance-none rounded-lg border border-gray-200 dark:border-white/15 bg-white dark:bg-[#0c0c0e] px-3 py-2 text-xs text-slate-900 dark:text-zinc-100 outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
           >
             <option value="">Use built-in voice model</option>
             {clones.map((clone) => (
@@ -730,13 +730,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           {activeClone ? (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
               <div className="min-w-0">
-                <p className="movie-h2 !text-[11px] !mb-0 truncate uppercase tracking-widest text-slate-800 dark:text-zinc-100">{activeClone.name}</p>
-                <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-400">{activeClone.traits.tone} tone • {Math.round(activeClone.traits.pitchHz)}Hz • {activeClone.durationSeconds}s reference</p>
+                <p className="text-xs font-bold !mb-0 truncate">{activeClone.name}</p>
+                <p className="text-[10px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-400">{activeClone.traits.tone} tone • {Math.round(activeClone.traits.pitchHz)}Hz • {activeClone.durationSeconds}s reference</p>
               </div>
               <button
                 type="button"
                 onClick={() => setClone(null)}
-                className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-1 movie-meta !text-[8px] uppercase tracking-widest text-slate-600 transition-colors hover:border-accent hover:text-accent dark:border-white/15 dark:bg-black/20 dark:text-zinc-300"
+                className="shrink-0 rounded-lg border border-gray-200 dark:border-white/15 bg-white dark:bg-[#0c0c0e] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-zinc-300 transition-colors hover:border-accent hover:text-accent"
               >
                 Use built-in
               </button>
@@ -750,39 +750,39 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
         {/* Talent Selection */}
         <div className="relative z-30" ref={dropdownRef}>
-          <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-1 block">Voice Model</label>
-          <button 
+          <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 !mb-2 block">Voice Model</label>
+          <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             aria-label="Choose a built-in voice model"
-            className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/20 border border-slate-300 dark:border-white/15 rounded-lg hover:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
+            className="w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/15 rounded-lg hover:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
           >
             <div className="flex flex-col items-start text-left">
-              <span className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">{selectedChar?.name}</span>
-              <span className="movie-meta !text-[9px] !mb-0 uppercase mt-0.5">{selectedChar?.desc}</span>
+              <span className="text-xs font-bold !mb-0">{selectedChar?.name}</span>
+              <span className="text-[10px] !mb-0 uppercase mt-0.5 text-slate-500 dark:text-zinc-400">{selectedChar?.desc}</span>
             </div>
             <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-midnight border border-slate-200 dark:border-white/15 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/15 rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
               <div className="max-h-[180px] overflow-y-auto custom-scrollbar p-1.5 space-y-1">
                 {characters.map((char) => (
                   <div
                     key={char.id}
                     onClick={() => { setCharacterId(char.id); setIsDropdownOpen(false); }}
-                    className={`flex items-center justify-between p-2 rounded-md transition-all cursor-pointer ${
-                      characterId === char.id ? 'bg-accent/10 text-accent' : 'hover:bg-white/5 text-zinc-300'
+                    className={`flex items-center justify-between p-2 rounded-lg transition-all cursor-pointer ${
+                      characterId === char.id ? 'bg-accent/10 text-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 text-slate-700 dark:text-zinc-300'
                     }`}
                   >
                     <div className="flex flex-col">
-                      <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-widest">{char.name}</span>
-                      <span className="movie-meta !text-[8px] !mb-0 uppercase mt-0.5">{char.desc}</span>
+                      <span className="text-xs font-bold !mb-0">{char.name}</span>
+                      <span className="text-[10px] !mb-0 uppercase mt-0.5 text-slate-500 dark:text-zinc-400">{char.desc}</span>
                     </div>
                     <button
                       onClick={(e) => handlePreview(e, char.id)}
                       aria-label={`Preview ${char.name} voice`}
-                      className={`p-1.5 rounded-md border transition-all ${
-                        isPreviewing === char.id ? 'border-rose-500 bg-rose-500 text-white animate-pulse' : 'border-slate-200 bg-slate-100 text-slate-500 hover:border-accent hover:bg-accent hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400'
+                      className={`p-1.5 rounded-lg border transition-all ${
+                        isPreviewing === char.id ? 'border-rose-500 bg-rose-500 text-white animate-pulse' : 'border-gray-200 bg-gray-100 dark:border-white/10 dark:bg-white/10 text-slate-500 dark:text-zinc-400 hover:border-accent hover:bg-accent hover:text-white'
                       }`}
                     >
                       {isPreviewing === char.id ? '...' : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
@@ -796,7 +796,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
         {/* Narration Style & Tone (Matches custom video-recap channel configuration) */}
         <div className="space-y-2">
-          <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Narration Style & Tone</label>
+          <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 block">Narration Style & Tone</label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             {[
               { id: 'recap_trend', name: 'Trending Recap', desc: 'ခေတ်စားနေတဲ့ စတိုင်' },
@@ -814,12 +814,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 onClick={() => setTone(t.id)}
                 type="button"
                 className={`p-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center ${
-                  tone === t.id 
-                    ? 'bg-accent/10 border-accent text-accent shadow-md shadow-accent/5' 
-                    : 'bg-transparent border-slate-200 dark:border-white/5 text-slate-500 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/5'
+                  tone === t.id
+                    ? 'bg-accent/10 border-accent text-accent shadow-md shadow-accent/5'
+                    : 'bg-transparent border-gray-200 dark:border-white/10 text-slate-500 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-white/5'
                 }`}
               >
-                <span className="movie-h2 !text-[10px] !mb-0 uppercase tracking-wider font-bold">{t.name}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide !mb-0">{t.name}</span>
                 <span className="text-[7px] opacity-75 font-mono mt-0.5">{t.desc}</span>
               </button>
             ))}
@@ -830,20 +830,20 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
-              <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em]">Input Script</label>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400">Input Script</label>
             </div>
             <div className="flex gap-3">
-              <button onClick={handlePaste} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-accent hover:text-accent dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Paste</button>
-              <button onClick={handleClear} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-rose-400 hover:text-rose-500 dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Clear</button>
+              <button onClick={handlePaste} className="rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 hover:border-accent hover:text-accent transition-colors !mb-0">Paste</button>
+              <button onClick={handleClear} className="rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 hover:border-rose-400 hover:text-rose-500 transition-colors !mb-0">Clear</button>
             </div>
           </div>
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value.slice(0, MAX_CHARS)); setIsChecked(false); }}
             placeholder="Enter your script here..."
-            className="w-full h-36 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-3 movie-body !text-[13px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all resize-none leading-relaxed"
+            className="w-full h-36 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-3 text-xs text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all resize-none leading-relaxed"
           />
-          <div className="movie-meta !text-[9px] text-zinc-500 uppercase tracking-widest text-right !mb-0">
+          <div className="text-[10px] font-semibold text-slate-400 dark:text-zinc-400 uppercase tracking-wide text-right !mb-0">
             {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
           </div>
         </div>
@@ -852,22 +852,22 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <div className="flex justify-between">
-              <label className="movie-meta !text-[9px] uppercase tracking-widest">Velocity</label>
-              <span className="movie-meta !text-[9px] text-accent !mb-0">{voiceSpeed}%</span>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400">Velocity</label>
+              <span className="text-[10px] font-semibold text-accent !mb-0">{voiceSpeed}%</span>
             </div>
-            <input 
-              type="range" min="-100" max="100" step="1" value={voiceSpeed} 
+            <input
+              type="range" min="-100" max="100" step="1" value={voiceSpeed}
               onChange={(e) => setVoiceSpeed(parseInt(e.target.value))}
-              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
           </div>
           <div className="space-y-1">
             <div className="flex justify-between">
-              <label className="movie-meta !text-[9px] uppercase tracking-widest">Pitch</label>
-              <span className="movie-meta !text-[9px] text-accent !mb-0">{voicePitch}%</span>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400">Pitch</label>
+              <span className="text-[10px] font-semibold text-accent !mb-0">{voicePitch}%</span>
             </div>
-            <input 
-              type="range" min="-100" max="100" step="1" value={voicePitch} 
+            <input
+              type="range" min="-100" max="100" step="1" value={voicePitch}
               onChange={(e) => setVoicePitch(parseInt(e.target.value))}
               className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
             />
@@ -878,10 +878,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           <button
             onClick={isChecked ? handleGenerate : handleCheck}
  aria-label="အသံထုတ်ရန်"            disabled={isChecked && isProcessing}
-            className={`w-full py-2.5 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
-              !isChecked 
-                ? 'border border-slate-300 bg-zinc-100 hover:bg-zinc-200 text-midnight dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'
-                : isProcessing ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
+            className={`w-full py-2 px-4 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all ${
+              !isChecked
+                ? 'border border-gray-300 dark:border-white/10 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-900 dark:text-white'
+                : isProcessing ? 'bg-gray-100 dark:bg-white/5 text-slate-400 dark:text-zinc-400 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
             }`}
           >
             {isProcessing ? 'Synthesizing...' : isChecked ? 'Generate Audio' : 'Verify Script'}
@@ -891,25 +891,25 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       )}
 
       {audioUrl && !isProcessing && (
-        <div className="mt-6 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="glass p-4 rounded-2xl border border-emerald-500/30 flex items-center gap-6">
-            <button 
-              onClick={togglePlayback} 
-              className={`w-12 h-12 rounded-full border border-emerald-500/30 flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10'}`}
+        <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-emerald-500/30 p-4 flex items-center gap-3 sm:gap-4">
+            <button
+              onClick={togglePlayback}
+              className={`w-10 h-10 rounded-full border border-emerald-500/30 flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-500'}`}
             >
               {isPlaying ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
               ) : (
-                <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
               )}
             </button>
             <div className="flex-1">
-              <h4 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">Synthesis Output</h4>
-              <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">{voiceSpeed}% Vel • {voicePitch}% Ptch</p>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white !mb-0">Synthesis Output</h4>
+              <p className="text-[10px] text-slate-400 dark:text-zinc-400 !mb-0">{voiceSpeed}% Vel • {voicePitch}% Ptch</p>
             </div>
-            <div className="flex gap-4">
-              <a href={audioUrl} download="lumina_voiceover.wav" className="px-5 py-2.5 border border-accent/40 bg-accent hover:bg-accent-hover text-white rounded-xl movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95">Export</a>
-              <button onClick={() => setAudioUrl(null)} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[10px] uppercase tracking-widest text-slate-500 hover:border-rose-400 hover:text-rose-500 dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Discard</button>
+            <div className="flex gap-2">
+              <a href={audioUrl} download="lumina_voiceover.wav" className="px-4 py-1.5 border border-accent/40 bg-accent hover:bg-accent-hover text-white rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-all active:scale-[0.98]">Export</a>
+              <button onClick={() => setAudioUrl(null)} className="rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 hover:border-rose-400 hover:text-rose-500 transition-colors !mb-0">Discard</button>
             </div>
           </div>
         </div>
@@ -929,9 +929,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         } catch (_) {}
 
         return (
-          <div className="mt-4">
+          <div className="mt-3">
             {parsedQuotaError ? (
-              <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-left space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-left space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2 text-amber-500 font-extrabold text-[11px] uppercase tracking-widest">
                     <svg className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
@@ -941,12 +941,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                     <span>Quota Limit Exceeded</span>
                   </div>
                   {countdown !== null && (
-                    <span className="px-2.5 py-1 bg-amber-500 text-midnight dark:text-black rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse">
+                    <span className="px-2.5 py-1 bg-amber-500 text-black rounded-lg text-[10px] font-bold uppercase tracking-wide animate-pulse">
                       Please Wait: {countdown}s
                     </span>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <p className="text-xs text-amber-600 dark:text-amber-400 font-bold leading-relaxed">
                     {parsedQuotaError.mmMessage}
@@ -954,18 +954,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 </div>
               </div>
             ) : (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
-                <p className="text-rose-500 dark:text-rose-400 text-[10px] font-bold uppercase tracking-widest">{error}</p>
+              <div className="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl text-center">
+                <p className="text-rose-500 dark:text-rose-400 text-[10px] font-bold uppercase tracking-wide">{error}</p>
               </div>
             )}
           </div>
         );
       })()}
-      
+
       {mode !== 'clone' && (
         <>
           <RecentHistory moduleName="voiceover" onRestore={handleRestoreVoiceover} />
-          <div className="mt-4" />
+          <div className="mt-3" />
           <ModuleLogHistory moduleName="voiceover" refreshTrigger={refreshTrigger} />
         </>
       )}

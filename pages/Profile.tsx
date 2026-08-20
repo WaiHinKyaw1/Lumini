@@ -113,12 +113,12 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   return (
-    <div className="module-page mx-auto w-full max-w-5xl space-y-5 pb-8 animate-in fade-in duration-300">
+    <div className="module-page mx-auto w-full max-w-5xl space-y-4 pb-8 animate-in fade-in duration-300">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="movie-meta !mb-1 uppercase tracking-[0.18em]">Account center</p>
-          <h1 className="movie-h1 !mb-0">Profile &amp; Settings</h1>
-          <p className="movie-body !mb-0 mt-1 max-w-xl">သင့်အကောင့်၊ credit balance နဲ့ app preferences တွေကို တစ်နေရာတည်းမှာ စီမံပါ။</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-zinc-400 !mb-1">Account center</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Profile &amp; Settings</h1>
+          <p className="text-xs text-slate-500 dark:text-zinc-300 !mb-0 mt-1 max-w-xl">သင့်အကောင့်၊ credit balance နဲ့ app preferences တွေကို တစ်နေရာတည်းမှာ စီမံပါ။</p>
         </div>
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
@@ -126,25 +126,25 @@ const Profile: React.FC<ProfileProps> = ({
         </div>
       </header>
 
-      <section className="glass overflow-hidden rounded-3xl">
-        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+      <section className="overflow-hidden rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10">
+        <div className="flex flex-col gap-5 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4 sm:gap-5">
             {user?.photoURL ? (
               <img
                 src={user.photoURL}
                 alt="Profile avatar"
-                className="h-16 w-16 shrink-0 rounded-2xl border border-orange-500/30 object-cover shadow-lg sm:h-20 sm:w-20"
+                className="h-14 w-14 shrink-0 rounded-2xl border border-orange-500/30 object-cover sm:h-16 sm:w-16"
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-orange-500/15 text-2xl font-bold text-orange-600 shadow-inner dark:text-orange-400 sm:h-20 sm:w-20">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-orange-500/15 text-2xl font-bold text-orange-600 dark:text-orange-400 sm:h-16 sm:w-16">
                 {initials}
               </div>
             )}
             <div className="min-w-0">
-              <p className="movie-meta !mb-1 uppercase tracking-[0.16em]">Your workspace</p>
-              <h2 className="truncate !mb-1">{user?.displayName || 'Studio Creator'}</h2>
-              <p className="truncate text-sm text-slate-500 dark:text-zinc-400">{user?.email || 'No email address'}</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-zinc-400 !mb-1">Your workspace</p>
+              <h2 className="truncate !mb-1 text-lg font-bold text-slate-900 dark:text-white">{user?.displayName || 'Studio Creator'}</h2>
+              <p className="truncate text-xs text-slate-500 dark:text-zinc-400">{user?.email || 'No email address'}</p>
             </div>
           </div>
           {onLogout && (
@@ -152,25 +152,25 @@ const Profile: React.FC<ProfileProps> = ({
               type="button"
               onClick={onLogout}
               aria-label="Sign out လုပ်ရန်"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/40 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/40 sm:w-auto"
             >
               <Icon path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               Sign out
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 border-t border-slate-200/80 dark:border-white/10 sm:grid-cols-3">
-          <div className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:border-b-0 sm:border-r sm:px-7">
-            <p className="movie-meta !mb-1 uppercase tracking-wider">Available credits</p>
-            <p className="text-2xl font-bold tracking-tight text-orange-600 dark:text-orange-400">{stats.credits} <span className="text-xs font-semibold tracking-widest">CR</span></p>
+        <div className="grid grid-cols-1 border-t border-gray-200 dark:border-white/10 sm:grid-cols-3">
+          <div className="border-b border-gray-200 dark:border-white/10 px-5 py-3.5 sm:border-b-0 sm:border-r sm:px-7">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-400 !mb-1">Available credits</p>
+            <p className="text-2xl font-bold tracking-tight text-orange-600 dark:text-orange-400">{stats.credits} <span className="text-xs font-semibold tracking-wide">CR</span></p>
           </div>
-          <div className="border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:border-b-0 sm:border-r sm:px-7">
-            <p className="movie-meta !mb-1 uppercase tracking-wider">Generated assets</p>
+          <div className="border-b border-gray-200 dark:border-white/10 px-5 py-3.5 sm:border-b-0 sm:border-r sm:px-7">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-400 !mb-1">Generated assets</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">{stats.totalGenerated}</p>
           </div>
-          <div className="px-5 py-4 sm:px-7">
-            <p className="movie-meta !mb-1 uppercase tracking-wider">API access</p>
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
+          <div className="px-5 py-3.5 sm:px-7">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-400 !mb-1">API access</p>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-zinc-200">
               <span className={`h-2 w-2 rounded-full ${isSaved ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-zinc-600'}`} aria-hidden="true" />
               {isSaved ? 'Custom key active' : 'Default access'}
             </div>
@@ -178,19 +178,19 @@ const Profile: React.FC<ProfileProps> = ({
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
-        <section className="glass rounded-3xl p-5 sm:p-7" aria-labelledby="api-settings-title">
-          <div className="mb-6 flex items-start gap-3">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
+        <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5" aria-labelledby="api-settings-title">
+          <div className="mb-4 flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
               <Icon path="M15.75 5.25a3 3 0 013 3m0 0a3 3 0 013 3m-3-3a3 3 0 01-3 3m3-3a3 3 0 00-3-3M12 12l-2.25 2.25m0 0L7.5 16.5m2.25-2.25l2.25 2.25m-2.25-2.25l-2.25-2.25M15 7.5l-3 3" className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="api-settings-title" className="!mb-1">Gemini API Key</h2>
-              <p className="movie-body !mb-0">Custom key အသုံးပြုလိုပါက ဒီနေရာမှာ ထည့်သွင်းနိုင်ပါတယ်။ Key ကို သင့် browser ထဲမှာပဲ သိမ်းထားပါတယ်။</p>
+              <h2 id="api-settings-title" className="!mb-1 text-base font-bold text-slate-900 dark:text-white">Gemini API Key</h2>
+              <p className="text-xs text-slate-500 dark:text-zinc-300 !mb-0">Custom key အသုံးပြုလိုပါက ဒီနေရာမှာ ထည့်သွင်းနိုင်ပါတယ်။ Key ကို သင့် browser ထဲမှာပဲ သိမ်းထားပါတယ်။</p>
             </div>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSaveKey}>
+          <form className="space-y-3" onSubmit={handleSaveKey}>
             <div>
               <label htmlFor="gemini-api-key" className="mb-2 block">API key</label>
               <div className="relative">
@@ -201,7 +201,7 @@ const Profile: React.FC<ProfileProps> = ({
                   onChange={(event) => setApiKey(event.target.value)}
                   placeholder="AIzaSy..."
                   autoComplete="off"
-                  className="w-full rounded-xl border border-slate-200 bg-white/70 px-4 py-3 pr-12 font-mono text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/10 dark:bg-black/20"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-12 font-mono text-xs outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/10 dark:bg-white/5"
                 />
                 <button
                   type="button"
@@ -218,14 +218,14 @@ const Profile: React.FC<ProfileProps> = ({
                 type="button"
                 onClick={handleTestKey}
                 disabled={isTesting || !apiKey.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/5"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/5"
               >
                 {isTesting && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />}
                 {isTesting ? 'Checking...' : 'Test key'}
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-orange-600/15 transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
               >
                 <Icon path="M5 13l4 4L19 7" />
                 Save key
@@ -234,8 +234,8 @@ const Profile: React.FC<ProfileProps> = ({
           </form>
 
           {isSaved && (
-            <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
                 <Icon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 Custom key is active
               </div>
@@ -246,14 +246,14 @@ const Profile: React.FC<ProfileProps> = ({
           )}
         </section>
 
-        <section className="glass rounded-3xl p-5 sm:p-7" aria-labelledby="preferences-title">
-          <div className="mb-6 flex items-start gap-3">
+        <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5" aria-labelledby="preferences-title">
+          <div className="mb-4 flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-500/10 text-slate-600 dark:text-zinc-300">
               <Icon path="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="preferences-title" className="!mb-1">Appearance</h2>
-              <p className="movie-body !mb-0">App ရဲ့ အရောင်ပုံစံကို ရွေးချယ်ပါ။</p>
+              <h2 id="preferences-title" className="!mb-1 text-base font-bold text-slate-900 dark:text-white">Appearance</h2>
+              <p className="text-xs text-slate-500 dark:text-zinc-300 !mb-0">App ရဲ့ အရောင်ပုံစံကို ရွေးချယ်ပါ။</p>
             </div>
           </div>
           <button
