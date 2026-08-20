@@ -35,7 +35,7 @@ export interface VoiceProfile {
   createdAt: number;
   durationSeconds: number;
   dataUrl?: string; // stored audio (short, stored in localStorage)
-  voiceId?: string; // ElevenLabs instant voice clone id (optional, free tier)
+  voiceId?: string; // Optional remote clone id when the user has a compatible provider account
   traits: {
     gender: 'male' | 'female' | 'unknown';
     pitchHz: number;        // estimated fundamental frequency
@@ -179,8 +179,10 @@ export const analyzeVoice = async (
     `Speak in Burmese (Myanmar language) with a ${genderDesc}. ` +
     `Your vocal character is ${toneDesc} with ${energyDesc}. ` +
     `Natural Burmese pronunciation with correct tones; pronounce Myanmar script characters natively, not romanized. ` +
+    `Use a clean, dry studio narration style with stable microphone distance, consistent loudness, natural breaths, ` +
+    `and smooth pauses at punctuation. Recite the exact text only; do not add an introduction, outro, or extra words. ` +
     `Pitch reference: approximately ${Math.round(medianPitch)} Hz.` +
-    (pitchDeviation !== 0 ? ` Speaking pace adjustment: ${pitchDeviation > 0 ? '+' : ''}${pitchDeviation}%.` : '');
+    (pitchDeviation !== 0 ? ` Keep the perceived pitch ${pitchDeviation > 0 ? 'slightly higher' : 'slightly lower'} than neutral.` : '');
 
   const profile: VoiceProfile = {
     id: `clone_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -408,4 +410,78 @@ export const startRecording = async (): Promise<{ stream: MediaStream; stop: () 
       recorder.stop();
     });
   return { stream, stop };
+};
+
+/**
+ * Apply lightweight studio mastering to generated TTS audio in the browser.
+ * This does not clone a speaker identity; it improves the perceived quality of
+ * the selected Gemini voice/style output without requiring a server or model.
+ */
+export const enhanceVoiceoverAudio = async (
+  sourceUrl: string,
+): Promise<{ blobUrl: string; dispose: () => void }> => {
+  const response = await fetch(sourceUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
+  const decodeContext = new AudioContextClass();
+  const input = await decodeContext.decodeAudioData(arrayBuffer);
+  await decodeContext.close();
+
+  const OfflineAudioContextClass = (window as unknown as {
+    OfflineAudioContext?: typeof OfflineAudioContext;
+    webkitOfflineAudioContext?: typeof OfflineAudioContext;
+  }).OfflineAudioContext || (window as unknown as {
+    webkitOfflineAudioContext?: typeof OfflineAudioContext;
+  }).webkitOfflineAudioContext || OfflineAudioContext;
+
+  const frameCount = input.length;
+  const offline = new OfflineAudioContextClass(1, frameCount, input.sampleRate);
+  const source = offline.createBufferSource();
+  source.buffer = input;
+
+  // Remove low-frequency rumble, gently shape speech presence, then control
+  // peaks so Burmese narration remains clear and consistent across chunks.
+  const highPass = offline.createBiquadFilter();
+  highPass.type = 'highpass';
+  highPass.frequency.value = 72;
+  highPass.Q.value = 0.7;
+
+  const presence = offline.createBiquadFilter();
+  presence.type = 'peaking';
+  presence.frequency.value = 2800;
+  presence.Q.value = 0.8;
+  presence.gain.value = 1.2;
+
+  const compressor = offline.createDynamicsCompressor();
+  compressor.threshold.value = -20;
+  compressor.knee.value = 18;
+  compressor.ratio.value = 2.4;
+  compressor.attack.value = 0.004;
+  compressor.release.value = 0.18;
+
+  source.connect(highPass);
+  highPass.connect(presence);
+  presence.connect(compressor);
+  compressor.connect(offline.destination);
+  source.start(0);
+
+  const rendered = await offline.startRendering();
+  const samples = new Float32Array(rendered.getChannelData(0));
+
+  let peak = 0;
+  for (let i = 0; i < samples.length; i += 1) peak = Math.max(peak, Math.abs(samples[i]));
+  const gain = peak > 0 ? Math.min(1.15, 0.92 / peak) : 1;
+  const fadeIn = Math.min(Math.floor(rendered.sampleRate * 0.012), samples.length);
+  const fadeOut = Math.min(Math.floor(rendered.sampleRate * 0.025), samples.length);
+
+  for (let i = 0; i < samples.length; i += 1) {
+    let value = samples[i] * gain;
+    if (i < fadeIn) value *= i / Math.max(1, fadeIn);
+    if (i >= samples.length - fadeOut) value *= (samples.length - i) / Math.max(1, fadeOut);
+    samples[i] = Math.max(-0.98, Math.min(0.98, value));
+  }
+
+  const wavBytes = encodeWav(samples, rendered.sampleRate, 1);
+  const blobUrl = URL.createObjectURL(new Blob([wavBytes], { type: 'audio/wav' }));
+  return { blobUrl, dispose: () => URL.revokeObjectURL(blobUrl) };
 };

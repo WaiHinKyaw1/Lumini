@@ -16,6 +16,7 @@ import {
   startRecording,
   createElevenClone,
   synthesizeWithClone,
+  enhanceVoiceoverAudio,
   getElevenKey,
   setElevenKey,
   type VoiceProfile,
@@ -59,6 +60,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloningRemote, setCloningRemote] = useState<boolean>(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const masteredUrlRef = useRef<string | null>(null);
 
   // Recent-task restore: repopulate input fields from a previous generation
   const handleRestoreVoiceover = (input: JsonValue) => {
@@ -175,6 +177,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       isMounted.current = false;
       document.removeEventListener('mousedown', handleClickOutside);
       if (audioCtxRef.current) audioCtxRef.current.close();
+      if (masteredUrlRef.current) {
+        URL.revokeObjectURL(masteredUrlRef.current);
+        masteredUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -412,9 +418,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       voiceMap[c.name] = c.baseVoice;
     });
 
-    // Reuse the selected saved clone for this script. A real ElevenLabs clone
-    // is used when its local key is available; otherwise the analyzed profile
-    // guides the free Gemini voice and post-processing fallback.
+    // Reuse the selected saved voice profile. A remote neural clone is used
+    // only when the user has configured a compatible provider key; otherwise
+    // the analyzed profile guides Gemini's free style-matching fallback.
     const clonePrefix = activeClone?.prompt || '';
     const canUseRemoteClone = Boolean(activeClone?.voiceId && getElevenKey());
 
@@ -422,7 +428,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       let blobUrl: string;
 
       if (isMounted.current && canUseRemoteClone && activeClone?.voiceId) {
-        // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
+        // Optional neural voice clone synthesis when the user supplies a compatible provider key.
         const audioBlob = await synthesizeWithClone(activeClone.voiceId, text);
         blobUrl = URL.createObjectURL(audioBlob);
       } else {
@@ -445,7 +451,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         }
       }
 
+      // Free studio-quality finishing: clean rumble, smooth peaks, normalize
+      // loudness, and add tiny fades without requiring a local model/server.
       if (isMounted.current) {
+        try {
+          const mastered = await enhanceVoiceoverAudio(blobUrl);
+          if (blobUrl.startsWith('blob:')) URL.revokeObjectURL(blobUrl);
+          if (masteredUrlRef.current) URL.revokeObjectURL(masteredUrlRef.current);
+          blobUrl = mastered.blobUrl;
+          masteredUrlRef.current = mastered.blobUrl;
+        } catch (masterError) {
+          console.warn('Studio mastering skipped:', masterError);
+        }
         setAudioUrl(blobUrl);
       }
 
