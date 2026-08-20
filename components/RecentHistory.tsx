@@ -4,7 +4,7 @@ import { auth } from '../services/firebase';
 import { toast } from 'react-hot-toast';
 import { getRecent, putRecord, isIndexedDBAvailable } from '../services/historyCache';
 import { Clock, Undo2, Loader2 } from 'lucide-react';
-import { Skeleton } from './Skeleton';
+import { LoadingSpinner } from './LoadingSpinner';
 import type { JsonValue } from '../types';
 
 const LOCAL_KEY = 'lumini_recent_history';
@@ -191,12 +191,8 @@ export const RecentHistory: React.FC<RecentHistoryProps> = ({
 
   if (loading) {
     return (
-      <div className="rounded-2xl bg-zinc-950/60 border border-white/5 overflow-hidden" aria-label="မကြာသေးမီ လုပ်ဆောင်ချက်များ တင်နေပါသည်" aria-busy="true" role="status">
-        <Skeleton className="h-9 rounded-none border-b border-white/5" />
-        <div className="px-4 py-3 space-y-2.5">
-          <Skeleton className="h-7 w-full" />
-          <Skeleton className="h-7 w-5/6" />
-        </div>
+      <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 overflow-hidden px-4 py-8">
+        <LoadingSpinner size="md" label="History ကို တင်နေပါသည်..." />
       </div>
     );
   }

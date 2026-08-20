@@ -16,7 +16,7 @@ import { auth, db, OperationType, handleFirestoreError, testConnection } from '.
 import { spendCreditsOp, addCreditsOp } from './services/firestoreOps';
 import { STORAGE_KEYS, readJson, writeJson } from './services/storage';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Skeleton } from './components/Skeleton';
+import { LoadingSpinner } from './components/LoadingSpinner';
 import { MISSION_ROUTE_MAP } from './services/refuelEngine';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -363,14 +363,9 @@ const App: React.FC = () => {
     return (
       <ErrorBoundary moduleName="Lumini">
       <Suspense fallback={
-        <div className="flex items-center justify-center h-[60vh]">
-          <div className="max-w-md w-full rounded-2xl bg-zinc-950/60 border border-white/5 overflow-hidden">
-            <Skeleton className="h-9 rounded-none border-b border-white/5" />
-            <div className="px-4 py-3 space-y-2.5">
-              <Skeleton className="h-7 w-full" />
-              <Skeleton className="h-7 w-5/6" />
-              <Skeleton className="h-7 w-4/6" />
-            </div>
+        <div className="flex items-center justify-center min-h-[60vh] px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 px-6 py-10 shadow-sm">
+            <LoadingSpinner size="lg" label="Lumini ကို ပြင်ဆင်နေပါသည်..." />
           </div>
         </div>
       }>
