@@ -221,9 +221,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       const { stop } = await startRecording();
       const recordingStop = stop;
       (window as unknown as { __cloneRecordingStop?: () => void }).__cloneRecordingStop = recordingStop;
-    } catch {
+    } catch (err: unknown) {
       setIsRecording(false);
-      setCloneStatus('Microphone access denied.');
+      const message = err instanceof Error ? err.message : 'Microphone could not be opened. Use Upload Audio instead.';
+      setCloneStatus(message);
     }
   };
 
@@ -625,6 +626,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 <span className="text-[10px] font-semibold uppercase tracking-wide !mb-0">{isRecording ? 'Stop & Save' : 'Record Mic'}</span>
               </button>
             </div>
+            <p className="text-[10px] leading-relaxed text-slate-500 dark:text-zinc-400 !mb-0">
+              Mic မရရင် browser address bar ဘေးက lock/site-settings icon ကိုနှိပ်ပြီး <span className="font-semibold text-slate-700 dark:text-zinc-200">Microphone → Allow</span> ပြောင်းကာ page ကို reload လုပ်ပါ။ မပြေလည်သေးရင် <span className="font-semibold text-slate-700 dark:text-zinc-200">Upload Audio</span> နဲ့ MP3/WAV/M4A/OGG/WEBM sample တင်နိုင်ပါတယ်။
+            </p>
             {cloneFile && (
               <audio controls src={cloneUrl || undefined} className="w-full h-8 rounded" />
             )}

@@ -392,8 +392,43 @@ export const readFileAsDataUrl = (file: File): Promise<string> =>
  * Start recording from the microphone. Returns stop fn + stream.
  */
 export const startRecording = async (): Promise<{ stream: MediaStream; stop: () => Promise<Blob | string> }> => {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+  if (typeof window === 'undefined' || !window.isSecureContext) {
+    throw new Error('Microphone recording requires a secure HTTPS connection. Open the Lumini Vercel link directly, not inside an embedded preview.');
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('This browser does not support microphone recording. Use Chrome, Edge, Safari, or upload an audio sample instead.');
+  }
+  if (typeof MediaRecorder === 'undefined') {
+    throw new Error('This browser cannot record audio. Upload an MP3, WAV, M4A, OGG, or WEBM sample instead.');
+  }
+
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+  } catch (error) {
+    const name = (error as DOMException)?.name;
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+      throw new Error('Microphone permission is blocked. Tap the lock/site-settings icon, set Microphone to Allow, reload Lumini, then try again. You can also use Upload Audio.');
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      throw new Error('No microphone was found. Connect or enable a microphone, then try again, or use Upload Audio.');
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      throw new Error('The microphone is busy in another app. Close other recording apps or browser tabs, then try again.');
+    }
+    throw new Error('Microphone could not be opened. Check browser permissions or use Upload Audio instead.');
+  }
+
+  const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type));
+  const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  const recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
   recorder.start();
@@ -401,7 +436,7 @@ export const startRecording = async (): Promise<{ stream: MediaStream; stop: () 
     new Promise<Blob | string>((resolve) => {
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const blob = new Blob(chunks, { type: recordedMimeType });
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = () => resolve(blob);
