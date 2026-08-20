@@ -274,15 +274,16 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
 
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 px-1 !mb-0">Aesthetic Engine</label>
-              <div className="grid grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                 {styles.map((s) => (
                   <button
                     key={s.name}
+                    type="button"
                     onClick={() => setStyle(s.name)}
-                    className={`py-2 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-all border !mb-0 ${
+                    className={`min-h-9 px-2.5 py-2 rounded-lg text-[10px] leading-tight font-semibold text-center uppercase tracking-[0.04em] transition-all border !mb-0 ${
                       style === s.name
-                        ? 'bg-accent border-accent text-white'
-                        : 'bg-transparent border-gray-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5'
+                        ? 'bg-accent border-accent text-white shadow-sm shadow-accent/20'
+                        : 'bg-transparent border-gray-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:border-accent/40'
                     }`}
                   >
                     {s.name}
@@ -308,7 +309,8 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
 
             <button
               onClick={handleGenerate}
- aria-label="Thumbnail generate လုပ်ရန်"              disabled={isGenerating || !topic}
+              aria-label="Thumbnail generate လုပ်ရန်"
+              disabled={isGenerating || !topic}
               className={`w-full py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
                 isGenerating || !topic
                   ? 'bg-gray-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'

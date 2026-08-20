@@ -55,7 +55,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloneUrl, setCloneUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [cloneStatus, setCloneStatus] = useState<string>('');
+  const [cloneStatus, setCloneStatus] = useState<string | null>(null);
   const [elevenKey, setElevenKeyState] = useState<string>('');
   const [cloningRemote, setCloningRemote] = useState<boolean>(false);
 
@@ -532,12 +532,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       </div>
 
       {/* Mode switcher: Synthesis Studio / Voice Clone */}
-      <div className="flex mb-4 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-1" role="tablist">
+      <div className="grid grid-cols-2 gap-1.5 mb-4 p-1.5 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10" role="tablist">
         <button
           role="tab"
           aria-selected={mode === 'studio'}
           onClick={() => setMode('studio')}
-          className={`flex-1 py-2 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all ${
+          className={`min-h-10 px-3 py-2.5 rounded-lg text-[10px] leading-tight font-semibold text-center uppercase tracking-[0.06em] transition-all !mb-0 ${
             mode === 'studio' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'border border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-zinc-400 dark:hover:border-white/10 dark:hover:text-zinc-200'
           }`}
         >
@@ -547,7 +547,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           role="tab"
           aria-selected={mode === 'clone'}
           onClick={() => setMode('clone')}
-          className={`flex-1 py-2 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all ${
+          className={`min-h-10 px-3 py-2.5 rounded-lg text-[10px] leading-tight font-semibold text-center uppercase tracking-[0.06em] transition-all !mb-0 ${
             mode === 'clone' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'border border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-zinc-400 dark:hover:border-white/10 dark:hover:text-zinc-200'
           }`}
         >
