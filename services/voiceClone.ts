@@ -89,15 +89,6 @@ export const analyzeVoice = async (
   const sampleRate = audioBuffer.sampleRate;
   const duration = audioBuffer.duration;
 
-  if (duration < 5) {
-    await ctx.close();
-    throw new Error('Voice sample is too short. Please provide at least 5 seconds of clear speech.');
-  }
-  if (duration > 60) {
-    await ctx.close();
-    throw new Error('Voice sample is too long. Please keep the sample under 60 seconds.');
-  }
-
   // ---- Voice activity detection (keep only voiced frames) ----
   const frameSize = Math.floor(sampleRate * 0.03); // 30 ms frames
   const voicedFrames: Float32Array[] = [];
@@ -107,11 +98,6 @@ export const analyzeVoice = async (
     if (rms > 0.015) {
       voicedFrames.push(frame);
     }
-  }
-
-  if (voicedFrames.length < 3) {
-    await ctx.close();
-    throw new Error('No clear speech was detected. Use a recording with speech only and less background noise.');
   }
 
   // ---- Fundamental frequency estimate via autocorrelation ----
@@ -174,7 +160,7 @@ export const analyzeVoice = async (
   }
   const spectralCentroid = centroidCount > 0 ? centroidSum / centroidCount : 1500;
 
-  await ctx.close();
+  ctx.close();
 
   // ---- Derive traits ----
   const gender = medianPitch > 165 ? 'female' : medianPitch < 130 ? 'male' : 'unknown';

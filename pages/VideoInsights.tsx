@@ -67,14 +67,6 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (!selectedFile.type.startsWith('video/') && !selectedFile.type.startsWith('audio/')) {
-        setError('Please select a supported video or audio file.');
-        return;
-      }
-      if (selectedFile.size > 50 * 1024 * 1024) {
-        setError('File is too large (maximum 50MB). Please use a shorter or compressed file.');
-        return;
-      }
       setFile(selectedFile);
       setResult(null);
       setError(null);
@@ -111,7 +103,6 @@ const VideoInsights: React.FC<VideoInsightsProps> = ({ onSpendCredits }) => {
     }
 
     setIsProcessing(true);
-    setProgress(5);
     try {
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
@@ -150,7 +141,6 @@ Instructions:
           setResult(fullRecap);
         }
       });
-      if (!fullRecap.trim()) throw new Error('The AI returned an empty recap. Please try again with a clearer media file.');
       setProgress(100);
 
       const currentUser = auth.currentUser;

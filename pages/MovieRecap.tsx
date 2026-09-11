@@ -100,10 +100,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('video/')) { setError('Please choose a supported video file.'); return; }
-      if (file.size > 100 * 1024 * 1024) { setError('Video is too large (maximum 100MB).'); return; }
       if (videoUrl) URL.revokeObjectURL(videoUrl);
-      if (resultUrl) { URL.revokeObjectURL(resultUrl); setResultUrl(null); }
       const url = URL.createObjectURL(file);
       setVideoFile(file);
       setVideoUrl(url);
@@ -115,8 +112,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('audio/')) { setError('Please choose a supported audio file.'); return; }
-      if (file.size > 50 * 1024 * 1024) { setError('Audio is too large (maximum 50MB).'); return; }
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       const url = URL.createObjectURL(file);
       setAudioFile(file);
@@ -150,13 +145,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setAudioDuration(audioRef.current.duration);
     }
   };
-
-  useEffect(() => () => {
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    if (logoUrl) URL.revokeObjectURL(logoUrl);
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
-  }, [videoUrl, audioUrl, logoUrl, resultUrl]);
 
   // --- AI Video Generation ---
   useEffect(() => {
@@ -425,7 +413,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
   const handleGenerate = async () => {
     if (!videoUrl || !videoRef.current) return;
-    if (!Number.isFinite(videoDuration) || videoDuration <= 0) { setError('Video metadata is not ready yet. Please wait and try again.'); return; }
     if (!onSpendCredits(CREDIT_COSTS[ContentType.MOVIE_RECAP])) { setError("Insufficient credits!"); return; }
 
     setIsProcessing(true);
@@ -479,7 +466,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
         recorder.onstop = () => {
              const blob = new Blob(chunks, { type: mimeType });
-             stream.getTracks().forEach(track => track.stop());
              setResultUrl(URL.createObjectURL(blob));
              setIsProcessing(false);
              audioCtx.close();
@@ -493,10 +479,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         const videoEl = document.createElement('video');
         videoEl.src = videoUrl;
         videoEl.muted = true;
-        await new Promise<void>((resolve, reject) => {
-          videoEl.onloadedmetadata = () => resolve();
-          videoEl.onerror = () => reject(new Error('Could not decode the selected video.'));
-        });
         await videoEl.play();
         videoEl.playbackRate = videoSpeed;
 
@@ -504,7 +486,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         const startTime = Date.now();
 
         const processLoop = () => {
-            if (videoEl.ended || videoEl.currentTime >= videoEl.duration - 0.05) { recorder.stop(); return; }
+            if (videoEl.ended) { recorder.stop(); return; }
             renderFrame(ctx, videoEl, w, h, videoEl.currentTime * 1000);
             const elapsed = (Date.now() - startTime) / 1000;
             setProgress(Math.min(100, Math.floor((elapsed / totalDur) * 100)));

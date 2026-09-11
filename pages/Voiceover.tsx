@@ -208,7 +208,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       setCloneStatus('File too large (max 12 MB). 10-30s of speech is ideal.');
       return;
     }
-    if (cloneUrl) URL.revokeObjectURL(cloneUrl);
     setCloneFile(file);
     setCloneUrl(URL.createObjectURL(file));
     setCloneStatus(null);
