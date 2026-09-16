@@ -29,8 +29,10 @@ docker run --rm -p 8080:8080 -v "$PWD/data:/app/data" lumini-media-worker
 
 The default upload limit is 1GB. Override it with `MAX_UPLOAD_BYTES`. Temporary files are kept under `MEDIA_DATA_DIR` and completed jobs expire after `JOB_TTL_MS`.
 
+Movie Recap uses this worker automatically when `VITE_MEDIA_WORKER_URL` is configured. If it is not configured, the existing browser export remains available as a fallback.
+
 ## Current scope
 
-This first version supports video input, optional replacement audio, speed controls, aspect-ratio padding, MP4/H.264 output, health checks, job status, cancellation flags, and automatic cleanup. Authentication, signed object-storage URLs, resumable uploads, and voice-provider proxying are intentionally reserved for later phases.
+This first version supports video input, optional replacement audio, video/audio speed controls, aspect-ratio padding, MP4/H.264 output, health checks, job status, cancellation flags, and automatic cleanup. Logo compositing, blur strips, zoom effects, authentication, signed object-storage URLs, resumable uploads, and voice-provider proxying are intentionally reserved for later phases. The browser fallback remains the path for those visual effects until their server equivalents are implemented.
 
 Do not expose this endpoint publicly until authentication, rate limiting, and private storage are configured.

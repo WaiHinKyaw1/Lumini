@@ -7,6 +7,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
+import { createSyncJob, isMediaWorkerConfigured, getOutputUrl, uploadMedia, waitForSyncJob } from '../services/mediaWorkerApi';
 
 interface MovieRecapProps {
   onSpendCredits: (amount: number) => boolean;
@@ -436,6 +437,30 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     if (audioRef.current) audioRef.current.pause();
 
     try {
+        if (isMediaWorkerConfigured() && videoFile) {
+          setProgress(3);
+          setOutputMimeType('video/mp4');
+          const uploadedVideo = await uploadMedia(videoFile, (value) => setProgress(Math.min(20, value * 0.2)));
+          let uploadedAudio;
+          if (audioFile) {
+            uploadedAudio = await uploadMedia(audioFile, (value) => setProgress(20 + Math.min(15, value * 0.15)));
+          }
+          const job = await createSyncJob(uploadedVideo.fileId, {
+            videoSpeed,
+            audioSpeed,
+            aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1' | '4:5',
+            blurEnabled,
+            blurPosition,
+            blurThickness,
+            blurIntensity,
+          }, uploadedAudio?.fileId);
+          const completed = await waitForSyncJob(job.jobId, (value) => setProgress(35 + Math.round(value * 0.65)));
+          if (!completed.outputFileId) throw new Error('Media worker returned no output file.');
+          if (resultUrl) URL.revokeObjectURL(resultUrl);
+          setResultUrl(getOutputUrl(completed.outputFileId));
+          setIsProcessing(false);
+          return;
+        }
         const canvas = document.createElement('canvas');
         let w = 1920, h = 1080;
         if (aspectRatio === "9:16") { w = 1080; h = 1920; }

@@ -135,8 +135,10 @@ async function processJob(jobId, fileId, audioFileId, settings) {
   Object.assign(job, { status: 'processing', progress: 5 });
   const args = ['-i', input];
   if (audio) args.push('-i', audio);
-  if (audio) args.push('-map', '0:v:0', '-map', '1:a:0', '-shortest');
-  args.push('-vf', buildVideoFilter(settings), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-movflags', '+faststart', output);
+  if (audio) {
+    args.push('-filter_complex', `[1:a]${buildAudioFilter(settings.audioSpeed)}[syncaudio]`, '-map', '0:v:0', '-map', '[syncaudio]', '-shortest');
+  }
+  args.push('-vf', buildVideoFilter(settings), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', ...(audio ? [] : ['-an']), '-c:a', 'aac', '-movflags', '+faststart', output);
   await runFfmpeg(args, (progress) => { if (!job.cancelled) job.progress = progress; });
   if (job.cancelled) { await fs.rm(output, { force: true }); return; }
   Object.assign(job, { status: 'completed', progress: 100, outputFileId, finishedAt: Date.now() });
@@ -146,6 +148,16 @@ function buildVideoFilter(settings) {
   const ratio = settings.aspectRatio === '9:16' ? 'ih*9/16' : settings.aspectRatio === '1:1' ? 'ih' : settings.aspectRatio === '4:5' ? 'ih*4/5' : 'iw';
   const filters = [`scale='min(1920,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease`, `pad='${ratio}':'ih':'(ow-iw)/2':'(oh-ih)/2':color=black`];
   if (settings.videoSpeed !== 1) filters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
+  return filters.join(',');
+}
+
+function buildAudioFilter(speed) {
+  if (speed === 1) return 'anull';
+  const filters = [];
+  let remaining = speed;
+  while (remaining < 0.5) { filters.push('atempo=0.5'); remaining /= 0.5; }
+  while (remaining > 2) { filters.push('atempo=2'); remaining /= 2; }
+  filters.push(`atempo=${remaining.toFixed(4)}`);
   return filters.join(',');
 }
 

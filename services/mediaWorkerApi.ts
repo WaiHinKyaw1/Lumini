@@ -26,6 +26,8 @@ export interface SyncJob {
 
 const getBaseUrl = () => (import.meta.env.VITE_MEDIA_WORKER_URL || '').replace(/\/$/, '');
 
+export const isMediaWorkerConfigured = (): boolean => Boolean(getBaseUrl());
+
 const requireBaseUrl = () => {
   const baseUrl = getBaseUrl();
   if (!baseUrl) throw new Error('Media worker is not configured. Set VITE_MEDIA_WORKER_URL.');
@@ -56,6 +58,29 @@ export async function getSyncJob(jobId: string): Promise<SyncJob> {
   const response = await fetch(`${requireBaseUrl()}/api/jobs/${encodeURIComponent(jobId)}`);
   if (!response.ok) throw new Error('Could not read sync job status.');
   return response.json() as Promise<SyncJob>;
+}
+
+export async function waitForSyncJob(
+  jobId: string,
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal,
+): Promise<SyncJob> {
+  for (;;) {
+    if (signal?.aborted) throw new DOMException('Sync job cancelled.', 'AbortError');
+    const job = await getSyncJob(jobId);
+    onProgress?.(job.progress);
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      if (job.status !== 'completed') throw new Error(job.error || `Sync job ${job.status}.`);
+      return job;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(resolve, 1000);
+      signal?.addEventListener('abort', () => {
+        window.clearTimeout(timer);
+        reject(new DOMException('Sync job cancelled.', 'AbortError'));
+      }, { once: true });
+    });
+  }
 }
 
 export function getOutputUrl(outputFileId: string): string {
