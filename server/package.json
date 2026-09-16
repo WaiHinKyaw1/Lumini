@@ -1,0 +1,16 @@
+{
+  "name": "lumini-media-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node --watch src/index.mjs",
+    "start": "node src/index.mjs"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/multipart": "^9.2.1",
+    "fastify": "^5.3.3"
+  }
+}
