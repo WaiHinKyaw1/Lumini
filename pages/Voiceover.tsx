@@ -20,6 +20,7 @@ import {
   setElevenKey,
   type VoiceProfile,
 } from '../services/voiceClone';
+import { createBackendVoiceClone, isVoiceCloneBackendConfigured, synthesizeBackendVoiceClone } from '../services/voiceCloneApi';
 
 
 interface VoiceoverProps {
@@ -180,7 +181,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
   // --- Voice Clone Studio handlers ---
   const activeClone = clones.find((c) => c.id === activeCloneId);
-  const hasNeuralClone = Boolean(activeClone?.voiceId && getElevenKey());
+  const hasNeuralClone = Boolean(activeClone?.voiceId && (isVoiceCloneBackendConfigured() || getElevenKey()));
 
   const setClone = (id: string | null) => {
     setActiveCloneId(id);
@@ -266,11 +267,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       // when the user has provided their own API key. This enables true zero-shot
       // voice cloning: the generated speech sounds like the reference recording.
       const key = elevenKey || getElevenKey();
-      if (key && cloneFile) {
+      if ((isVoiceCloneBackendConfigured() || key) && cloneFile) {
         try {
           setCloningRemote(true);
-          setCloneStatus('Creating real voice clone on ElevenLabs (free tier)...');
-          const remote = await createElevenClone(profile.name, cloneFile);
+          setCloneStatus('Creating secure neural voice clone on ElevenLabs...');
+          const remote = isVoiceCloneBackendConfigured()
+            ? await createBackendVoiceClone(profile.name, cloneFile)
+            : await createElevenClone(profile.name, cloneFile);
           profile.voiceId = remote.voiceId;
           setCloneStatus(`Real voice clone "${remote.name}" created! Generating speech with it now.`);
         } catch (e) {
@@ -417,14 +420,16 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     // is used when its local key is available; otherwise the analyzed profile
     // guides the free Gemini voice and post-processing fallback.
     const clonePrefix = activeClone?.prompt || '';
-    const canUseRemoteClone = Boolean(activeClone?.voiceId && getElevenKey());
+    const canUseRemoteClone = Boolean(activeClone?.voiceId && (isVoiceCloneBackendConfigured() || getElevenKey()));
 
     try {
       let blobUrl: string;
 
       if (isMounted.current && canUseRemoteClone && activeClone?.voiceId) {
         // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
-        const audioBlob = await synthesizeWithClone(activeClone.voiceId, text);
+        const audioBlob = isVoiceCloneBackendConfigured()
+          ? await synthesizeBackendVoiceClone(activeClone.voiceId, text)
+          : await synthesizeWithClone(activeClone.voiceId, text);
         blobUrl = URL.createObjectURL(audioBlob);
       } else {
         blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone, clonePrefix);

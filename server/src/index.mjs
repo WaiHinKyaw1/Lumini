@@ -14,6 +14,9 @@ const INPUT_DIR = path.join(DATA_DIR, 'inputs');
 const OUTPUT_DIR = path.join(DATA_DIR, 'outputs');
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 1024 * 1024 * 1024);
 const JOB_TTL_MS = Number(process.env.JOB_TTL_MS || 2 * 60 * 60 * 1000);
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
+const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2';
+const MAX_CLONE_TEXT_CHARS = Number(process.env.MAX_CLONE_TEXT_CHARS || 15000);
 const jobs = new Map();
 const allowedVideo = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska']);
 const allowedAudio = new Set(['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/webm', 'audio/ogg']);
@@ -30,6 +33,53 @@ const jsonError = (reply, status, message) => reply.code(status).send({ error: m
 const safeName = (name) => path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
 
 app.get('/health', async () => ({ ok: true, service: 'lumini-media-worker' }));
+
+app.get('/api/voice-clones/status', async () => ({ configured: Boolean(ELEVENLABS_API_KEY) }));
+
+app.post('/api/voice-clones', async (request, reply) => {
+  if (!ELEVENLABS_API_KEY) return jsonError(reply, 503, 'Voice clone provider is not configured on the server.');
+  const part = await request.file();
+  if (!part || !part.filename) return jsonError(reply, 400, 'A voice sample file is required.');
+  if (part.file.truncated) return jsonError(reply, 413, 'Voice sample is too large.');
+  const name = String(part.fields?.name?.value || '').trim().slice(0, 80);
+  if (!name) return jsonError(reply, 400, 'Voice clone name is required.');
+  const sample = await part.toBuffer();
+  const form = new FormData();
+  form.append('name', name);
+  form.append('files', new Blob([sample], { type: part.mimetype || 'audio/webm' }), part.filename);
+  form.append('description', `Lumini voice clone: ${name}`);
+  const provider = await fetch('https://api.elevenlabs.io/v1/voices', { method: 'POST', headers: { 'xi-api-key': ELEVENLABS_API_KEY }, body: form });
+  if (!provider.ok) return providerError(reply, provider, 'Voice clone creation failed.');
+  const data = await provider.json();
+  return reply.code(201).send({ voiceId: data.voice_id, name });
+});
+
+app.post('/api/voice-clones/:voiceId/synthesize', async (request, reply) => {
+  if (!ELEVENLABS_API_KEY) return jsonError(reply, 503, 'Voice clone provider is not configured on the server.');
+  const text = String(request.body?.text || '').trim();
+  if (!text) return jsonError(reply, 400, 'Text is required.');
+  if (text.length > MAX_CLONE_TEXT_CHARS) return jsonError(reply, 413, `Text exceeds ${MAX_CLONE_TEXT_CHARS} characters.`);
+  const provider = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(request.params.voiceId)}`, {
+    method: 'POST',
+    headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+    body: JSON.stringify({ text, model_id: ELEVENLABS_MODEL, voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2 } }),
+  });
+  if (!provider.ok) return providerError(reply, provider, 'Voice synthesis failed.');
+  return reply.type('audio/mpeg').send(Buffer.from(await provider.arrayBuffer()));
+});
+
+app.delete('/api/voice-clones/:voiceId', async (request, reply) => {
+  if (!ELEVENLABS_API_KEY) return reply.code(204).send();
+  const provider = await fetch(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(request.params.voiceId)}`, { method: 'DELETE', headers: { 'xi-api-key': ELEVENLABS_API_KEY } });
+  if (!provider.ok && provider.status !== 404) return providerError(reply, provider, 'Voice clone deletion failed.');
+  return reply.code(204).send();
+});
+
+async function providerError(reply, response, fallback) {
+  const data = await response.json().catch(() => null);
+  const message = data?.detail?.message || data?.detail || fallback;
+  return jsonError(reply, response.status >= 400 && response.status < 600 ? response.status : 502, String(message));
+}
 
 app.post('/api/media/upload', async (request, reply) => {
   const part = await request.file();
