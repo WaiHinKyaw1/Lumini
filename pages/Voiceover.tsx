@@ -416,9 +416,14 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       voiceMap[c.name] = c.baseVoice;
     });
 
-    // Reuse the selected saved clone for this script. A real ElevenLabs clone
-    // is used when its local key is available; otherwise the analyzed profile
-    // guides the free Gemini voice and post-processing fallback.
+    // A selected clone must be used as the source voice. Do not silently fall
+    // back to the character voice (for example, Thiha) when the clone is not
+    // available; professional voice tools make this state explicit.
+    if (activeClone && !activeClone.voiceId) {
+      setIsProcessing(false);
+      setError('This sample clone is not ready for speech yet. Create the clone with ElevenLabs/backend access, then try again.');
+      return;
+    }
     const clonePrefix = activeClone?.prompt || '';
     const canUseRemoteClone = Boolean(activeClone?.voiceId && (isVoiceCloneBackendConfigured() || getElevenKey()));
 
@@ -431,6 +436,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           ? await synthesizeBackendVoiceClone(activeClone.voiceId, text)
           : await synthesizeWithClone(activeClone.voiceId, text);
         blobUrl = URL.createObjectURL(audioBlob);
+      } else if (activeClone) {
+        throw new Error('The selected voice clone is unavailable. Please recreate it or configure the voice provider.');
       } else {
         blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone, clonePrefix);
 
