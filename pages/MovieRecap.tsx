@@ -462,6 +462,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           setIsProcessing(false);
           return;
         }
+        setProgress(5);
         const canvas = document.createElement('canvas');
         let w = 1920, h = 1080;
         if (aspectRatio === "9:16") { w = 1080; h = 1920; }
@@ -480,8 +481,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
            audioEl = new Audio(audioUrl);
            audioEl.crossOrigin = "anonymous";
            audioEl.playbackRate = audioSpeed;
-           await new Promise(r => {
-             audioEl!.oncanplaythrough = r;
+           await new Promise<void>((resolve, reject) => {
+             const timer = window.setTimeout(() => reject(new Error('Audio could not be loaded within 15 seconds.')), 15000);
+             audioEl!.oncanplaythrough = () => { window.clearTimeout(timer); resolve(); };
+             audioEl!.onerror = () => { window.clearTimeout(timer); reject(new Error('Could not decode the selected audio.')); };
              audioEl!.src = audioUrl;
            });
            const source = audioCtx.createMediaElementSource(audioEl);
@@ -520,10 +523,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         videoEl.src = videoUrl;
         videoEl.muted = true;
         await new Promise<void>((resolve, reject) => {
-          videoEl.onloadedmetadata = () => resolve();
+          const timer = window.setTimeout(() => reject(new Error('Video could not be loaded within 15 seconds.')), 15000);
+          videoEl.onloadedmetadata = () => { window.clearTimeout(timer); setProgress(10); resolve(); };
+          videoEl.oncanplay = () => { setProgress(Math.max(10, progress)); };
           videoEl.onerror = () => reject(new Error('Could not decode the selected video.'));
         });
         await videoEl.play();
+        setProgress(12);
         videoEl.playbackRate = videoSpeed;
 
         const totalDur = videoEl.duration / videoSpeed;
@@ -533,7 +539,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             if (videoEl.ended || videoEl.currentTime >= videoEl.duration - 0.05) { recorder.stop(); return; }
             renderFrame(ctx, videoEl, w, h, videoEl.currentTime * 1000);
             const elapsed = (Date.now() - startTime) / 1000;
-            setProgress(Math.min(100, Math.floor((elapsed / totalDur) * 100)));
+            setProgress(Math.min(99, Math.max(12, Math.floor(12 + (elapsed / totalDur) * 87))));
             requestAnimationFrame(processLoop);
         };
         processLoop();
