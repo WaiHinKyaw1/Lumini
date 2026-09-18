@@ -195,8 +195,17 @@ async function processJob(jobId, fileId, audioFileId, settings) {
 }
 
 function buildVideoFilter(settings) {
-  const ratio = settings.aspectRatio === '9:16' ? 'ih*9/16' : settings.aspectRatio === '1:1' ? 'ih' : settings.aspectRatio === '4:5' ? 'ih*4/5' : 'iw';
-  const filters = [`scale='min(1920,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease`, `pad='${ratio}':'ih':'(ow-iw)/2':'(oh-ih)/2':color=black`];
+  const canvas = settings.aspectRatio === '9:16'
+    ? { width: 1080, height: 1920 }
+    : settings.aspectRatio === '1:1'
+      ? { width: 1080, height: 1080 }
+      : settings.aspectRatio === '4:5'
+        ? { width: 1080, height: 1350 }
+        : { width: 1920, height: 1080 };
+  const filters = [
+    `scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`,
+    `pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`,
+  ];
   if (settings.videoSpeed !== 1) filters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
   return filters.join(',');
 }
