@@ -7,7 +7,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
-import { createSyncJob, isMediaWorkerConfigured, getOutputUrl, uploadMedia, waitForSyncJob } from '../services/mediaWorkerApi';
+import { createSyncJob, isMediaWorkerAvailable, isMediaWorkerConfigured, getOutputUrl, uploadMedia, waitForSyncJob } from '../services/mediaWorkerApi';
 
 interface MovieRecapProps {
   onSpendCredits: (amount: number) => boolean;
@@ -437,7 +437,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     if (audioRef.current) audioRef.current.pause();
 
     try {
-        if (isMediaWorkerConfigured() && videoFile) {
+        const useMediaWorker = isMediaWorkerConfigured() && videoFile && await isMediaWorkerAvailable();
+        if (useMediaWorker) {
           setProgress(3);
           setOutputMimeType('video/mp4');
           const uploadedVideo = await uploadMedia(videoFile, (value) => setProgress(Math.min(20, value * 0.2)));

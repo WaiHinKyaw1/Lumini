@@ -26,7 +26,28 @@ export interface SyncJob {
 
 const getBaseUrl = () => (import.meta.env.VITE_MEDIA_WORKER_URL || '').replace(/\/$/, '');
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 120000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: init.signal || controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export const isMediaWorkerConfigured = (): boolean => Boolean(getBaseUrl());
+
+export async function isMediaWorkerAvailable(): Promise<boolean> {
+  const baseUrl = getBaseUrl();
+  if (!baseUrl) return false;
+  try {
+    const response = await fetchWithTimeout(`${baseUrl}/health`, {}, 5000);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 const requireBaseUrl = () => {
   const baseUrl = getBaseUrl();
@@ -38,14 +59,14 @@ export async function uploadMedia(file: File, onProgress?: (progress: number) =>
   const baseUrl = requireBaseUrl();
   const body = new FormData();
   body.append('file', file);
-  const response = await fetch(`${baseUrl}/api/media/upload`, { method: 'POST', body });
+  const response = await fetchWithTimeout(`${baseUrl}/api/media/upload`, { method: 'POST', body });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Media upload failed.');
   onProgress?.(100);
   return response.json() as Promise<MediaUploadResult>;
 }
 
 export async function createSyncJob(fileId: string, settings: SyncSettings, audioFileId?: string): Promise<SyncJob> {
-  const response = await fetch(`${requireBaseUrl()}/api/sync/jobs`, {
+  const response = await fetchWithTimeout(`${requireBaseUrl()}/api/sync/jobs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileId, audioFileId, settings }),
@@ -55,7 +76,7 @@ export async function createSyncJob(fileId: string, settings: SyncSettings, audi
 }
 
 export async function getSyncJob(jobId: string): Promise<SyncJob> {
-  const response = await fetch(`${requireBaseUrl()}/api/jobs/${encodeURIComponent(jobId)}`);
+  const response = await fetchWithTimeout(`${requireBaseUrl()}/api/jobs/${encodeURIComponent(jobId)}`, {}, 15000);
   if (!response.ok) throw new Error('Could not read sync job status.');
   return response.json() as Promise<SyncJob>;
 }
