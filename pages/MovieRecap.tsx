@@ -437,8 +437,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     if (audioRef.current) audioRef.current.pause();
 
     try {
-        const useMediaWorker = isMediaWorkerConfigured() && videoFile && await isMediaWorkerAvailable();
-        if (useMediaWorker) {
+        if (!videoFile) throw new Error('Please select a video file first.');
+        setProgress(1);
+        if (!isMediaWorkerConfigured()) {
+          throw new Error('Server media worker is not configured. Set VITE_MEDIA_WORKER_URL and restart the app.');
+        }
+        if (!(await isMediaWorkerAvailable())) {
+          throw new Error('Server media worker is unavailable. Please start the AWS worker and try again.');
+        }
+        {
           setProgress(3);
           setOutputMimeType('video/mp4');
           const uploadedVideo = await uploadMedia(videoFile, (value) => setProgress(Math.min(20, value * 0.2)));
