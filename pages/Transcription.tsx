@@ -180,13 +180,15 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
         base64 = await base64Promise;
       }
 
-      const systemInstruction = "You are a professional Transcriber. Your goal is to convert audio/video speech into accurate text. Follow the user's formatting rules strictly.";
+      const systemInstruction = "You are a professional Burmese narration transcriber. Convert the spoken audio into clean, natural Burmese narrator text while preserving the original meaning and sequence. Keep names, numbers, places, and story facts accurate. Remove false starts, repeated filler, background sounds, and speaker labels. Use natural Burmese punctuation and sentence breaks suitable for a movie-recap narrator.";
       const prompt = `Transcribe the audio content into PURE TRANSCRIPTION format.
 Rules:
 - Remove author names, speaker labels, titles, headings, and metadata.
-- Keep ONLY spoken dialogue and narration sentences.
-- One sentence per line.
-- Output plain text only.`;
+- Keep ONLY the spoken dialogue and narration.
+- If the speech is Burmese, preserve Burmese wording but clean obvious filler and repeated fragments.
+- Format it as a smooth Burmese narrator script: natural sentence breaks, Burmese punctuation (။ ၊), and readable paragraphs.
+- Do not translate Burmese into English or invent missing words.
+- Output plain text only, with no markdown or explanation.`;
 
       let fullTranscription = "";
       setProgress(10);

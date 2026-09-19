@@ -53,14 +53,12 @@ const getInitialStats = (): UserStats => {
 
 const App: React.FC = () => {
   const [stats, setStatsState] = useState<UserStats>(getInitialStats());
-  const [hasApiKey, setHasApiKey] = useState(true);
   const [currentPath, setCurrentPath] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [isRefuelOpen, setIsRefuelOpen] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
 
-  const [manualKey, setManualKey] = useState('');
 
   // Local storage synchronized wrapper (centralized via services/storage.ts)
   const setStats = (newStats: UserStats | ((prev: UserStats) => UserStats)) => {
@@ -205,26 +203,6 @@ const App: React.FC = () => {
     };
   }, [user]);
 
-  // API Key Check
-  useEffect(() => {
-    const checkKey = async () => {
-      // Check for AI Studio key selector first
-      const aiStudio = (window as unknown as { aistudio?: import('./types').AiStudioWindow }).aistudio;
-      const hasKey = await aiStudio?.hasSelectedApiKey?.();
-      if (hasKey) {
-        setHasApiKey(true);
-      } else {
-        // Fallback to checking environment variable or localStorage for deployed apps
-        const envKey =
-          localStorage.getItem(STORAGE_KEYS.geminiApiKey) ||
-          (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-          (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
-        setHasApiKey(!!envKey);
-      }
-    };
-    checkKey();
-  }, []);
-
   // Theme Toggle Logic (persisted across page reloads)
   useEffect(() => {
     const html = document.documentElement;
@@ -237,31 +215,6 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   const toggleTheme = () => setIsDarkMode((prev) => !prev);
-
-  const handleSaveManualKey = () => {
-    if (!manualKey.trim()) {
-      toast.error("Please enter a valid Gemini API Key.");
-      return;
-    }
-    try {
-      localStorage.setItem(STORAGE_KEYS.geminiApiKey, manualKey.trim());
-      setHasApiKey(true);
-      toast.success("API key stored successfully! Module activated.");
-    } catch (e) {
-      toast.error("Failed to save the key locally.");
-    }
-  };
-
-  const handleOpenKeySelector = async () => {
-    const aiStudio = (window as unknown as { aistudio?: import('./types').AiStudioWindow }).aistudio;
-    if (aiStudio?.openSelectKey) {
-      await aiStudio.openSelectKey();
-      const hasKey = await aiStudio?.hasSelectedApiKey?.();
-      setHasApiKey(!!hasKey);
-    } else {
-      toast.error("Google AI Studio environment not detected here. Please use the manual input box below.");
-    }
-  };
 
   const handleLoginGoogle = async () => {
     const provider = new GoogleAuthProvider();
@@ -304,62 +257,6 @@ const App: React.FC = () => {
       return <AuthScreen onLoginGoogle={handleLoginGoogle} />;
     }
 
-    // If no API key, only allow Dashboard and Profile
-    if (!hasApiKey && currentPath !== 'dashboard' && currentPath !== 'profile' && currentPath !== 'brandkit') {
-      const aiStudio = (window as unknown as { aistudio?: import('./types').AiStudioWindow }).aistudio;
-      const isAiStudioEnv = typeof aiStudio !== 'undefined';
-      return (
-        <div className="flex items-center justify-center h-[60vh]">
-          <div className="max-w-md w-full glass p-8 rounded-[2.5rem] border border-white/10 text-center space-y-6">
-            <div className="w-16 h-16 bg-accent/20 rounded-2xl flex items-center justify-center mx-auto text-accent">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-              </svg>
-            </div>
-            <div className="space-y-2">
-              <h1 className="movie-h1 !mb-0 uppercase tracking-tighter">Gemini API Key</h1>
-              <p className="text-zinc-400 text-xs leading-relaxed px-2">
-                {isAiStudioEnv 
-                  ? "To run this application, select your Gemini API key from Google AI Studio."
-                  : "To run your deployed app, enter your Gemini API key below. Your key is stored securely in your local browser storage."}
-              </p>
-            </div>
-
-            {isAiStudioEnv ? (
-              <button 
-                onClick={handleOpenKeySelector}
-                className="w-full py-4 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-accent/20 transition-all active:scale-95"
-              >
-                Select API Key
-              </button>
-            ) : (
-              <div className="space-y-3 pt-2 text-left">
-                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-1 text-center">PASTE YOUR GEMINI API KEY</label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={manualKey}
-                    onChange={(e) => setManualKey(e.target.value)}
-                    placeholder="AIzaSy..."
-                    className="w-full px-4 py-3 bg-zinc-950/60 border border-white/15 focus:border-accent rounded-xl text-white text-xs outline-none focus:ring-1 focus:ring-accent font-mono text-center"
-                  />
-                </div>
-                <button 
-                  onClick={handleSaveManualKey}
-                  className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-accent/10 transition-all active:scale-95 mt-2"
-                >
-                  Activate & Save Key
-                </button>
-                <p className="text-[9px] text-zinc-500 text-center leading-relaxed mt-2">
-                  Key saved locally in your own browser's localStorage. Alternatively, set <code className="text-zinc-450 font-mono bg-zinc-900 border border-white/5 p-0.5 rounded">VITE_GEMINI_API_KEY</code> on Vercel dashboard.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-
     return (
       <ErrorBoundary moduleName="Lumini">
       <Suspense fallback={
@@ -380,7 +277,7 @@ const App: React.FC = () => {
             case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
             case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
             case 'video': return <VideoStudio onSpendCredits={spendCredits} />;
-            case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onApiKeyChange={(hasKey) => setHasApiKey(hasKey)} onLogout={handleLogout} />;
+            case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onLogout={handleLogout} />;
             default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
           }
         })()}
