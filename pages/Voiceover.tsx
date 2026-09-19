@@ -59,6 +59,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [styleFile, setStyleFile] = useState<File | null>(null);
   const [styleUrl, setStyleUrl] = useState<string | null>(null);
   const [styleProfile, setStyleProfile] = useState<SpeakingStyleProfile | null>(null);
+  const [savedStyles, setSavedStyles] = useState<Array<SpeakingStyleProfile & { id: string; name: string }>>([]);
+  const [activeStyleId, setActiveStyleId] = useState<string>('');
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cloneStatus, setCloneStatus] = useState<string>('');
@@ -170,6 +172,21 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
   useEffect(() => {
     setClones(loadClones());
+    try {
+      const stored = localStorage.getItem('lumini_speaking_styles');
+      if (stored) {
+        const parsed = JSON.parse(stored) as Array<SpeakingStyleProfile & { id: string; name: string }>;
+        setSavedStyles(parsed);
+        const savedActiveStyle = localStorage.getItem('lumini_active_style');
+        const active = parsed.find((style) => style.id === savedActiveStyle) || parsed[0];
+        if (active) {
+          setActiveStyleId(active.id);
+          setStyleProfile(active);
+        }
+      }
+    } catch {
+      localStorage.removeItem('lumini_speaking_styles');
+    }
     const savedActive = localStorage.getItem('lumini_active_clone');
     if (savedActive) setActiveCloneId(savedActive);
     const handleClickOutside = (event: MouseEvent) => {
@@ -232,9 +249,29 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     setStyleProfile(null);
     setError(null);
     try {
-      setStyleProfile(await analyzeSpeakingStyle(file));
+      const analyzed = await analyzeSpeakingStyle(file);
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'My style';
+      const saved = { ...analyzed, id: crypto.randomUUID(), name: baseName.slice(0, 32) };
+      const next = [saved, ...savedStyles.filter((style) => style.name.toLowerCase() !== saved.name.toLowerCase())].slice(0, 8);
+      setSavedStyles(next);
+      setActiveStyleId(saved.id);
+      setStyleProfile(saved);
+      localStorage.setItem('lumini_speaking_styles', JSON.stringify(next));
+      localStorage.setItem('lumini_active_style', saved.id);
     } catch {
       setError('Could not analyze the style sample. Try a clear audio file.');
+    }
+  };
+
+  const handleStyleSelect = (id: string) => {
+    setActiveStyleId(id);
+    localStorage.setItem('lumini_active_style', id);
+    const selected = savedStyles.find((style) => style.id === id) || null;
+    setStyleProfile(selected);
+    setStyleFile(null);
+    if (styleUrl) {
+      URL.revokeObjectURL(styleUrl);
+      setStyleUrl(null);
     }
   };
 
@@ -801,10 +838,21 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0">Speaking style</label>
             <span className="movie-meta !text-[8px] !mb-0 text-slate-500 dark:text-zinc-500">speed · pauses · rhythm</span>
           </div>
+          <select
+            aria-label="Choose a saved speaking style"
+            value={activeStyleId}
+            onChange={(event) => handleStyleSelect(event.target.value)}
+            className="mb-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 movie-body !text-[11px] text-slate-900 outline-none focus:border-accent dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
+          >
+            <option value="">Choose saved style</option>
+            {savedStyles.map((style) => (
+              <option key={style.id} value={style.id}>{style.name} · {style.rate.toFixed(2)}×</option>
+            ))}
+          </select>
           <label className={`flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2.5 cursor-pointer transition-colors ${styleFile ? 'border-accent bg-accent/5' : 'border-slate-300 hover:border-accent/60 dark:border-white/15'}`}>
             <div className="min-w-0">
               <p className="movie-body !text-[11px] !mb-0 truncate text-slate-800 dark:text-zinc-100">{styleFile?.name || 'Add a style sample'}</p>
-              <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-500">Use the sample’s speaking pace and delivery</p>
+              <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-500">Upload once to save a reusable style</p>
             </div>
             <span className="shrink-0 rounded-md bg-accent px-2.5 py-1 movie-meta !text-[8px] uppercase tracking-widest text-white">{styleFile ? 'Change' : 'Choose file'}</span>
             <input type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" onChange={handleStyleFileChange} className="hidden" />
