@@ -53,6 +53,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloneName, setCloneName] = useState('');
   const [cloneFile, setCloneFile] = useState<File | null>(null);
   const [cloneUrl, setCloneUrl] = useState<string | null>(null);
+  const [styleFile, setStyleFile] = useState<File | null>(null);
+  const [styleUrl, setStyleUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cloneStatus, setCloneStatus] = useState<string>('');
@@ -179,6 +181,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     };
   }, []);
 
+  useEffect(() => () => {
+    if (styleUrl) URL.revokeObjectURL(styleUrl);
+  }, [styleUrl]);
+
   // --- Voice Clone Studio handlers ---
   const activeClone = clones.find((c) => c.id === activeCloneId);
   const hasNeuralClone = Boolean(activeClone?.voiceId && (isVoiceCloneBackendConfigured() || getElevenKey()));
@@ -207,6 +213,19 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     setCloneFile(file);
     setCloneUrl(URL.createObjectURL(file));
     setCloneStatus(null);
+  };
+
+  const handleStyleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|ogg|webm)$/i)) {
+      setError('Style sample must be an audio file.');
+      return;
+    }
+    if (styleUrl) URL.revokeObjectURL(styleUrl);
+    setStyleFile(file);
+    setStyleUrl(URL.createObjectURL(file));
+    setError(null);
   };
 
   const handleRecord = async () => {
@@ -522,7 +541,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         </div>
         <div>
           <h1 className="movie-h2 !text-lg !mb-0 uppercase tracking-tighter">Voiceover Studio</h1>
-          <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">Neural Synthesis • {CREDIT_COSTS[ContentType.VOICEOVER]} Credits</p>
+          <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">{CREDIT_COSTS[ContentType.VOICEOVER]} credits</p>
         </div>
       </div>
 
@@ -561,7 +580,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             </div>
             <div>
               <h2 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">Voice Clone Studio</h2>
-              <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">Zero-Shot Cloning • Free Open Models • {cloneCost} Credits</p>
+              <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">{cloneCost} credits</p>
             </div>
           </div>
 
@@ -724,7 +743,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             </div>
             {activeClone && (
               <span className="shrink-0 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 movie-meta !text-[8px] uppercase tracking-widest text-accent !mb-0">
-                {hasNeuralClone ? 'Neural clone ready' : 'Style fallback'}
+                {hasNeuralClone ? 'Clone ready' : 'Needs clone'}
               </span>
             )}
           </div>
@@ -756,9 +775,25 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             </div>
           ) : (
             <p className="movie-meta !text-[9px] !mb-0 text-slate-500 dark:text-zinc-400">
-              {clones.length > 0 ? 'Choose a saved profile to use its voice with this script.' : 'No saved voice clones available.'}
+              {clones.length > 0 ? 'Select a saved voice.' : 'No saved voices.'}
             </p>
           )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-black/20">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0">Speaking style</label>
+            <span className="movie-meta !text-[8px] !mb-0 text-slate-500 dark:text-zinc-500">speed · pauses · rhythm</span>
+          </div>
+          <label className={`flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2.5 cursor-pointer transition-colors ${styleFile ? 'border-accent bg-accent/5' : 'border-slate-300 hover:border-accent/60 dark:border-white/15'}`}>
+            <div className="min-w-0">
+              <p className="movie-body !text-[11px] !mb-0 truncate text-slate-800 dark:text-zinc-100">{styleFile?.name || 'Add a style sample'}</p>
+              <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-500">Use the sample’s speaking pace and delivery</p>
+            </div>
+            <span className="shrink-0 rounded-md bg-accent px-2.5 py-1 movie-meta !text-[8px] uppercase tracking-widest text-white">{styleFile ? 'Change' : 'Choose file'}</span>
+            <input type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" onChange={handleStyleFileChange} className="hidden" />
+          </label>
+          {styleUrl && <audio controls src={styleUrl} className="mt-2 w-full h-8 rounded" />}
         </div>
 
         {/* Talent Selection */}
