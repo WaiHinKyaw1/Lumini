@@ -534,3 +534,52 @@ export const enhanceVoiceoverAudio = async (
   const blobUrl = URL.createObjectURL(new Blob([wavBytes], { type: 'audio/wav' }));
   return { blobUrl, dispose: () => URL.revokeObjectURL(blobUrl) };
 };
+
+export interface SpeakingStyleProfile {
+  durationSeconds: number;
+  pauseRatio: number;
+  rate: number;
+}
+
+export const analyzeSpeakingStyle = async (audio: Blob): Promise<SpeakingStyleProfile> => {
+  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
+  const context = new AudioContextClass();
+  const buffer = await context.decodeAudioData(await audio.arrayBuffer());
+  await context.close();
+  const channel = buffer.getChannelData(0);
+  const frameSize = Math.max(1, Math.floor(buffer.sampleRate * 0.04));
+  const energies: number[] = [];
+  for (let offset = 0; offset < channel.length; offset += frameSize) {
+    let sum = 0;
+    const end = Math.min(channel.length, offset + frameSize);
+    for (let i = offset; i < end; i += 1) sum += channel[i] * channel[i];
+    energies.push(Math.sqrt(sum / Math.max(1, end - offset)));
+  }
+  const peak = Math.max(...energies, 0.001);
+  const threshold = Math.max(0.008, peak * 0.12);
+  const activeRatio = energies.filter((energy) => energy >= threshold).length / Math.max(1, energies.length);
+  const pauseRatio = Math.max(0, Math.min(0.8, 1 - activeRatio));
+  // Approximate delivery speed from active speech density; keep the adjustment subtle.
+  const rate = Math.max(0.82, Math.min(1.18, 0.88 + activeRatio * 0.24));
+  return { durationSeconds: buffer.duration, pauseRatio, rate };
+};
+
+export const applySpeakingRate = async (audio: Blob, rate: number): Promise<Blob> => {
+  if (!Number.isFinite(rate) || Math.abs(rate - 1) < 0.02) return audio;
+  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
+  const decodeContext = new AudioContextClass();
+  const input = await decodeContext.decodeAudioData(await audio.arrayBuffer());
+  await decodeContext.close();
+  const OfflineAudioContextClass = (window as unknown as { OfflineAudioContext?: typeof OfflineAudioContext; webkitOfflineAudioContext?: typeof OfflineAudioContext }).OfflineAudioContext
+    || (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext
+    || OfflineAudioContext;
+  const outputLength = Math.max(1, Math.ceil(input.length / rate));
+  const offline = new OfflineAudioContextClass(1, outputLength, input.sampleRate);
+  const source = offline.createBufferSource();
+  source.buffer = input;
+  source.playbackRate.value = rate;
+  source.connect(offline.destination);
+  source.start(0);
+  const rendered = await offline.startRendering();
+  return new Blob([encodeWav(new Float32Array(rendered.getChannelData(0)), rendered.sampleRate, 1)], { type: 'audio/wav' });
+};

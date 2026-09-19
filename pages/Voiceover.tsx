@@ -18,7 +18,10 @@ import {
   synthesizeWithClone,
   getElevenKey,
   setElevenKey,
+  analyzeSpeakingStyle,
+  applySpeakingRate,
   type VoiceProfile,
+  type SpeakingStyleProfile,
 } from '../services/voiceClone';
 import { createBackendVoiceClone, isVoiceCloneBackendConfigured, synthesizeBackendVoiceClone } from '../services/voiceCloneApi';
 
@@ -55,6 +58,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [cloneUrl, setCloneUrl] = useState<string | null>(null);
   const [styleFile, setStyleFile] = useState<File | null>(null);
   const [styleUrl, setStyleUrl] = useState<string | null>(null);
+  const [styleProfile, setStyleProfile] = useState<SpeakingStyleProfile | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cloneStatus, setCloneStatus] = useState<string>('');
@@ -215,7 +219,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     setCloneStatus(null);
   };
 
-  const handleStyleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStyleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|ogg|webm)$/i)) {
@@ -225,7 +229,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     if (styleUrl) URL.revokeObjectURL(styleUrl);
     setStyleFile(file);
     setStyleUrl(URL.createObjectURL(file));
+    setStyleProfile(null);
     setError(null);
+    try {
+      setStyleProfile(await analyzeSpeakingStyle(file));
+    } catch {
+      setError('Could not analyze the style sample. Try a clear audio file.');
+    }
   };
 
   const handleRecord = async () => {
@@ -475,6 +485,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             console.warn('Clone post-processing skipped:', e);
           }
         }
+      }
+
+      if (styleProfile) {
+        const rendered = await applySpeakingRate(await (await fetch(blobUrl)).blob(), styleProfile.rate);
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = URL.createObjectURL(rendered);
       }
 
       if (isMounted.current) {
@@ -794,6 +810,11 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             <input type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" onChange={handleStyleFileChange} className="hidden" />
           </label>
           {styleUrl && <audio controls src={styleUrl} className="mt-2 w-full h-8 rounded" />}
+          {styleProfile && (
+            <p className="movie-meta !text-[8px] !mb-0 text-accent">
+              Style matched · {styleProfile.rate.toFixed(2)}× delivery · {Math.round(styleProfile.pauseRatio * 100)}% pause profile
+            </p>
+          )}
         </div>
 
         {/* Talent Selection */}
