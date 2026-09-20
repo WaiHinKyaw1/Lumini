@@ -40,6 +40,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [voicePitch, setVoicePitch] = useState(0); 
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPreviewing, setIsPreviewing] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -474,6 +475,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     if (!onSpendCredits(CREDIT_COSTS[ContentType.VOICEOVER])) { setError("Not enough credits."); return; }
 
     setIsProcessing(true);
+    setProcessingStage('Preparing your voiceover…');
     const char = characters.find(c => c.id === characterId);
     
     // Create a voice map for multi-voice tagging (includes voice clones)
@@ -498,6 +500,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
       if (isMounted.current && canUseRemoteClone && activeClone?.voiceId) {
         // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
+        setProcessingStage('Generating with your cloned voice…');
         const audioBlob = isVoiceCloneBackendConfigured()
           ? await synthesizeBackendVoiceClone(activeClone.voiceId, text)
           : await synthesizeWithClone(activeClone.voiceId, text);
@@ -505,6 +508,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       } else if (activeClone) {
         throw new Error('The selected voice clone is unavailable. Please recreate it or configure the voice provider.');
       } else {
+        setProcessingStage('Generating Burmese speech…');
         blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone, clonePrefix);
 
         // Post-process towards the cloned voice if one is active
@@ -525,6 +529,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       }
 
       if (styleProfile) {
+        setProcessingStage('Matching speaking style…');
         const rendered = await applySpeakingRate(await (await fetch(blobUrl)).blob(), styleProfile.rate);
         URL.revokeObjectURL(blobUrl);
         blobUrl = URL.createObjectURL(rendered);
@@ -536,6 +541,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       
       const currentUser = auth.currentUser;
       if (currentUser) {
+        setProcessingStage('Saving your result…');
         await logGeneration(
           currentUser.uid,
           currentUser.email || '',
@@ -578,7 +584,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         }
     } 
     finally { 
-        if (isMounted.current) setIsProcessing(false); 
+        if (isMounted.current) {
+          setIsProcessing(false);
+          setProcessingStage(null);
+        }
     }
   };
 
@@ -990,6 +999,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
             />
           </div>
         </div>
+
+        {isProcessing && (
+          <div className="pt-2 space-y-2" role="status" aria-live="polite">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-accent">
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+              <span>{processingStage || 'Processing…'}</span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+              <div className="h-full w-1/3 rounded-full bg-accent animate-[voiceProgress_1.4s_ease-in-out_infinite]" />
+            </div>
+          </div>
+        )}
 
         <div className="pt-1">
           <button

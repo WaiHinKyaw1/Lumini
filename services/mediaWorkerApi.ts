@@ -59,7 +59,7 @@ export async function uploadMedia(file: File, onProgress?: (progress: number) =>
   const baseUrl = requireBaseUrl();
   const body = new FormData();
   body.append('file', file);
-  const response = await fetchWithTimeout(`${baseUrl}/api/media/upload`, { method: 'POST', body });
+  const response = await fetchWithTimeout(`${baseUrl}/api/media/upload`, { method: 'POST', body }, 10 * 60 * 1000);
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Media upload failed.');
   onProgress?.(100);
   return response.json() as Promise<MediaUploadResult>;

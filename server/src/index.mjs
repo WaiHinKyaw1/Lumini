@@ -90,7 +90,17 @@ app.post('/api/media/upload', async (request, reply) => {
   const fileId = randomUUID();
   const filename = `${fileId}-${safeName(part.filename || 'media')}`;
   const destination = path.join(INPUT_DIR, filename);
-  await pipeline(part.file, createWriteStream(destination));
+  try {
+    await pipeline(part.file, createWriteStream(destination));
+  } catch (error) {
+    await fs.rm(destination, { force: true });
+    if (error?.code === 'ERR_STREAM_PREMATURE_CLOSE' || request.raw.aborted) {
+      request.log.warn({ code: error?.code }, 'media upload interrupted by client');
+      return jsonError(reply, 499, 'Media upload was interrupted. Please retry the upload.');
+    }
+    request.log.error(error, 'media upload failed');
+    return jsonError(reply, 500, 'Media upload failed while saving the file.');
+  }
   if (part.file.truncated) {
     await fs.rm(destination, { force: true });
     return jsonError(reply, 413, 'File exceeds the configured upload limit.');
