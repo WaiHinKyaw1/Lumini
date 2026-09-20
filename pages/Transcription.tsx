@@ -6,6 +6,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 
 interface TranscriptionProps {
@@ -274,11 +275,8 @@ Rules:
             </button>
           </div>
         ) : isProcessing ? (
-          <div className="py-12 text-center space-y-4">
-            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-              <div className="bg-accent h-full rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(225,29,72,0.4)]" style={{ width: `${progress}%` }}></div>
-            </div>
-            <p className="movie-meta !text-[10px] uppercase tracking-widest text-zinc-500 animate-pulse">{MESSAGES[messageIndex]}</p>
+          <div className="flex min-h-40 items-center justify-center">
+            <LoadingSpinner size="lg" showLabel={false} />
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

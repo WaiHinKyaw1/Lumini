@@ -18,7 +18,7 @@ export function LoadingSpinner({
   size = 'md',
   label = 'Loading...',
   className = '',
-  showLabel = true,
+  showLabel = false,
 }: LoadingSpinnerProps) {
   const sizes = sizeMap[size];
 

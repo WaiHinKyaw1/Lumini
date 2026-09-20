@@ -7,6 +7,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { createSyncJob, isMediaWorkerAvailable, isMediaWorkerConfigured, getOutputUrl, uploadMedia, waitForSyncJob } from '../services/mediaWorkerApi';
 
 interface MovieRecapProps {
@@ -568,51 +569,9 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#09090b]"
           >
-            <div className="w-full max-w-md px-6 text-center space-y-8">
-              <div className="relative mx-auto w-32 h-32">
-                <motion.div
-                  className="absolute inset-0 border-4 border-indigo-500/20 rounded-full"
-                  animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.5, 0.2] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-                <motion.div
-                   className="absolute inset-0 border-t-4 border-indigo-500 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)]"
-                   animate={{ rotate: 360 }}
-                   transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-black text-white">{progress}%</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-white tracking-tight">Synthesizing Recap</h2>
-                <p className="text-zinc-400 text-sm">Our AI is processing cinematic effects and synchronizing audio channels.</p>
-              </div>
-
-              <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/5 p-0.5">
-                <motion.div
-                  className="h-full bg-indigo-500 rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                />
-              </div>
-
-              <div className="flex justify-center gap-4 pt-4">
-                 {['Analyzing Frames', 'Applying Motion', 'Finalizing Render'].map((step, i) => (
-                   <motion.div
-                    key={step}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: progress > (i * 30) ? 1 : 0.4, y: 0 }}
-                    className="text-[8px] font-black uppercase tracking-widest text-indigo-400"
-                   >
-                     {step}
-                   </motion.div>
-                 ))}
-              </div>
-            </div>
+            <LoadingSpinner size="lg" showLabel={false} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,5 +1,6 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { generateSubtitles } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
@@ -451,10 +452,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
                 <p className="text-xs text-slate-500 dark:text-zinc-600 uppercase tracking-wide !mb-0">Select a file from the queue to view subtitles</p>
               </div>
             ) : selectedItem.status === 'processing' ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center">
-                <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 uppercase tracking-wide animate-pulse !mb-0">Transcribing media content...</p>
-                <p className="text-[10px] text-slate-400 dark:text-zinc-600 mt-2 uppercase tracking-wide !mb-0">This may take a minute for larger files</p>
+              <div className="flex flex-1 items-center justify-center">
+                <LoadingSpinner size="lg" showLabel={false} />
               </div>
             ) : selectedItem.status === 'failed' ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center text-rose-500">
@@ -522,4 +521,3 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
 };
 
 export default SubtitleStudio;
-

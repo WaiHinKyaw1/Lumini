@@ -7,6 +7,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 
 interface ThumbnailGenProps {
@@ -337,9 +338,8 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
 
         <div className="lg:col-span-7">
           {isGenerating ? (
-            <div className="aspect-video rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0c0c0e] flex flex-col items-center justify-center animate-pulse">
-              <div className="w-10 h-10 border-4 border-gray-200 dark:border-white/10 border-t-accent rounded-full animate-spin mb-4"></div>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 uppercase tracking-wide !mb-0">Processing Neural Design...</p>
+            <div className="aspect-video flex items-center justify-center">
+              <LoadingSpinner size="lg" showLabel={false} />
             </div>
           ) : result ? (
             <div className="space-y-4">

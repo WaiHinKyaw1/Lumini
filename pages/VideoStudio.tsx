@@ -6,6 +6,7 @@ import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { ModuleLogHistory } from '../components/ModuleLogHistory';
 import { RecentHistory } from '../components/RecentHistory';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { merger, measureAudioDuration, estimateSyncSpeed } from '../services/videoMerger';
 import { loadBatchQueue, saveBatchQueue, removeFromBatch, addToBatch, BatchItem, BatchStatus } from '../services/batchQueue';
 import { getRefuelState } from '../services/refuelEngine';
@@ -574,16 +575,8 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
 
         {/* Loading Overlay */}
         {isProcessing && (
-          <div className="absolute inset-0 bg-white/90 dark:bg-black/80 backdrop-blur-sm z-50 rounded-2xl flex flex-col items-center justify-center p-8 transition-opacity duration-300">
-            <div className="w-14 h-14 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2 animate-pulse">{statusMessage}</p>
-            <div className="w-64 bg-gray-200 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
-              <div
-                className="bg-accent h-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-2">{progress}% completed</p>
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white dark:bg-[#0c0c0e] transition-opacity duration-300">
+            <LoadingSpinner size="lg" showLabel={false} />
           </div>
         )}
 

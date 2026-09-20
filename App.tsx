@@ -259,13 +259,7 @@ const App: React.FC = () => {
 
     return (
       <ErrorBoundary moduleName="Lumini">
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-[60vh] px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 px-6 py-10 shadow-sm">
-            <LoadingSpinner size="lg" label="Lumini ကို ပြင်ဆင်နေပါသည်..." />
-          </div>
-        </div>
-      }>
+      <Suspense fallback={<div className="flex min-h-[calc(100vh-56px)] items-center justify-center"><LoadingSpinner size="lg" showLabel={false} /></div>}>
         {(() => {
           switch (currentPath) {
             case 'dashboard': return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
