@@ -142,9 +142,9 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
     if (!file) return;
     setError(null);
 
-    // Prevent mobile OOM crashes from huge base64 strings
-    if (file.size > 50 * 1024 * 1024) {
-      setError("File is too large (Max 50MB). Please use a smaller file to prevent mobile browser crashes.");
+    // Keep a practical browser limit while allowing larger movie files.
+    if (file.size > 200 * 1024 * 1024) {
+      setError("File is too large (Max 200MB). Please use a smaller file.");
       return;
     }
 
