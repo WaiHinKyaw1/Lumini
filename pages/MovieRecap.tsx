@@ -17,6 +17,7 @@ interface MovieRecapProps {
 const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   // --- State: Media ---
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoSourceUrl, setVideoSourceUrl] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(0);
@@ -47,6 +48,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [blurIntensity, setBlurIntensity] = useState(20);
 
   const [logoPosition, setLogoPosition] = useState('Top Right');
+  const [subtitleStyle, setSubtitleStyle] = useState('akkhayar-outline');
 
   // Zoom Settings
   const [zoomEnabled, setZoomEnabled] = useState(true);
@@ -111,6 +113,27 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setVideoUrl(url);
       setResultUrl(null);
       setVideoSpeed(1.0);
+    }
+  };
+
+  const handleVideoUrl = async () => {
+    const source = videoSourceUrl.trim();
+    if (!source) return;
+    try {
+      setError(null);
+      const response = await fetch(source);
+      if (!response.ok) throw new Error('Could not load this video URL. Use a public direct video link.');
+      const blob = await response.blob();
+      if (!blob.type.startsWith('video/')) throw new Error('The URL did not return a video file.');
+      const file = new File([blob], 'recap-source.mp4', { type: blob.type || 'video/mp4' });
+      if (file.size > 100 * 1024 * 1024) throw new Error('Video is too large (maximum 100MB).');
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      setVideoFile(file);
+      setVideoUrl(URL.createObjectURL(file));
+      setResultUrl(null);
+      setVideoSpeed(1.0);
+    } catch (err: unknown) {
+      setError((err as { message?: string })?.message || 'Could not load the video URL.');
     }
   };
 
@@ -563,271 +586,17 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
   return (
     <div className="module-page max-w-4xl mx-auto pb-8">
-      <AnimatePresence>
-        {isProcessing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[#09090b]"
-          >
-            <LoadingSpinner size="lg" showLabel={false} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2.5 rounded-xl bg-accent/10 flex items-center justify-center">
-          <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 21h16a1 1 0 001-1V4a1 1 0 00-1-1H4a1 1 0 00-1 1v16a1 1 0 001 1z" />
-          </svg>
+      <AnimatePresence>{isProcessing && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#09090b]"><LoadingSpinner size="lg" showLabel={false} /></motion.div>}</AnimatePresence>
+      <div className="mb-5"><h1 className="text-xl font-bold text-slate-900 dark:text-white !mb-1">Movie Studio</h1><p className="text-xs text-slate-500 dark:text-zinc-400">Upload a video, choose a subtitle style, then render your Burmese recap.</p></div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] gap-4">
+        <div className="space-y-3">
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 space-y-3"><div className="flex items-center justify-between"><h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-300">1. Video source</h2>{videoFile && <span className="text-[10px] text-emerald-500 font-semibold">Ready</span>}</div><button onClick={() => videoInputRef.current?.click()} className="w-full py-3 rounded-xl border border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-400 hover:bg-indigo-500/5 text-[11px] font-bold text-slate-500 transition-all">{videoFile ? videoFile.name : 'Upload video file'}</button><div className="flex gap-2"><input value={videoSourceUrl} onChange={(e) => setVideoSourceUrl(e.target.value)} placeholder="Or paste a public video URL" className="min-w-0 flex-1 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-2 text-xs outline-none focus:border-indigo-400" /><button onClick={handleVideoUrl} disabled={!videoSourceUrl.trim()} className="px-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-black text-[10px] font-bold disabled:opacity-40">Load</button></div><input type="file" ref={videoInputRef} accept="video/*" onChange={handleVideoUpload} className="hidden" /></section>
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 space-y-3"><div className="flex items-center justify-between"><h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-300">2. Subtitle font</h2><span className="text-[10px] text-indigo-500 font-semibold">Akkhayar 21</span></div><div className="grid grid-cols-2 gap-2">{[['akkhayar-outline', 'White + outline'], ['akkhayar-yellow', 'Yellow highlight'], ['akkhayar-box', 'Dark subtitle box'], ['akkhayar-clean', 'Clean white']].map(([value, label]) => <button key={value} onClick={() => setSubtitleStyle(value)} className={`rounded-xl border px-3 py-3 text-left transition-all ${subtitleStyle === value ? 'border-indigo-500 bg-indigo-500/10' : 'border-gray-200 dark:border-white/10 hover:border-indigo-300'}`}><span className={`block text-base ${value === 'akkhayar-yellow' ? 'text-amber-400' : 'text-slate-900 dark:text-white'}`} style={{ fontFamily: 'Akkhayar21, sans-serif' }}>မြန်မာစာ</span><span className="block mt-1 text-[9px] text-slate-500 dark:text-zinc-400">{label}</span></button>)}</div></section>
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 space-y-3"><div className="flex items-center justify-between"><h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-300">3. Blur strip</h2><input type="checkbox" checked={blurEnabled} onChange={(e) => setBlurEnabled(e.target.checked)} className="accent-indigo-500" /></div>{blurEnabled && <div className="grid grid-cols-3 gap-3"><label className="text-[9px] text-slate-500 dark:text-zinc-400"><span className="flex justify-between mb-1"><span>Position</span><span>{blurPosition}%</span></span><input type="range" min="0" max="100" value={blurPosition} onChange={(e) => setBlurPosition(Number(e.target.value))} className="w-full accent-indigo-500" /></label><label className="text-[9px] text-slate-500 dark:text-zinc-400"><span className="flex justify-between mb-1"><span>Height</span><span>{blurThickness}%</span></span><input type="range" min="5" max="50" value={blurThickness} onChange={(e) => setBlurThickness(Number(e.target.value))} className="w-full accent-indigo-500" /></label><label className="text-[9px] text-slate-500 dark:text-zinc-400"><span className="flex justify-between mb-1"><span>Strength</span><span>{blurIntensity}%</span></span><input type="range" min="0" max="50" value={blurIntensity} onChange={(e) => setBlurIntensity(Number(e.target.value))} className="w-full accent-indigo-500" /></label></div>}</section>
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 space-y-3"><h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-300">4. Aspect ratio</h2><div className="grid grid-cols-4 gap-2">{['16:9', '9:16', '1:1', '4:5'].map((ratio) => <button key={ratio} onClick={() => setAspectRatio(ratio)} className={`rounded-lg py-2 text-[10px] font-bold ${aspectRatio === ratio ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-slate-500'}`}>{ratio}</button>)}</div></section>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Movie Recap Studio</h1>
-          <p className="text-xs text-slate-500 dark:text-zinc-300 mt-1">Professional Sync & Effects • {CREDIT_COSTS[ContentType.MOVIE_RECAP]} Credits</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-4">
-            <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4">
-                <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400">Source Selection</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => videoInputRef.current?.click()} className={`p-4 rounded-xl border border-dashed flex flex-col items-center gap-2 transition-all ${videoFile ? 'border-indigo-500 bg-indigo-500/5' : 'border-gray-300 dark:border-white/10 hover:border-indigo-400 hover:bg-indigo-500/5'}`}>
-                        <svg className={`w-6 h-6 ${videoFile ? 'text-indigo-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                        <span className={`text-[10px] font-bold uppercase truncate max-w-full ${videoFile ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>{videoFile ? 'Video Loaded' : 'Add Video'}</span>
-                    </button>
-                    <button onClick={() => audioInputRef.current?.click()} className={`p-4 rounded-xl border border-dashed flex flex-col items-center gap-2 transition-all ${audioFile ? 'border-emerald-500 bg-emerald-500/5' : 'border-gray-300 dark:border-white/10 hover:border-emerald-400 hover:bg-emerald-500/5'}`}>
-                        <svg className={`w-6 h-6 ${audioFile ? 'text-emerald-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                        <span className={`text-[10px] font-bold uppercase truncate max-w-full ${audioFile ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>{audioFile ? 'Audio Loaded' : 'Add Audio'}</span>
-                    </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setShowAIPrompt(!showAIPrompt)}
-                      className="flex items-center justify-center gap-2 py-2 px-2 rounded-lg border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-500 text-[10px] font-bold uppercase transition-all"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                      {showAIPrompt ? 'Close AI' : 'Generate with AI'}
-                    </button>
-                    <div className="flex gap-2">
-                         <button onClick={() => logoInputRef.current?.click()} className="flex-1 py-2 px-2 border border-dashed border-gray-300 dark:border-white/10 rounded-lg text-[10px] font-bold text-slate-500 hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
-                            {logoFile ? 'Change Logo' : 'Add Overlay'}
-                         </button>
-                         {logoFile && <button onClick={() => {setLogoFile(null); setLogoImage(null); setLogoUrl(null);}} className="px-3 rounded-lg bg-gray-100 dark:bg-white/5 hover:bg-rose-500 hover:text-white text-slate-500 transition-all"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
-                    </div>
-                </div>
-
-                <AnimatePresence>
-                  {showAIPrompt && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden space-y-4"
-                    >
-                      {!hasKey ? (
-                        <div className="p-4 rounded-xl bg-orange-50 dark:bg-orange-500/5 border border-orange-200 dark:border-orange-500/20 text-center space-y-3">
-                          <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">API Key required for Veo generation</p>
-                          <button onClick={handleOpenKey} className="px-4 py-1.5 bg-orange-500 text-white rounded-lg text-[10px] font-bold uppercase hover:bg-orange-600 transition-all">Select API Key</button>
-                        </div>
-                      ) : (
-                        <>
-                          <textarea
-                            value={aiPrompt}
-                            onChange={(e) => setAiPrompt(e.target.value)}
-                            placeholder="Describe your scene... (e.g., A cinematic wide shot of a futuristic neon city at night, heavy rain)"
-                            className="w-full h-24 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-indigo-500 resize-none text-slate-700 dark:text-zinc-200"
-                          />
-                          <button
-                            onClick={generateAIVideo}
-                            disabled={isGeneratingVideo || !aiPrompt.trim()}
-                            className={`w-full py-2 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all ${isGeneratingVideo || !aiPrompt.trim() ? 'bg-gray-100 dark:bg-white/5 text-slate-400' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'}`}
-                          >
-                            {isGeneratingVideo ? 'Consulting Veo Model...' : 'Synthesis with AI'}
-                          </button>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <input type="file" ref={videoInputRef} accept="video/*" onChange={handleVideoUpload} className="hidden" />
-                <input type="file" ref={audioInputRef} accept="audio/*" onChange={handleAudioUpload} className="hidden" />
-                <input type="file" ref={logoInputRef} accept="image/*" onChange={handleLogoUpload} className="hidden" />
-            </div>
-
-            <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400">Visual Controls</h3>
-                    <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-[10px] font-bold px-2 py-1.5 text-slate-700 dark:text-zinc-100 outline-none">
-                        <option value="16:9">YouTube (16:9)</option>
-                        <option value="9:16">TikTok (9:16)</option>
-                        <option value="1:1">Square (1:1)</option>
-                        <option value="4:5">Portrait (4:5)</option>
-                    </select>
-                </div>
-
-                {/* Zoom Effect */}
-                <div className="space-y-3">
-                     <div className="flex items-center justify-between">
-                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Cinematic Zoom</span>
-                         <input type="checkbox" checked={zoomEnabled} onChange={e => setZoomEnabled(e.target.checked)} className="accent-indigo-500" />
-                     </div>
-                     {zoomEnabled && (
-                        <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-indigo-500/20 py-1">
-                            <div>
-                                <div className="flex justify-between text-[10px] font-semibold text-slate-400 dark:text-zinc-400 mb-2 uppercase"><span>Rate</span><span>{zoomInterval}s</span></div>
-                                <input type="range" min="1" max="10" step="1" value={zoomInterval} onChange={(e) => setZoomInterval(Number(e.target.value))} className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[10px] font-semibold text-slate-400 dark:text-zinc-400 mb-2 uppercase"><span>Size</span><span>{zoomDuration}s</span></div>
-                                <input type="range" min="1" max="10" step="1" value={zoomDuration} onChange={(e) => setZoomDuration(Number(e.target.value))} className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
-                            </div>
-                        </div>
-                     )}
-                </div>
-
-                {/* Blur Strip */}
-                <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-white/10">
-                     <div className="flex items-center justify-between">
-                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Sub-Text Blur Strip</span>
-                         <input type="checkbox" checked={blurEnabled} onChange={e => setBlurEnabled(e.target.checked)} className="accent-indigo-500" />
-                     </div>
-                     {blurEnabled && (
-                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-indigo-500/20 py-1">
-                            <div>
-                                <div className="flex justify-between text-[10px] font-semibold text-slate-400 dark:text-zinc-400 mb-2 uppercase"><span>Pos</span><span>{blurPosition}%</span></div>
-                                <input type="range" min="0" max="100" value={blurPosition} onChange={(e) => setBlurPosition(Number(e.target.value))} className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[10px] font-semibold text-slate-400 dark:text-zinc-400 mb-2 uppercase"><span>H</span><span>{blurThickness}%</span></div>
-                                <input type="range" min="5" max="50" value={blurThickness} onChange={(e) => setBlurThickness(Number(e.target.value))} className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[10px] font-semibold text-slate-400 dark:text-zinc-400 mb-2 uppercase"><span>Strength</span><span>{blurIntensity}px</span></div>
-                                <input type="range" min="0" max="50" value={blurIntensity} onChange={(e) => setBlurIntensity(Number(e.target.value))} className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500" />
-                            </div>
-                        </div>
-                     )}
-                </div>
-            </div>
-
-            <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400">Sync Tuning</h3>
-                    {audioDuration > 0 && <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 font-mono uppercase">Target: {formatDurationFull(audioOutputDur)}</span>}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-indigo-500/10">
-                        <div className="text-[10px] font-bold text-slate-400 dark:text-zinc-400 uppercase text-center tracking-wide">Video Warp</div>
-                        <input type="number" step="0.001" value={videoSpeed} onChange={e => setVideoSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 rounded-lg py-2 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 text-center outline-none" />
-                        <div className="text-center">
-                            <div className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 font-mono tabular-nums">{formatDurationFull(videoOutputDur)}</div>
-                        </div>
-                        <button onClick={() => {if (videoDuration && audioDuration) setVideoSpeed(Number((videoDuration / (audioDuration / audioSpeed)).toFixed(4)))}} className="w-full py-2 px-2 rounded-lg bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wide hover:bg-indigo-500 transition-all active:scale-[0.98]">Match to Audio</button>
-                    </div>
-                    <div className="space-y-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-rose-500/10">
-                        <div className="text-[10px] font-bold text-slate-400 dark:text-zinc-400 uppercase text-center tracking-wide">Audio Warp</div>
-                        <input type="number" step="0.001" value={audioSpeed} onChange={e => setAudioSpeed(Number(e.target.value))} className="w-full bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 rounded-lg py-2 px-3 text-xs font-bold text-rose-500 dark:text-rose-400 text-center outline-none" />
-                        <div className="text-center">
-                            <div className="text-[10px] font-bold text-rose-500 dark:text-rose-400 font-mono tabular-nums">{formatDurationFull(audioOutputDur)}</div>
-                        </div>
-                        <button onClick={() => {if (videoDuration && audioDuration) setAudioSpeed(Number((audioDuration / (videoDuration / videoSpeed)).toFixed(4)))}} className="w-full py-2 px-2 rounded-lg bg-rose-600 text-white text-[10px] font-bold uppercase tracking-wide hover:bg-rose-500 transition-all active:scale-[0.98]">Match to Video</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div className="space-y-4">
-            <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-xl border border-gray-200 dark:border-white/10 group">
-                {videoUrl ? (
-                     <>
-                        <canvas ref={previewCanvasRef} className="max-w-full max-h-full object-contain mx-auto" />
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:bg-black/20 transition-all">
-                            <button onClick={togglePlayback} className={`pointer-events-auto w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-indigo-600/50 hover:scale-110 active:scale-95 transition-all cursor-pointer ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
-                                {isPlaying ? <svg className="w-5 h-5 transition-all" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg> : <svg className="w-5 h-5 ml-1 transition-all" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
-                            </button>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-mono font-bold text-white tabular-nums">{formatTimeSimple(currentTime)}</span>
-                                <div className="flex-1 relative h-1 flex items-center">
-                                  <div className="absolute inset-0 bg-white/20 rounded-full" />
-                                  <div className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full" style={{ width: `${(currentTime / videoDuration) * 100}%` }} />
-                                  <input type="range" min="0" max={videoDuration} step="0.001" value={currentTime} onChange={handleSeek} className="absolute inset-0 w-full opacity-0 cursor-pointer" />
-                                </div>
-                                <span className="text-[10px] font-mono font-bold text-zinc-400 tabular-nums">{formatTimeSimple(videoDuration)}</span>
-                            </div>
-                        </div>
-                     </>
-                ) : (
-                    <div className="flex flex-col items-center justify-center h-full">
-                         <motion.div
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mb-3 border border-white/10"
-                         >
-                           <svg className="w-8 h-8 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                         </motion.div>
-                         <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wide">Cinematic Preview</p>
-                    </div>
-                )}
-            </div>
-
-            <button onClick={handleGenerate} aria-label="Movie Recap ထုတ်လုပ်ရန်" disabled={isProcessing || !videoUrl} className={`w-full py-2.5 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all relative overflow-hidden ${isProcessing || !videoUrl ? 'bg-gray-100 dark:bg-white/5 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}>
-                {isProcessing ? `Rendering Synthesis ${progress}%` : 'Execute Master Render'}
-                {!isProcessing && videoUrl && (
-                   <motion.div
-                    className="absolute inset-0 bg-white/10"
-                    animate={{ x: ['-100%', '100%'] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                   />
-                )}
-            </button>
-
-            <video ref={videoRef} src={videoUrl || ""} className="hidden" playsInline muted={true} onLoadedMetadata={onVideoLoaded} />
-            <audio ref={audioRef} src={audioUrl || ""} className="hidden" onLoadedMetadata={onAudioLoaded} />
-
-            <AnimatePresence>
-              {resultUrl && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="rounded-2xl border border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/5 p-4 sm:p-5"
-                >
-                        <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-2">
-                           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                           <h3 className="text-[10px] font-bold uppercase text-slate-900 dark:text-white tracking-wide">Synthesis Complete</h3>
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => setResultUrl(null)} className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 text-slate-500 hover:text-rose-500 text-[10px] font-bold uppercase transition-all">Discard</button>
-                            <a href={resultUrl} download={`recap_${Date.now()}.${outputMimeType.includes('mp4') ? 'mp4' : 'webm'}`} className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all">Download</a>
-                        </div>
-                    </div>
-                    <video src={resultUrl} controls className="w-full rounded-xl bg-black aspect-video border border-gray-200 dark:border-white/10" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-500 text-[10px] font-bold text-center uppercase tracking-wide"
-              >
-                {error}
-              </motion.div>
-            )}
-        </div>
-      </div>
-
-      <RecentHistory moduleName="movierecap" onRestore={handleRestoreRecap} />
-      <div className="mt-3" />
-      <ModuleLogHistory moduleName="movierecap" refreshTrigger={refreshTrigger} />
+        <div className="space-y-3"><div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-xl border border-gray-200 dark:border-white/10">{videoUrl ? <><canvas ref={previewCanvasRef} className="max-w-full max-h-full object-contain mx-auto" /><button onClick={togglePlayback} className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl">{isPlaying ? 'Ⅱ' : '▶'}</button></> : <div className="flex items-center justify-center h-full text-[11px] text-zinc-500">Your video preview will appear here</div>}</div><button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className="w-full rounded-xl py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold disabled:opacity-40 disabled:cursor-not-allowed">{isProcessing ? `Rendering ${progress}%` : 'Generate Burmese recap'}</button><video ref={videoRef} src={videoUrl || ''} className="hidden" playsInline muted onLoadedMetadata={onVideoLoaded} /><audio ref={audioRef} src={audioUrl || ''} className="hidden" onLoadedMetadata={onAudioLoaded} />{resultUrl && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3"><div className="flex items-center justify-between mb-2"><span className="text-[11px] font-bold text-emerald-500">Recap ready</span><a href={resultUrl} download={`recap_${Date.now()}.mp4`} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-bold text-white">Download</a></div><video src={resultUrl} controls className="w-full rounded-xl bg-black aspect-video" /></div>}{error && <div className="rounded-xl bg-rose-500/10 px-3 py-2 text-center text-[10px] font-bold text-rose-500">{error}</div>}</div>
+      </div><RecentHistory moduleName="movierecap" onRestore={handleRestoreRecap} /><div className="mt-3" /><ModuleLogHistory moduleName="movierecap" refreshTrigger={refreshTrigger} />
     </div>
   );
 };
