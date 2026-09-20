@@ -207,7 +207,14 @@ function buildVideoFilter(settings) {
     `pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`,
   ];
   if (settings.videoSpeed !== 1) filters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
-  return filters.join(',');
+  const base = filters.join(',');
+  if (!settings.blurEnabled) return base;
+
+  const thickness = (settings.blurThickness / 100).toFixed(4);
+  const topValue = Math.max(0, Math.min(1 - Number(thickness), (settings.blurPosition - settings.blurThickness / 2) / 100));
+  const top = topValue.toFixed(4);
+  const radius = Math.max(1, Math.round(settings.blurIntensity / 5));
+  return `${base},split=2[base][blurSource];[blurSource]crop=iw:ih*${thickness}:0:ih*${top},boxblur=luma_radius=${radius}:luma_power=1[blurBand];[base][blurBand]overlay=0:main_h*${top},drawbox=x=0:y=ih*${top}:w=iw:h=ih*${thickness}:color=black@0.4:t=fill`;
 }
 
 function buildAudioFilter(speed) {

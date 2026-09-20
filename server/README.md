@@ -50,6 +50,6 @@ docker run -d --name lumini-media-worker --restart unless-stopped -p 8080:8080 \
 
 ## Current scope
 
-This first version supports video input, optional replacement audio, video/audio speed controls, aspect-ratio padding, MP4/H.264 output, health checks, job status, cancellation flags, and automatic cleanup. Logo compositing, blur strips, zoom effects, authentication, signed object-storage URLs, resumable uploads, and voice-provider proxying are intentionally reserved for later phases. The browser fallback remains the path for those visual effects until their server equivalents are implemented.
+This version supports video input, optional replacement audio, video/audio speed controls, aspect-ratio padding, configurable blur strips, MP4/H.264 output, health checks, job status, cancellation flags, and automatic cleanup. Logo compositing, zoom effects, authentication, signed object-storage URLs, and resumable uploads remain reserved for later phases.
 
 Do not expose this endpoint publicly until authentication, rate limiting, and private storage are configured.
