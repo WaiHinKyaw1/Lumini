@@ -18,11 +18,11 @@ export async function createBackendVoiceClone(name: string, audioFile: File): Pr
   return response.json() as Promise<{ voiceId: string; name: string }>;
 }
 
-export async function synthesizeBackendVoiceClone(voiceId: string, text: string): Promise<Blob> {
+export async function synthesizeBackendVoiceClone(voiceId: string, text: string, speed = 1): Promise<Blob> {
   const response = await fetch(`${requireBaseUrl()}/api/voice-clones/${encodeURIComponent(voiceId)}/synthesize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, speed }),
   });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Could not synthesize cloned speech.');
   return response.blob();

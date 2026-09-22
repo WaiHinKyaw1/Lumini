@@ -501,8 +501,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       if (isMounted.current && canUseRemoteClone && activeClone?.voiceId) {
         // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
         setProcessingStage('Generating with your cloned voice…');
+        const requestedRate = styleProfile?.rate || 1;
         const audioBlob = isVoiceCloneBackendConfigured()
-          ? await synthesizeBackendVoiceClone(activeClone.voiceId, text)
+          ? await synthesizeBackendVoiceClone(activeClone.voiceId, text, requestedRate)
           : await synthesizeWithClone(activeClone.voiceId, text);
         blobUrl = URL.createObjectURL(audioBlob);
       } else if (activeClone) {
@@ -528,7 +529,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         }
       }
 
-      if (styleProfile) {
+      if (styleProfile && !(canUseRemoteClone && activeClone?.voiceId && isVoiceCloneBackendConfigured())) {
         setProcessingStage('Matching speaking style…');
         const rendered = await applySpeakingRate(await (await fetch(blobUrl)).blob(), styleProfile.rate);
         URL.revokeObjectURL(blobUrl);
@@ -541,30 +542,23 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       
       const currentUser = auth.currentUser;
       if (currentUser) {
-        setProcessingStage('Saving your result…');
-        await logGeneration(
+        void logGeneration(
           currentUser.uid,
           currentUser.email || '',
           'voiceover',
           { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null, cloneMode: canUseRemoteClone ? 'neural' : activeClone ? 'style-fallback' : 'built-in' },
-{ status: 'success', info: 'Voiceover audio generated successfully' }
-          );
-        window.dispatchEvent(
-          new CustomEvent('lumini:taskLogged', {
-            detail: {
-              module: 'voiceover',
-              input: {
-                text,
-                characterId: char?.id || characterId,
-                tone,
-                voiceSpeed,
-                voicePitch,
-                clone: activeClone?.name || null,
+          { status: 'success', info: 'Voiceover audio generated successfully' },
+        ).then(() => {
+          window.dispatchEvent(
+            new CustomEvent('lumini:taskLogged', {
+              detail: {
+                module: 'voiceover',
+                input: { text, characterId: char?.id || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null },
               },
-            },
-          })
-        );
-        setRefreshTrigger(prev => prev + 1);
+            }),
+          );
+          if (isMounted.current) setRefreshTrigger(prev => prev + 1);
+        }).catch(() => undefined);
       }
     } catch (err: unknown) { 
         if (isMounted.current) {

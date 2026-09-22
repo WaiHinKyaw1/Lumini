@@ -59,10 +59,12 @@ app.post('/api/voice-clones/:voiceId/synthesize', async (request, reply) => {
   const text = String(request.body?.text || '').trim();
   if (!text) return jsonError(reply, 400, 'Text is required.');
   if (text.length > MAX_CLONE_TEXT_CHARS) return jsonError(reply, 413, `Text exceeds ${MAX_CLONE_TEXT_CHARS} characters.`);
+  const requestedSpeed = Number(request.body?.speed);
+  const speed = Number.isFinite(requestedSpeed) ? Math.min(1.3, Math.max(0.7, requestedSpeed)) : 1;
   const provider = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(request.params.voiceId)}`, {
     method: 'POST',
     headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-    body: JSON.stringify({ text, model_id: ELEVENLABS_MODEL, voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2 } }),
+    body: JSON.stringify({ text, model_id: ELEVENLABS_MODEL, voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2, speed } }),
   });
   if (!provider.ok) return providerError(reply, provider, 'Voice synthesis failed.');
   return reply.type('audio/mpeg').send(Buffer.from(await provider.arrayBuffer()));
