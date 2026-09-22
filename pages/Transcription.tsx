@@ -4,8 +4,6 @@ import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
 
@@ -299,9 +297,6 @@ Rules:
         )}
       </div>
       {error && <div className="mt-2 p-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-center text-[10px] font-semibold text-rose-500 uppercase tracking-wide">{error}</div>}
-      <RecentHistory moduleName="transcription" onRestore={() => null} restoreLabel="Review" burmeseRestoreLabel="ပြန်ကြည့်မည်" />
-      <div className="mt-3" />
-      <ModuleLogHistory moduleName="transcription" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

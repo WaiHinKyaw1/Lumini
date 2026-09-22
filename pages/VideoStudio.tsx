@@ -4,8 +4,6 @@ import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { merger, measureAudioDuration, estimateSyncSpeed } from '../services/videoMerger';
 import { loadBatchQueue, saveBatchQueue, removeFromBatch, addToBatch, BatchItem, BatchStatus } from '../services/batchQueue';
@@ -978,15 +976,6 @@ Ensure the emotional tone is: ${tone.toUpperCase()}. Must strictly target the or
             Batch က ဗီဒီယိုတိုင်းကို transcription → translate → voiceover → timeline sync အပြည့် ဖြတ်ပေးပါတယ်။ Queue က browser ထဲ local သာသိမ်းပြီး server cost လုံးဝမကုန်ပါ။ Video file တွေက session ထဲမှာသာရတဲ့အတွက် ဗီဒီယိုတင်ပြီးမှ Process ခေါ်ပါ။
           </p>
         </div>
-        <RecentHistory
-          moduleName={['videostudio_transcribe', 'videostudio_translate', 'videostudio_voiceover']}
-          onRestore={handleRestoreVideoStudio}
-        />
-        <div className="mt-4" />
-        <ModuleLogHistory
-          moduleName={['videostudio_transcribe', 'videostudio_translate', 'videostudio_voiceover']}
-          refreshTrigger={refreshTrigger}
-        />
       </div>
     </div>
   );

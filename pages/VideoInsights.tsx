@@ -4,8 +4,6 @@ import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 
 
 interface VideoInsightsProps {
@@ -380,10 +378,6 @@ Instructions:
           <p className="text-xs font-bold text-rose-500 uppercase tracking-wide !mb-0">{error}</p>
         </div>
       )}
-
-      <RecentHistory moduleName="recap_insights" onRestore={handleRestoreInsights} />
-      <div className="mt-3" />
-      <ModuleLogHistory moduleName="recap_insights" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

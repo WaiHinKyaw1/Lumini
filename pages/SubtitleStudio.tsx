@@ -6,8 +6,6 @@ import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 
 
 interface SubtitleStudioProps {
@@ -512,10 +510,6 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits }) => {
           {error}
         </div>
       )}
-
-      <RecentHistory moduleName="subtitles" onRestore={handleRestoreSubtitles} />
-      <div className="mt-3" />
-      <ModuleLogHistory moduleName="subtitles" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

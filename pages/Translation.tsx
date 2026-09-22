@@ -4,8 +4,6 @@ import { generateText } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 
 
 interface TranslationProps {
@@ -322,10 +320,6 @@ Translate the text into ${targetLang} following the order:
           Critical Synthesis Error: {error}
         </div>
       )}
-
-      <RecentHistory moduleName="translation" onRestore={handleRestoreTranslation} />
-      <div className="mt-3" />
-      <ModuleLogHistory moduleName="translation" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

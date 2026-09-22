@@ -5,8 +5,6 @@ import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
 
@@ -411,10 +409,6 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
           {error}
         </div>
       )}
-
-      <RecentHistory moduleName="thumbnail" onRestore={handleRestoreThumbnail} />
-      <div className="mt-3" />
-      <ModuleLogHistory moduleName="thumbnail" refreshTrigger={refreshTrigger} />
     </div>
   );
 };

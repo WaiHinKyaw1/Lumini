@@ -5,8 +5,6 @@ import { GoogleGenAI } from "@google/genai";
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { createSyncJob, isMediaWorkerAvailable, isMediaWorkerConfigured, getOutputUrl, uploadMedia, waitForSyncJob } from '../services/mediaWorkerApi';
 
@@ -596,7 +594,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 space-y-3"><h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-300">4. Aspect ratio</h2><div className="grid grid-cols-4 gap-2">{['16:9', '9:16', '1:1', '4:5'].map((ratio) => <button key={ratio} onClick={() => setAspectRatio(ratio)} className={`rounded-lg py-2 text-[10px] font-bold ${aspectRatio === ratio ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-slate-500'}`}>{ratio}</button>)}</div></section>
         </div>
         <div className="space-y-3"><div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-xl border border-gray-200 dark:border-white/10">{videoUrl ? <><canvas ref={previewCanvasRef} className="max-w-full max-h-full object-contain mx-auto" /><button onClick={togglePlayback} className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl">{isPlaying ? 'Ⅱ' : '▶'}</button></> : <div className="flex items-center justify-center h-full text-[11px] text-zinc-500">Your video preview will appear here</div>}</div><button onClick={handleGenerate} disabled={isProcessing || !videoUrl} className="w-full rounded-xl py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold disabled:opacity-40 disabled:cursor-not-allowed">{isProcessing ? `Rendering ${progress}%` : 'Generate Burmese recap'}</button><video ref={videoRef} src={videoUrl || ''} className="hidden" playsInline muted onLoadedMetadata={onVideoLoaded} /><audio ref={audioRef} src={audioUrl || ''} className="hidden" onLoadedMetadata={onAudioLoaded} />{resultUrl && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3"><div className="flex items-center justify-between mb-2"><span className="text-[11px] font-bold text-emerald-500">Recap ready</span><a href={resultUrl} download={`recap_${Date.now()}.mp4`} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-bold text-white">Download</a></div><video src={resultUrl} controls className="w-full rounded-xl bg-black aspect-video" /></div>}{error && <div className="rounded-xl bg-rose-500/10 px-3 py-2 text-center text-[10px] font-bold text-rose-500">{error}</div>}</div>
-      </div><RecentHistory moduleName="movierecap" onRestore={handleRestoreRecap} /><div className="mt-3" /><ModuleLogHistory moduleName="movierecap" refreshTrigger={refreshTrigger} />
+      </div>
     </div>
   );
 };

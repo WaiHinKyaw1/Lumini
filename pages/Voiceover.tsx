@@ -4,8 +4,6 @@ import { generateSpeech, playAudio } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import { ModuleLogHistory } from '../components/ModuleLogHistory';
-import { RecentHistory } from '../components/RecentHistory';
 import {
   analyzeVoice,
   applyClonePostProcessing,
@@ -1093,14 +1091,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </div>
         );
       })()}
-      
-      {mode !== 'clone' && (
-        <>
-          <RecentHistory moduleName="voiceover" onRestore={handleRestoreVoiceover} />
-          <div className="mt-4" />
-          <ModuleLogHistory moduleName="voiceover" refreshTrigger={refreshTrigger} />
-        </>
-      )}
     </div>
   );
 };
