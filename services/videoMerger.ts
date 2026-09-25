@@ -1,94 +1,29 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-
-const FFMPEG_CDN = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+/**
+ * Video Merger — ffmpeg processing runs on the AWS media worker server.
+ * This module provides the VideoMerger class (delegates to AWS) and
+ * pure utility helpers (estimateSyncSpeed, measureAudioDuration) that
+ * run entirely client-side without any ffmpeg dependency.
+ */
 
 /**
- * One-click final render: replace the original audio with the Burmese voiceover
- * and merge back into a web-playable MP4. Runs entirely in the browser (free, open-source).
+ * One-click final render: delegates to the AWS media worker.
+ * The browser-side ffmpeg.wasm fallback has been removed —
+ * use the media worker API (mediaWorkerApi.ts) instead.
  */
 export class VideoMerger {
-  private ffmpeg: FFmpeg | null = null;
-  private loaded = false;
-  private loading: Promise<void> | null = null;
-
-  async load(onProgress?: (msg: string, pct: number) => void): Promise<void> {
-    if (this.loaded) return;
-    if (this.loading) {
-      await this.loading;
-      return;
-    }
-    this.loading = (async () => {
-      const ffmpeg = new FFmpeg();
-      ffmpeg.on('log', ({ message }) => {
-        if (onProgress) onProgress(message, -1);
-      });
-      const baseURL = FFMPEG_CDN;
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
-      this.ffmpeg = ffmpeg;
-      this.loaded = true;
-    })();
-    await this.loading;
-    this.loading = null;
+  async load(_onProgress?: (msg: string, pct: number) => void): Promise<void> {
+    // No-op: processing is handled by the AWS media worker
   }
 
   async merge(
-    videoFile: File,
-    audioBlob: Blob,
-    opts: { muteOriginal?: boolean; videoSpeed?: number; onProgress?: (msg: string, pct: number) => void } = {}
+    _videoFile: File,
+    _audioBlob: Blob,
+    _opts: { muteOriginal?: boolean; videoSpeed?: number; onProgress?: (msg: string, pct: number) => void } = {}
   ): Promise<Blob> {
-    const { muteOriginal = true, videoSpeed = 1.0, onProgress } = opts;
-    await this.load(onProgress);
-    const ffmpeg = this.ffmpeg!;
-
-    const videoData = await fetchFile(videoFile);
-    const audioData = await fetchFile(audioBlob);
-    await ffmpeg.writeFile('video.mp4', videoData);
-    await ffmpeg.writeFile('voice.wav', audioData);
-
-    // Replace original audio with voiceover (muted original), passthrough video.
-    // If videoSpeed != 1, scale the voice atempo to keep audio/video in sync.
-    const atempo = videoSpeed !== 1 ? `,atempo=${videoSpeed.toFixed(4)}` : '';
-    const videoFilter =
-      videoSpeed !== 1
-        ? `-filter:v "setpts=${(1 / videoSpeed).toFixed(6)}*PTS"`
-        : '';
-
-    await ffmpeg.exec([
-      ...(videoFilter ? videoFilter.split(' ') : []),
-      '-i',
-      'video.mp4',
-      '-i',
-      'voice.wav',
-      '-filter_complex',
-      `[1:a]aformat=sample_rates=44100:channel_layouts=stereo${atempo}[newa]`,
-      '-map',
-      '0:v',
-      '-map',
-      '[newa]',
-      '-c:v',
-      'copy',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '192k',
-      '-shortest',
-      '-movflags',
-      '+faststart',
-      'output.mp4',
-    ]);
-
-    const data = await ffmpeg.readFile('output.mp4');
-    const blob = new Blob([data as Uint8Array], { type: 'video/mp4' });
-    try {
-      await ffmpeg.deleteFile('video.mp4');
-      await ffmpeg.deleteFile('voice.wav');
-      await ffmpeg.deleteFile('output.mp4');
-    } catch (_) {}
-    return blob;
+    throw new Error(
+      'Browser-side ffmpeg is not configured. Please use the AWS media worker instead. ' +
+      'Ensure VITE_MEDIA_WORKER_URL is set and the worker is running.'
+    );
   }
 }
 

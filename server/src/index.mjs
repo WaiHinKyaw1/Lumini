@@ -12,6 +12,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.resolve(process.env.MEDIA_DATA_DIR || './data');
 const INPUT_DIR = path.join(DATA_DIR, 'inputs');
 const OUTPUT_DIR = path.join(DATA_DIR, 'outputs');
+const FONTS_DIR = path.join(DATA_DIR, 'fonts');
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 1024 * 1024 * 1024);
 const JOB_TTL_MS = Number(process.env.JOB_TTL_MS || 2 * 60 * 60 * 1000);
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
@@ -28,6 +29,7 @@ await app.register(cors, { origin: process.env.CORS_ORIGIN || true });
 await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
 await fs.mkdir(INPUT_DIR, { recursive: true });
 await fs.mkdir(OUTPUT_DIR, { recursive: true });
+await fs.mkdir(FONTS_DIR, { recursive: true });
 
 const jsonError = (reply, status, message) => reply.code(status).send({ error: message });
 const safeName = (name) => path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -111,6 +113,47 @@ app.post('/api/media/upload', async (request, reply) => {
   return { fileId, filename, size: stat.size, mimeType: part.mimetype, kind: isVideo ? 'video' : 'audio' };
 });
 
+app.post('/api/media/:fileId/extract-audio', async (request, reply) => {
+  const { fileId } = request.params;
+  const input = await findInput(fileId);
+  if (!input) return jsonError(reply, 404, 'Input file not found.');
+
+  const tempAudio = path.join(OUTPUT_DIR, `${fileId}-extracted.mp3`);
+  try {
+    // Ultra-fast audio extraction (16kHz mono, 48kbps MP3 - ideal for speech AI)
+    await new Promise((resolve, reject) => {
+      const child = spawn(process.env.FFMPEG_BIN || 'ffmpeg', [
+        '-y',
+        '-i', input,
+        '-vn',
+        '-ac', '1',
+        '-ar', '16000',
+        '-c:a', 'libmp3lame',
+        '-b:a', '48k',
+        tempAudio
+      ], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+      let stderr = '';
+      child.stderr.on('data', d => { stderr += d.toString(); });
+      child.on('error', reject);
+      child.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg audio extract failed (${code}): ${stderr.slice(-300)}`)));
+    });
+
+    const audioBuffer = await fs.readFile(tempAudio);
+    const audioBase64 = audioBuffer.toString('base64');
+    await fs.rm(tempAudio, { force: true }).catch(() => {});
+
+    return {
+      audioBase64,
+      mimeType: 'audio/mp3',
+      size: audioBuffer.length
+    };
+  } catch (err) {
+    await fs.rm(tempAudio, { force: true }).catch(() => {});
+    return jsonError(reply, 500, err.message || 'Audio extraction failed');
+  }
+});
+
 const number = (value, fallback, min, max) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
@@ -125,7 +168,10 @@ function validateSettings(raw = {}) {
     blurEnabled: Boolean(raw.blurEnabled),
     blurPosition: number(raw.blurPosition, 80, 0, 100),
     blurThickness: number(raw.blurThickness, 15, 5, 50),
-    blurIntensity: number(raw.blurIntensity, 20, 0, 50),
+    blurIntensity: number(raw.blurIntensity, 25, 0, 50),
+    subtitleEnabled: Boolean(raw.subtitleEnabled),
+    subtitleText: typeof raw.subtitleText === 'string' ? raw.subtitleText.trim() : '',
+    subtitleStyle: typeof raw.subtitleStyle === 'string' ? raw.subtitleStyle : 'akkhayar-outline',
   };
 }
 
@@ -195,18 +241,280 @@ async function processJob(jobId, fileId, audioFileId, settings) {
   const outputFileId = randomUUID();
   const output = path.join(OUTPUT_DIR, `${outputFileId}.mp4`);
   Object.assign(job, { status: 'processing', progress: 5 });
+
+  // Generate ASS subtitle file only if subtitleEnabled is true and subtitleText is present
+  let subFilePath = null;
+  if (settings.subtitleEnabled && settings.subtitleText && settings.subtitleText.trim()) {
+    const canvas = settings.aspectRatio === '9:16'
+      ? { width: 1080, height: 1920 }
+      : settings.aspectRatio === '1:1'
+        ? { width: 1080, height: 1080 }
+        : settings.aspectRatio === '4:5'
+          ? { width: 1080, height: 1350 }
+          : { width: 1920, height: 1080 };
+    const assContent = generateAssSubtitle(canvas, settings);
+    if (assContent) {
+      subFilePath = path.join(INPUT_DIR, `${jobId}-sub.ass`);
+      await fs.writeFile(subFilePath, assContent, 'utf8');
+    }
+  }
+
   const args = ['-i', input];
   if (audio) args.push('-i', audio);
+
   if (audio) {
     args.push('-filter_complex', `[1:a]${buildAudioFilter(settings.audioSpeed)}[syncaudio]`, '-map', '0:v:0', '-map', '[syncaudio]', '-shortest');
+  } else {
+    // PRESERVE ORIGINAL VIDEO AUDIO (Do NOT strip with -an!)
+    args.push('-map', '0:v:0', '-map', '0:a?');
   }
-  args.push('-vf', buildVideoFilter(settings), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', ...(audio ? [] : ['-an']), '-c:a', 'aac', '-movflags', '+faststart', output);
-  await runFfmpeg(args, (progress) => { if (!job.cancelled) job.progress = progress; });
+
+  args.push(
+    '-vf',
+    buildVideoFilter(settings, subFilePath),
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '23',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '192k',
+    '-movflags',
+    '+faststart',
+    output
+  );
+
+  try {
+    await runFfmpeg(args, (progress) => { if (!job.cancelled) job.progress = progress; });
+  } finally {
+    if (subFilePath) await fs.rm(subFilePath, { force: true }).catch(() => {});
+  }
+
   if (job.cancelled) { await fs.rm(output, { force: true }); return; }
   Object.assign(job, { status: 'completed', progress: 100, outputFileId, finishedAt: Date.now() });
 }
 
-function buildVideoFilter(settings) {
+function srtTimeToSeconds(srtTime) {
+  if (!srtTime) return 0;
+  const clean = srtTime.trim().replace(',', '.');
+  const parts = clean.split(':');
+  if (parts.length === 3) {
+    const h = parseFloat(parts[0]) || 0;
+    const m = parseFloat(parts[1]) || 0;
+    const s = parseFloat(parts[2]) || 0;
+    return h * 3600 + m * 60 + s;
+  }
+  if (parts.length === 2) {
+    const m = parseFloat(parts[0]) || 0;
+    const s = parseFloat(parts[1]) || 0;
+    return m * 60 + s;
+  }
+  return parseFloat(clean) || 0;
+}
+
+function secondsToAssTime(seconds) {
+  const safe = Math.max(0, seconds);
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = Math.floor(safe % 60);
+  const cs = Math.floor((safe - Math.floor(safe)) * 100);
+  const mStr = String(m).padStart(2, '0');
+  const sStr = String(s).padStart(2, '0');
+  const csStr = String(cs).padStart(2, '0');
+  return `${h}:${mStr}:${sStr}.${csStr}`;
+}
+
+function wrapSubtitleText(text, maxLen = 32) {
+  if (!text || text.length <= maxLen || text.includes('\\N')) return text;
+
+  if (text.includes(' ')) {
+    const words = text.split(' ');
+    let current = '';
+    const lines = [];
+    for (const w of words) {
+      if ((current + ' ' + w).trim().length > maxLen && current) {
+        lines.push(current.trim());
+        current = w;
+      } else {
+        current = current ? current + ' ' + w : w;
+      }
+    }
+    if (current) lines.push(current.trim());
+    return lines.join('\\N');
+  }
+
+  const punctRegex = /([၊။])/g;
+  if (punctRegex.test(text)) {
+    const parts = text.split(punctRegex);
+    let current = '';
+    const lines = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const segment = parts[i] + (parts[i + 1] || '');
+      if ((current + segment).length > maxLen && current) {
+        lines.push(current.trim());
+        current = segment;
+      } else {
+        current += segment;
+      }
+    }
+    if (current) lines.push(current.trim());
+    if (lines.length > 1) return lines.join('\\N');
+  }
+
+  const mid = Math.floor(text.length / 2);
+  return text.slice(0, mid) + '\\N' + text.slice(mid);
+}
+
+function parseSrtToAssEvents(srtText, marginV) {
+  const clean = srtText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const rawCues = [];
+
+  const blocks = clean.split(/\n\s*\n/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) continue;
+
+    const timeLineIdx = lines.findIndex((l) => l.includes('-->'));
+    if (timeLineIdx === -1) continue;
+
+    const timeParts = lines[timeLineIdx].split('-->');
+    if (timeParts.length !== 2) continue;
+
+    const startSec = srtTimeToSeconds(timeParts[0]);
+    let endSec = srtTimeToSeconds(timeParts[1]);
+
+    const cueLines = lines.slice(timeLineIdx + 1);
+    const cueText = cueLines
+      .join(' ')
+      .replace(/<[^>]*>/g, '')
+      .replace(/[{}]/g, '')
+      .trim();
+
+    if (cueText) {
+      if (endSec <= startSec) endSec = startSec + 2.5;
+      rawCues.push({ startSec, endSec, cueText });
+    }
+  }
+
+  if (rawCues.length === 0) return [];
+
+  // Sort cues chronologically by start time
+  rawCues.sort((a, b) => a.startSec - b.startSec);
+
+  // CLAMP OVERLAPPING TIMESTAMPS: Prevents ASS vertical stacking collisions completely!
+  for (let i = 0; i < rawCues.length - 1; i++) {
+    const nextStart = rawCues[i + 1].startSec;
+    if (rawCues[i].endSec > nextStart) {
+      rawCues[i].endSec = Math.max(rawCues[i].startSec + 0.3, nextStart - 0.04);
+    }
+  }
+
+  const events = [];
+  for (const cue of rawCues) {
+    const start = secondsToAssTime(cue.startSec);
+    const end = secondsToAssTime(cue.endSec);
+    const wrapped = wrapSubtitleText(cue.cueText, 32);
+    events.push(`Dialogue: 0,${start},${end},Default,,0,0,${marginV},,${wrapped}`);
+  }
+
+  return events;
+}
+
+function generateAssSubtitle(canvas, settings) {
+  const text = (settings.subtitleText || '').trim();
+  if (!text) return null;
+
+  const fontName = 'Akkhayar21';
+  const isPortrait = canvas.height > canvas.width;
+  const fontSize = isPortrait
+    ? Math.max(28, Math.round(canvas.height * 0.026))
+    : Math.max(26, Math.round(canvas.height * 0.036));
+
+  // Distance from bottom to center within blur strip
+  let marginV = Math.max(20, Math.round(canvas.height * 0.08));
+  if (settings.blurEnabled) {
+    const blurCenterY = canvas.height * (settings.blurPosition / 100);
+    const centerFromBottom = canvas.height - blurCenterY;
+    marginV = Math.max(10, Math.round(centerFromBottom - fontSize * 0.55));
+  }
+
+  // Style configurations in ASS format (&HAABBGGRR in hex)
+  let primaryColor = '&H00FFFFFF'; // White
+  let outlineColor = '&H00000000'; // Black
+  let backColor = '&H80000000';
+  let borderStyle = 1; // 1 = outline + shadow, 3 = opaque box
+  let outlineWidth = 4.5;
+  let shadowWidth = 0;
+  let bold = 1;
+
+  if (settings.subtitleStyle === 'akkhayar-yellow') {
+    primaryColor = '&H0015CCFA'; // Yellow (#FACC15) in ASS &HAABBGGRR
+    outlineColor = '&H00000000';
+    outlineWidth = 4.5;
+    shadowWidth = 0;
+    bold = 1;
+  } else if (settings.subtitleStyle === 'akkhayar-box') {
+    primaryColor = '&H00FFFFFF';
+    outlineColor = '&H00000000';
+    backColor = '&H40000000'; // Dark opaque box
+    borderStyle = 3;
+    outlineWidth = 8;
+    shadowWidth = 0;
+    bold = 1;
+  } else if (settings.subtitleStyle === 'akkhayar-clean') {
+    primaryColor = '&H00FFFFFF';
+    outlineColor = '&H00000000';
+    borderStyle = 1;
+    outlineWidth = 1.5;
+    shadowWidth = 2.5;
+    bold = 0;
+  } else {
+    // akkhayar-outline (default)
+    primaryColor = '&H00FFFFFF';
+    outlineColor = '&H00000000';
+    outlineWidth = 4.5;
+    shadowWidth = 0;
+    bold = 1;
+  }
+
+  let dialogueEvents = [];
+  if (text.includes('-->')) {
+    dialogueEvents = parseSrtToAssEvents(text, marginV);
+  }
+
+  if (dialogueEvents.length === 0) {
+    // If input has SRT markers (-->) or looks like SRT code, DO NOT burn raw timestamps onto the video!
+    if (text.includes('-->') || /^\d+\s*$/m.test(text)) {
+      return null;
+    }
+    const escapedText = wrapSubtitleText(text.replace(/[{}]/g, '').replace(/\r?\n/g, '\\N'), 32);
+    dialogueEvents.push(`Dialogue: 0,0:00:00.00,5:00:00.00,Default,,0,0,${marginV},,${escapedText}`);
+  }
+
+  const marginLR = isPortrait ? 25 : 60;
+
+  return `[Script Info]
+Title: Burmese Recap Subtitle
+ScriptType: v4.00+
+PlayResX: ${canvas.width}
+PlayResY: ${canvas.height}
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${fontName},${fontSize},${primaryColor},&H000000FF,${outlineColor},${backColor},${bold},0,0,0,100,100,0,0,${borderStyle},${outlineWidth},${shadowWidth},2,${marginLR},${marginLR},${marginV},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+${dialogueEvents.join('\n')}
+`;
+}
+
+function buildVideoFilter(settings, assFilePath) {
   const canvas = settings.aspectRatio === '9:16'
     ? { width: 1080, height: 1920 }
     : settings.aspectRatio === '1:1'
@@ -220,13 +528,27 @@ function buildVideoFilter(settings) {
   ];
   if (settings.videoSpeed !== 1) filters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
   const base = filters.join(',');
-  if (!settings.blurEnabled) return base;
 
-  const thickness = (settings.blurThickness / 100).toFixed(4);
-  const topValue = Math.max(0, Math.min(1 - Number(thickness), (settings.blurPosition - settings.blurThickness / 2) / 100));
-  const top = topValue.toFixed(4);
-  const radius = Math.max(1, Math.round(settings.blurIntensity / 5));
-  return `${base},split=2[base][blurSource];[blurSource]crop=iw:ih*${thickness}:0:ih*${top},boxblur=luma_radius=${radius}:luma_power=1[blurBand];[base][blurBand]overlay=0:main_h*${top},drawbox=x=0:y=ih*${top}:w=iw:h=ih*${thickness}:color=black@0.4:t=fill`;
+  let videoStream = base;
+
+  // 1. BLUR STRIP FILTER (Strong blur + opaque dark backing so text is 100% hidden)
+  if (settings.blurEnabled) {
+    const thickness = (settings.blurThickness / 100).toFixed(4);
+    const topValue = Math.max(0, Math.min(1 - Number(thickness), (settings.blurPosition - settings.blurThickness / 2) / 100));
+    const top = topValue.toFixed(4);
+    const lumaRad = Math.min(14, Math.max(3, Math.round(settings.blurIntensity / 3)));
+    const chromaRad = Math.min(4, Math.max(1, Math.round(lumaRad / 3)));
+    videoStream = `${base},split=2[base][blurSource];[blurSource]crop=iw:ih*${thickness}:0:ih*${top},boxblur=luma_radius=${lumaRad}:luma_power=2:chroma_radius=${chromaRad}:chroma_power=2[blurBand];[base][blurBand]overlay=0:main_h*${top},drawbox=x=0:y=ih*${top}:w=iw:h=ih*${thickness}:color=black@0.92:t=fill`;
+  }
+
+  // 2. SUBTITLE TEXT FILTER (Burmese Akkhayar 21 via libass - only if subtitleEnabled)
+  if (settings.subtitleEnabled && assFilePath) {
+    const escapedAssPath = assFilePath.replace(/\\/g, '/').replace(/'/g, "'\\''");
+    const escapedFontsDir = FONTS_DIR.replace(/\\/g, '/').replace(/'/g, "'\\''");
+    videoStream = `${videoStream},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
+  }
+
+  return videoStream;
 }
 
 function buildAudioFilter(speed) {

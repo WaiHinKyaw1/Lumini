@@ -58,6 +58,9 @@ const App: React.FC = () => {
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [isRefuelOpen, setIsRefuelOpen] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  // Persisted flag: if user was logged in before, keep showing spinner until Firebase confirms
+  const [hadPriorSession] = useState(() => localStorage.getItem('lumini_has_session') === '1');
 
 
   // Local storage synchronized wrapper (centralized via services/storage.ts)
@@ -127,6 +130,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setIsAuthLoading(false);
+      // Persist session flag so refresh doesn't flash login page
+      if (currentUser) {
+        localStorage.setItem('lumini_has_session', '1');
+      } else {
+        localStorage.removeItem('lumini_has_session');
+      }
     });
     return () => unsubscribeAuth();
   }, []);
@@ -252,6 +262,15 @@ const App: React.FC = () => {
   };
 
   const renderPage = () => {
+    // If auth is still loading and user had a prior session, show spinner (avoid login page flash)
+    if (isAuthLoading && hadPriorSession) {
+      return (
+        <div className="flex min-h-[calc(100vh-56px)] items-center justify-center">
+          <LoadingSpinner size="lg" showLabel label="Session ပြန်ဝင်နေပါသည်..." />
+        </div>
+      );
+    }
+
     // If not authenticated, require registering or logging in first
     if (!user) {
       return <AuthScreen onLoginGoogle={handleLoginGoogle} />;
@@ -263,7 +282,7 @@ const App: React.FC = () => {
         {(() => {
           switch (currentPath) {
             case 'dashboard': return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
-            case 'subtitle': return <SubtitleStudio onSpendCredits={spendCredits} />;
+            case 'subtitle': return <SubtitleStudio onSpendCredits={spendCredits} onNavigate={setCurrentPath} />;
             case 'insights': return <VideoInsights onSpendCredits={spendCredits} />;
             case 'transcription': return <Transcription onSpendCredits={spendCredits} />;
             case 'translation': return <Translation onSpendCredits={spendCredits} />;
@@ -279,6 +298,14 @@ const App: React.FC = () => {
       </ErrorBoundary>
     );
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#09090b] text-white">
+        <LoadingSpinner size="lg" showLabel label="Loading session..." />
+      </div>
+    );
+  }
 
   return (
     <>

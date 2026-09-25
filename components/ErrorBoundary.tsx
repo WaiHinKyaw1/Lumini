@@ -2,6 +2,11 @@ import React, { Component } from 'react';
 import { toast } from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
 
+export interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  moduleName?: string;
+}
+
 export interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
@@ -14,11 +19,16 @@ export interface ErrorBoundaryState {
  *
  * Usage: <ErrorBoundary><SomePageOrWidget /></ErrorBoundary>
  */
-export class ErrorBoundary extends Component<
-  { children: React.ReactNode; moduleName?: string },
-  ErrorBoundaryState
-> {
-  state: ErrorBoundaryState = { hasError: false, error: null };
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  declare props: ErrorBoundaryProps;
+  declare state: ErrorBoundaryState;
+  declare setState: Component<ErrorBoundaryProps, ErrorBoundaryState>['setState'];
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+    this.handleRetry = this.handleRetry.bind(this);
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -31,10 +41,10 @@ export class ErrorBoundary extends Component<
     console.error(`[ErrorBoundary] ${name}:`, error, info);
   }
 
-  handleRetry = () => {
+  handleRetry() {
     this.setState({ hasError: false, error: null });
     toast.success('ပြန်လည်စမ်းသပ်နေပါတယ်…');
-  };
+  }
 
   render() {
     if (!this.state.hasError) return this.props.children;

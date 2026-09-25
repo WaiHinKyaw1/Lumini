@@ -17,18 +17,33 @@ const getAIClient = () => {
   return new GoogleGenAI({ apiKey: key });
 };
 
+const CANDIDATE_FLASH_MODELS = [
+  'gemini-3-flash-preview',
+  'gemini-3.6-flash'
+];
+
 export const generateText = async (prompt: string, systemInstruction: string) => {
   const ai = getAIClient();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.5-flash',
-    contents: prompt,
-    config: {
-      systemInstruction,
-      temperature: 0.7,
-      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
-    },
-  });
-  return response.text || "No response generated.";
+  let lastError: any = null;
+  for (const model of CANDIDATE_FLASH_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+        },
+      });
+      if (response.text) return response.text;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Model ${model} failed, trying fallback:`, err?.message || err);
+      continue;
+    }
+  }
+  throw lastError || new Error("No response generated.");
 };
 
 export const generateImage = async (prompt: string, aspectRatio: "1:1" | "16:9" | "9:16" = "1:1", imageBase64?: string, mimeType: string = 'image/png') => {
@@ -95,41 +110,52 @@ export const generateSubtitles = async (
 ) => {
   const ai = getAIClient();
   
-  const systemInstruction = `You are a professional media transcriptionist and subtitle editor. 
-Your task is to transcribe the provided audio/video file and generate a high-quality SubRip (.srt) subtitle file.
+  const systemInstruction = `You are an expert media transcriptionist and subtitle generator.
+Transcribe the provided media into a clean, accurate SubRip (.srt) subtitle file.
 
-STRICT RULES:
-1. Output ONLY the valid SRT content. No preamble, no markdown code blocks, no explanations.
-2. Use the format:
-   1
-   00:00:00,000 --> 00:00:04,000
-   Subtitle text here.
+CRITICAL RULES:
+1. Output ONLY pure SRT text. Do NOT use markdown code blocks (\`\`\`srt), do NOT add explanations or introductory text.
+2. Standard SRT format:
+1
+00:00:01,000 --> 00:00:04,500
+Subtitle text here
 
-3. Ensure timestamps are accurate to the audio.
-4. Target language: ${language}.
-5. If the audio is in a different language, translate it accurately to ${language}.
-6. Handle overlapping speech gracefully.`;
+3. Target language: ${language}.
+4. Timestamps must be strictly accurate to the spoken words.
+5. Keep each cue concise (2 to 5 seconds, max 30-35 characters per line) for optimal movie subtitle readability.
+6. Ensure consecutive cues do NOT have overlapping timestamps.`;
 
-  const prompt = "Transcribe this media file into a professional SRT subtitle file.";
+  const prompt = `Transcribe this media file into a clean, millisecond-accurate SRT subtitle file in ${language}.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.5-flash',
-    contents: {
-      parts: [
-        { inlineData: { data: fileBase64, mimeType } },
-        { text: prompt }
-      ]
-    },
-    config: {
-      systemInstruction,
-      temperature: 0.1,
+  let lastError: any = null;
+  for (const model of CANDIDATE_FLASH_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: {
+          parts: [
+            { inlineData: { data: fileBase64, mimeType } },
+            { text: prompt }
+          ]
+        },
+        config: {
+          systemInstruction,
+          temperature: 0.1,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+        }
+      });
+      
+      let result = response.text || "";
+      result = result.replace(/```(?:srt|text)?/g, '').replace(/```/g, '').trim();
+      if (result) return result;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Model ${model} subtitle generation failed, trying next:`, err?.message || err);
+      continue;
     }
-  });
-  
-  let result = response.text || "";
-  // Clean up any markdown artifacts if the model ignores instructions
-  result = result.replace(/```srt|```|```text/g, '').trim();
-  return result;
+  }
+
+  throw lastError || new Error("Failed to generate subtitles with all available AI models.");
 };
 
 export const analyzeDocument = async (

@@ -14,6 +14,9 @@ export interface SyncSettings {
   blurPosition?: number;
   blurThickness?: number;
   blurIntensity?: number;
+  subtitleEnabled?: boolean;
+  subtitleText?: string;
+  subtitleStyle?: string;
 }
 
 export interface SyncJob {
@@ -55,14 +58,71 @@ const requireBaseUrl = () => {
   return baseUrl;
 };
 
-export async function uploadMedia(file: File, onProgress?: (progress: number) => void): Promise<MediaUploadResult> {
+export function uploadMedia(
+  file: File,
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal,
+): Promise<MediaUploadResult> {
   const baseUrl = requireBaseUrl();
-  const body = new FormData();
-  body.append('file', file);
-  const response = await fetchWithTimeout(`${baseUrl}/api/media/upload`, { method: 'POST', body }, 10 * 60 * 1000);
-  if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Media upload failed.');
-  onProgress?.(100);
-  return response.json() as Promise<MediaUploadResult>;
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Media upload cancelled.', 'AbortError'));
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${baseUrl}/api/media/upload`);
+    xhr.timeout = 10 * 60 * 1000;
+
+    const onAbort = () => {
+      xhr.abort();
+      reject(new DOMException('Media upload cancelled.', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      signal?.removeEventListener('abort', onAbort);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText) as MediaUploadResult;
+          onProgress?.(100);
+          resolve(result);
+        } catch {
+          reject(new Error('Invalid response received from media server.'));
+        }
+      } else {
+        let msg = 'Media upload failed.';
+        try {
+          const errData = JSON.parse(xhr.responseText);
+          if (errData?.error) msg = errData.error;
+        } catch {}
+        reject(new Error(msg));
+      }
+    };
+
+    xhr.onerror = () => {
+      signal?.removeEventListener('abort', onAbort);
+      reject(new Error('Connection error during upload to media server.'));
+    };
+
+    xhr.ontimeout = () => {
+      signal?.removeEventListener('abort', onAbort);
+      reject(new Error('Upload timed out. Please check your connection and retry.'));
+    };
+
+    const formData = new FormData();
+    formData.append('file', file);
+    xhr.send(formData);
+  });
 }
 
 export async function createSyncJob(fileId: string, settings: SyncSettings, audioFileId?: string): Promise<SyncJob> {
@@ -106,4 +166,22 @@ export async function waitForSyncJob(
 
 export function getOutputUrl(outputFileId: string): string {
   return `${requireBaseUrl()}/api/files/${encodeURIComponent(outputFileId)}/download`;
+}
+
+export interface ExtractedAudioResult {
+  audioBase64: string;
+  mimeType: string;
+  size: number;
+}
+
+export async function extractAudioFromMedia(fileId: string): Promise<ExtractedAudioResult> {
+  const baseUrl = requireBaseUrl();
+  const response = await fetchWithTimeout(`${baseUrl}/api/media/${encodeURIComponent(fileId)}/extract-audio`, {
+    method: 'POST',
+  }, 60000);
+  if (!response.ok) {
+    const err = await response.json().catch(() => null);
+    throw new Error(err?.error || 'Audio extraction failed on server.');
+  }
+  return response.json() as Promise<ExtractedAudioResult>;
 }
