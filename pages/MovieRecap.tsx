@@ -34,6 +34,10 @@ import {
   Volume2,
   VolumeX,
   FileText,
+  Gauge,
+  Zap,
+  RotateCcw,
+  Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -406,6 +410,45 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     }
   };
 
+  // --- Speed & Timeline Synchronization Helpers ---
+  const effectiveVideoDuration = videoDuration > 0 ? videoDuration / videoSpeed : 0;
+  const effectiveAudioDuration = audioDuration > 0 ? audioDuration / audioSpeed : 0;
+  const durationDiff = effectiveVideoDuration - effectiveAudioDuration;
+  const isTimelineSynced = audioFile ? Math.abs(durationDiff) <= 0.4 : true;
+
+  // Auto-Match Video Speed to Voiceover Duration
+  const handleAutoMatchVideoToAudio = () => {
+    if (!videoDuration || !audioDuration) {
+      toast.error('ဗီဒီယိုနှင့် အသံဖိုင် နှစ်ခုစလုံး လိုအပ်ပါသည်');
+      return;
+    }
+    const effectiveAudioDur = audioDuration / audioSpeed;
+    const targetVideoSpeed = videoDuration / effectiveAudioDur;
+    const clamped = Math.min(3.0, Math.max(0.25, Number(targetVideoSpeed.toFixed(2))));
+    setVideoSpeed(clamped);
+    toast.success(`ဗီဒီယို Speed ကို ${clamped}x သို့ ညှိပြီး Voiceover ကြာချိန် (${formatTimeSimple(effectiveAudioDur)}) နှင့် အချိန်ကိုက် ညှိပြီးပါပြီ!`);
+  };
+
+  // Auto-Match Voiceover Speed to Video Duration
+  const handleAutoMatchAudioToVideo = () => {
+    if (!videoDuration || !audioDuration) {
+      toast.error('ဗီဒီယိုနှင့် အသံဖိုင် နှစ်ခုစလုံး လိုအပ်ပါသည်');
+      return;
+    }
+    const effectiveVideoDur = videoDuration / videoSpeed;
+    const targetAudioSpeed = audioDuration / effectiveVideoDur;
+    const clamped = Math.min(3.0, Math.max(0.25, Number(targetAudioSpeed.toFixed(2))));
+    setAudioSpeed(clamped);
+    toast.success(`Voiceover Speed ကို ${clamped}x သို့ ညှိပြီး ဗီဒီယို ကြာချိန် (${formatTimeSimple(effectiveVideoDur)}) နှင့် အချိန်ကိုက် ညှိပြီးပါပြီ!`);
+  };
+
+  // Reset Speeds
+  const handleResetSpeeds = () => {
+    setVideoSpeed(1.0);
+    setAudioSpeed(1.0);
+    toast.success('Speed များကို မူရင်း 1.0x သို့ ပြန်လည်သတ်မှတ်ပြီးပါပြီ');
+  };
+
   // --- Playback Controls ---
   const togglePlayback = () => {
     if (videoRef.current) {
@@ -416,7 +459,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         if (audioRef.current) {
           const syncedAudioTime = (videoRef.current.currentTime / videoSpeed) * audioSpeed;
           if (Number.isFinite(syncedAudioTime)) {
-            audioRef.current.currentTime = syncedAudioTime;
+            audioRef.current.currentTime = Math.max(0, Math.min(audioDuration, syncedAudioTime));
           }
           audioRef.current.play().catch(() => { });
         }
@@ -432,7 +475,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     if (videoRef.current) videoRef.current.currentTime = time;
     if (audioRef.current) {
       const syncedAudioTime = (time / videoSpeed) * audioSpeed;
-      audioRef.current.currentTime = syncedAudioTime;
+      audioRef.current.currentTime = Math.max(0, Math.min(audioDuration, syncedAudioTime));
     }
   };
 
@@ -443,7 +486,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
   useEffect(() => {
     const video = videoRef.current;
-    const onEnded = () => setIsPlaying(false);
+    const onEnded = () => {
+      setIsPlaying(false);
+      if (audioRef.current) audioRef.current.pause();
+    };
     const onTimeUpdate = () => {
       if (video) setCurrentTime(video.currentTime);
     };
@@ -501,7 +547,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
     ctx.restore();
 
-    // Blur Strip
+    // Blur Strip (True Frosted Glass Blur - natural video blur without opaque black block)
     if (blurEnabled) {
       const bY = (blurPosition / 100) * height;
       const bH = (blurThickness / 100) * height;
@@ -509,7 +555,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       const helper = helperCanvasRef.current;
 
       if (helper) {
-        const scaleFactor = 0.1;
+        const scaleFactor = 0.2;
         const smallW = Math.max(1, Math.floor(width * scaleFactor));
         const smallH = Math.max(1, Math.floor(height * scaleFactor));
         if (helper.width !== smallW || helper.height !== smallH) {
@@ -520,7 +566,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         if (hCtx) {
           hCtx.fillStyle = '#000';
           hCtx.fillRect(0, 0, smallW, smallH);
-          hCtx.filter = `blur(${blurIntensity * scaleFactor}px)`;
+          const blurPx = Math.max(6, Math.round(blurIntensity * scaleFactor * 1.5));
+          hCtx.filter = `blur(${blurPx}px)`;
           hCtx.drawImage(video, offsetX * scaleFactor, offsetY * scaleFactor, drawW * scaleFactor, drawH * scaleFactor);
           hCtx.filter = 'none';
 
@@ -528,10 +575,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           ctx.beginPath();
           ctx.rect(0, bY - bH / 2, width, bH);
           ctx.clip();
+          // Draw the true blurred video frame
           ctx.drawImage(helper, 0, 0, smallW, smallH, 0, 0, width, height);
-          ctx.fillStyle = 'rgba(0,0,0,0.88)';
+          
+          // Subtle soft glass tint so underlying movie colors remain vibrant and visible while text is thoroughly obscured
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
           ctx.fillRect(0, bY - bH / 2, width, bH);
-          ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+
+          // Subtle elegant glass edge borders
+          ctx.strokeStyle = 'rgba(255,255,255,0.22)';
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, bY - bH / 2);
@@ -549,7 +601,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       ctx.save();
       let subText = '';
       if (subtitleText.includes('-->')) {
-        const active = getActiveSubtitleCue(subtitleText, video.currentTime || 0);
+        const currentAudioTime = audioFile ? (video.currentTime / videoSpeed) * audioSpeed : video.currentTime;
+        const active = getActiveSubtitleCue(subtitleText, currentAudioTime || 0);
         subText = active || (video.paused ? getFirstSubtitleCue(subtitleText) : '');
       } else {
         subText = subtitleText.trim();
@@ -561,35 +614,50 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // Wrap long text into multiple lines (max width = 88% of canvas)
+        // Strictly wrap into at most 2 lines (never 3 lines)
         const maxLineWidth = width * 0.88;
-        const wrapText = (text: string, maxW: number): string[] => {
-          const words = text.split(/\s+/);
-          const lines: string[] = [];
-          let current = '';
-          for (const word of words) {
-            const test = current ? current + ' ' + word : word;
-            ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
-            if (ctx.measureText(test).width > maxW && current) {
-              lines.push(current);
-              current = word;
-            } else {
-              current = test;
+        const wrapTextToMax2Lines = (text: string, maxW: number): string[] => {
+          const clean = text.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+          ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
+          if (ctx.measureText(clean).width <= maxW) return [clean];
+
+          const words = clean.split(' ');
+          if (words.length > 1) {
+            let bestSplit = 1;
+            let minDiff = Infinity;
+            for (let i = 1; i < words.length; i++) {
+              const l1 = words.slice(0, i).join(' ');
+              const l2 = words.slice(i).join(' ');
+              const w1 = ctx.measureText(l1).width;
+              const w2 = ctx.measureText(l2).width;
+              const diff = Math.abs(w1 - w2);
+              if (diff < minDiff) {
+                minDiff = diff;
+                bestSplit = i;
+              }
             }
+            return [words.slice(0, bestSplit).join(' ').trim(), words.slice(bestSplit).join(' ').trim()];
           }
-          if (current) lines.push(current);
-          return lines.length > 0 ? lines : [text];
+
+          const punctMatch = clean.search(/[၊။]/);
+          if (punctMatch !== -1 && punctMatch > 6 && punctMatch < clean.length - 6) {
+            return [clean.slice(0, punctMatch + 1).trim(), clean.slice(punctMatch + 1).trim()];
+          }
+
+          const mid = Math.floor(clean.length / 2);
+          return [clean.slice(0, mid).trim(), clean.slice(mid).trim()];
         };
 
-        // Auto-scale font so longest line fits within strip width
+        // Auto-scale font so both lines fit cleanly within maxLineWidth
+        let lines = wrapTextToMax2Lines(subText, maxLineWidth);
         ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
-        let measuredW = ctx.measureText(subText).width;
-        if (measuredW > maxLineWidth) {
-          fontSize = Math.max(10, Math.floor(fontSize * maxLineWidth / measuredW));
+        const maxMeasured = Math.max(...lines.map(l => ctx.measureText(l).width));
+        if (maxMeasured > maxLineWidth) {
+          fontSize = Math.max(10, Math.floor(fontSize * maxLineWidth / maxMeasured));
+          ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
+          lines = wrapTextToMax2Lines(subText, maxLineWidth);
         }
-        ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
 
-        const lines = wrapText(subText, maxLineWidth);
         const lineHeight = fontSize * 1.35;
         const subX = width / 2;
         // Center within the blur strip band
@@ -640,7 +708,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       ctx.drawImage(logoImage, lx, ly, lSize, lSize);
       ctx.globalAlpha = 1.0;
     }
-  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, zoomEnabled, zoomInterval, zoomDuration, logoImage, logoPosition, subtitleStyle, subtitleText]);
+  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, zoomEnabled, zoomInterval, zoomDuration, logoImage, logoPosition, subtitleStyle, subtitleText, audioFile, videoSpeed, audioSpeed]);
 
   // Preview render loop
   useEffect(() => {
@@ -1337,18 +1405,278 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 {/* Duration sync comparison note */}
                 <div className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300 flex items-center justify-between">
                   <span>ဗီဒီယို: {formatTimeSimple(videoDuration)} | အသံ: {formatTimeSimple(audioDuration)}</span>
-                  <span className="font-semibold text-emerald-400">AWS Auto Sync Ready</span>
+                  <span className={`font-semibold ${isTimelineSynced ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {isTimelineSynced ? '✓ In-Sync (အချိန်ကိုက်)' : '⚠️ Speed ချိန်ညှိရန် လိုအပ်သည်'}
+                  </span>
                 </div>
               </div>
             )}
             <input type="file" ref={audioInputRef} accept="audio/*" onChange={handleAudioUpload} className="hidden" />
           </section>
 
-          {/* SECTION 5: LOGO WATERMARK */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+          {/* SECTION 5: SPEED & AUDIO-VIDEO TIMELINE SYNCHRONIZATION */}
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">5</span>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200 flex items-center gap-1.5">
+                  <Gauge className="w-4 h-4 text-indigo-400" />
+                  Speed & Timeline Sync (အသံနှင့် ဗီဒီယို အချိန်ကိုက် ညှိရန်)
+                </h2>
+              </div>
+              {audioFile && (
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                  isTimelineSynced 
+                    ? 'bg-emerald-500/20 text-emerald-400' 
+                    : durationDiff < 0 
+                      ? 'bg-amber-500/20 text-amber-400' 
+                      : 'bg-indigo-500/20 text-indigo-400'
+                }`}>
+                  {isTimelineSynced ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <span>In-Sync (အချိန်ကိုက်)</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-3 h-3" />
+                      <span>{durationDiff < 0 ? 'အသံက ပိုရှည်နေသည်' : 'ဗီဒီယိုက ပိုရှည်နေသည်'}</span>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+
+            {/* Smart Timeline Comparison Banner */}
+            <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3.5 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Video Duration Card */}
+                <div className="p-3 rounded-lg bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
+                    <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-zinc-200">
+                      <Video className="w-3.5 h-3.5 text-indigo-400" /> Video
+                    </span>
+                    <span className="font-mono text-indigo-400 font-bold">{videoSpeed.toFixed(2)}x</span>
+                  </div>
+                  <div className="text-sm font-black font-mono text-slate-900 dark:text-white">
+                    {formatTimeSimple(effectiveVideoDuration)}
+                  </div>
+                  <p className="text-[9px] text-slate-400 dark:text-zinc-500">
+                    မူရင်းကြာချိန်: {formatTimeSimple(videoDuration)}
+                  </p>
+                </div>
+
+                {/* Voiceover Duration Card */}
+                <div className="p-3 rounded-lg bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
+                    <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-zinc-200">
+                      <Music className="w-3.5 h-3.5 text-purple-400" /> Voiceover
+                    </span>
+                    <span className="font-mono text-purple-400 font-bold">{audioSpeed.toFixed(2)}x</span>
+                  </div>
+                  <div className="text-sm font-black font-mono text-slate-900 dark:text-white">
+                    {audioFile ? formatTimeSimple(effectiveAudioDuration) : 'No Audio'}
+                  </div>
+                  <p className="text-[9px] text-slate-400 dark:text-zinc-500">
+                    {audioFile ? `မူရင်းကြာချိန်: ${formatTimeSimple(audioDuration)}` : 'မူရင်း ဗီဒီယိုအသံ'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Status & Auto-Sync Action Banner */}
+              {audioFile && videoDuration > 0 && audioDuration > 0 && (
+                <div className="pt-1">
+                  {!isTimelineSynced ? (
+                    <div className="space-y-2">
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-300 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold">
+                            {durationDiff < 0 
+                              ? `အသံက ဗီဒီယိုထက် ${Math.abs(durationDiff).toFixed(1)}s ပိုရှည်နေပါသည် (အသံမပြီးခင် ဗီဒီယို အရင်ဆုံးသွားပါမည်)` 
+                              : `ဗီဒီယိုက အသံထက် ${durationDiff.toFixed(1)}s ပိုရှည်နေပါသည် (အသံ အရင်ဆုံးပြီးသွားပါမည်)`}
+                          </p>
+                          <p className="text-[10px] opacity-80 mt-0.5">
+                            အသံနှင့် ဗီဒီယို တစ်ပြိုင်နက် အဆုံးသတ်စေရန် အောက်ပါ Auto Sync ခလုတ်ကို နှိပ်ပါ:
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAutoMatchVideoToAudio}
+                          className="px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                          title="ဗီဒီယို speed ကို ညှိပြီး အသံကြာချိန်နှင့် အလိုအလျောက် ညီစေပါမည်"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                          <span>Video ကို အသံနှင့် ညှိမည် ({((videoDuration * audioSpeed) / audioDuration).toFixed(2)}x)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAutoMatchAudioToVideo}
+                          className="px-3 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                          title="အသံ speed ကို ညှိပြီး ဗီဒီယိုကြာချိန်နှင့် အလိုအလျောက် ညီစေပါမည်"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                          <span>အသံကို Video နှင့် ညှိမည် ({((audioDuration * videoSpeed) / videoDuration).toFixed(2)}x)</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span className="font-medium">ဗီဒီယိုနှင့် အသံကြာချိန် အတိအကျ အချိန်ကိုက် ညီညွတ်နေပါသည်</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleResetSpeeds}
+                        className="px-2 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[10px] font-bold flex items-center gap-1 transition-all"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reset (1.0x)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Video Speed Controls */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Video Speed (ဗီဒီယို အမြန်နှုန်း ချိန်ညှိရန်)</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                    {videoSpeed.toFixed(2)}x
+                  </span>
+                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
+                    ({formatTimeSimple(effectiveVideoDuration)})
+                  </span>
+                </div>
+              </div>
+
+              {/* Sliders and Steppers */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setVideoSpeed((prev) => Math.max(0.25, Number((prev - 0.05).toFixed(2))))}
+                  className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="2.50"
+                  step="0.05"
+                  value={videoSpeed}
+                  onChange={(e) => setVideoSpeed(Number(Number(e.target.value).toFixed(2)))}
+                  className="flex-1 accent-indigo-500 cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVideoSpeed((prev) => Math.min(3.0, Number((prev + 0.05).toFixed(2))))}
+                  className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Preset Chips */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {[0.5, 0.75, 0.85, 0.9, 1.0, 1.15, 1.25, 1.5, 2.0].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setVideoSpeed(s)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition-all ${
+                      Math.abs(videoSpeed - s) < 0.02
+                        ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400 shadow-sm ring-1 ring-indigo-500/30'
+                        : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-indigo-400'
+                    }`}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Voiceover Speed Controls (only if audio file present) */}
+            {audioFile && (
+              <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-white/5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                    <Music className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Voiceover Speed (အသံဖိုင် အမြန်နှုန်း ချိန်ညှိရန်)</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
+                      {audioSpeed.toFixed(2)}x
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
+                      ({formatTimeSimple(effectiveAudioDuration)})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sliders and Steppers */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAudioSpeed((prev) => Math.max(0.5, Number((prev - 0.05).toFixed(2))))}
+                    className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2.0"
+                    step="0.05"
+                    value={audioSpeed}
+                    onChange={(e) => setAudioSpeed(Number(Number(e.target.value).toFixed(2)))}
+                    className="flex-1 accent-purple-500 cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAudioSpeed((prev) => Math.min(2.5, Number((prev + 0.05).toFixed(2))))}
+                    className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Preset Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[0.75, 0.85, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setAudioSpeed(s)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition-all ${
+                        Math.abs(audioSpeed - s) < 0.02
+                          ? 'border-purple-500 bg-purple-500/15 text-purple-400 shadow-sm ring-1 ring-purple-500/30'
+                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-purple-400'
+                      }`}
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* SECTION 6: LOGO WATERMARK */}
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">6</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
                   Logo Watermark (လိုဂို / ရေစာ ထည့်ရန်)
                 </h2>
@@ -1419,13 +1747,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             <input type="file" ref={logoInputRef} accept="image/*" onChange={handleLogoUpload} className="hidden" />
           </section>
 
-          {/* SECTION 6: BLUR STRIP ADJUSTMENT */}
+          {/* SECTION 7: BLUR STRIP ADJUSTMENT */}
           <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">6</span>
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">7</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်ရန် Blur)
+                  Frosted Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်ရန် သဘာဝ Blur အလွှာ)
                 </h2>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -1440,7 +1768,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             </div>
 
             <p className="text-[10px] text-slate-500 dark:text-zinc-400">
-              မူရင်းဗီဒီယိုမှ စာတန်းဟောင်း သို့မဟုတ် watermark များကို blur အလွှာဖြင့် ဖုံးအုပ်ပေးပါသည်
+              အမဲရောင် အကွက်အတုံးကြီး မဟုတ်ဘဲ ဗီဒီယိုအရောင်ကို ဆက်လက်ထိန်းသိမ်းပေးထားသော သဘာဝ Frosted Glass Blur ဖြင့် မူရင်းစာတန်းကို 100% ဖုံးအုပ်ပေးပါသည်
             </p>
 
             {blurEnabled && (
@@ -1527,6 +1855,29 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 </div>
               )}
             </div>
+
+            {/* Live Timeline & Sync Status in Preview */}
+            {videoUrl && (
+              <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3 text-[11px] font-mono">
+                  <span className="text-indigo-400 font-semibold">🎬 {formatTimeSimple(effectiveVideoDuration)} ({videoSpeed.toFixed(2)}x)</span>
+                  {audioFile && (
+                    <span className="text-purple-400 font-semibold">🎙️ {formatTimeSimple(effectiveAudioDuration)} ({audioSpeed.toFixed(2)}x)</span>
+                  )}
+                </div>
+                {audioFile && !isTimelineSynced && (
+                  <button
+                    type="button"
+                    onClick={handleAutoMatchVideoToAudio}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all active:scale-95"
+                    title="ဗီဒီယိုနှင့် အသံကြာချိန် အလိုအလျောက် ညှိမည်"
+                  >
+                    <Zap className="w-3 h-3 text-amber-300" />
+                    <span>Auto Sync</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Time Seeker */}
             {videoUrl && videoDuration > 0 && (

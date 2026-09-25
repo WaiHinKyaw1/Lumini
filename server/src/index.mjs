@@ -38,6 +38,60 @@ app.get('/health', async () => ({ ok: true, service: 'lumini-media-worker' }));
 
 app.get('/api/voice-clones/status', async () => ({ configured: Boolean(ELEVENLABS_API_KEY) }));
 
+const VOXCPM_URL = process.env.VOXCPM_URL || 'http://127.0.0.1:8080';
+
+app.get('/api/voxcpm/status', async (request, reply) => {
+  try {
+    const res = await fetch(`${VOXCPM_URL}/api/voxcpm/status`, { signal: AbortSignal.timeout(2000) });
+    if (res.ok) return await res.json();
+  } catch { }
+  return {
+    online: false,
+    engine: 'VoxCPM2 (OpenBMB 48kHz)',
+    message: 'VoxCPM service is not running. Start it with: python server/voxcpm_service.py'
+  };
+});
+
+app.post('/api/voxcpm/clone', async (request, reply) => {
+  try {
+    const part = await request.file();
+    if (!part || !part.filename) return jsonError(reply, 400, 'A voice sample file is required.');
+    const name = String(part.fields?.name?.value || 'VoxCPM Voice').trim();
+    const instruction = String(part.fields?.instruction?.value || 'Energetic movie recap narration style').trim();
+    const transcript = String(part.fields?.transcript?.value || '').trim();
+
+    const sample = await part.toBuffer();
+    const form = new FormData();
+    form.append('name', name);
+    form.append('instruction', instruction);
+    if (transcript) form.append('transcript', transcript);
+    form.append('file', new Blob([sample], { type: part.mimetype || 'audio/wav' }), part.filename);
+
+    const voxRes = await fetch(`${VOXCPM_URL}/api/voxcpm/clone`, { method: 'POST', body: form });
+    if (!voxRes.ok) return jsonError(reply, voxRes.status, 'VoxCPM registration failed.');
+    return reply.send(await voxRes.json());
+  } catch (err) {
+    return jsonError(reply, 502, `VoxCPM Connection Error: ${err.message}`);
+  }
+});
+
+app.post('/api/voxcpm/synthesize', async (request, reply) => {
+  try {
+    const body = request.body || {};
+    const form = new FormData();
+    form.append('voice_id', String(body.voice_id || ''));
+    form.append('text', String(body.text || ''));
+    if (body.instruction) form.append('instruction', String(body.instruction));
+    if (body.speed) form.append('speed', String(body.speed));
+
+    const voxRes = await fetch(`${VOXCPM_URL}/api/voxcpm/synthesize`, { method: 'POST', body: form });
+    if (!voxRes.ok) return jsonError(reply, voxRes.status, 'VoxCPM synthesis failed.');
+    return reply.type('audio/wav').send(Buffer.from(await voxRes.arrayBuffer()));
+  } catch (err) {
+    return jsonError(reply, 502, `VoxCPM Connection Error: ${err.message}`);
+  }
+});
+
 app.post('/api/voice-clones', async (request, reply) => {
   if (!ELEVENLABS_API_KEY) return jsonError(reply, 503, 'Voice clone provider is not configured on the server.');
   const part = await request.file();
@@ -259,19 +313,24 @@ async function processJob(jobId, fileId, audioFileId, settings) {
     }
   }
 
+  const filterComplex = buildFilterComplex(settings, subFilePath, !!audio, settings.audioSpeed);
   const args = ['-i', input];
   if (audio) args.push('-i', audio);
 
+  args.push(
+    '-filter_complex',
+    filterComplex,
+    '-map',
+    '[vout]'
+  );
+
   if (audio) {
-    args.push('-filter_complex', `[1:a]${buildAudioFilter(settings.audioSpeed)}[syncaudio]`, '-map', '0:v:0', '-map', '[syncaudio]', '-shortest');
+    args.push('-map', '[aout]', '-shortest');
   } else {
-    // PRESERVE ORIGINAL VIDEO AUDIO (Do NOT strip with -an!)
-    args.push('-map', '0:v:0', '-map', '0:a?');
+    args.push('-map', '0:a?');
   }
 
   args.push(
-    '-vf',
-    buildVideoFilter(settings, subFilePath),
     '-c:v',
     'libx264',
     '-preset',
@@ -327,50 +386,52 @@ function secondsToAssTime(seconds) {
   return `${h}:${mStr}:${sStr}.${csStr}`;
 }
 
-function wrapSubtitleText(text, maxLen = 32) {
-  if (!text || text.length <= maxLen || text.includes('\\N')) return text;
+// Strictly format into at most 2 lines (never 3 lines)
+function wrapSubtitleText(text, maxCharsPerLine = 34) {
+  if (!text) return '';
+  const clean = text
+    .replace(/\\N/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  if (text.includes(' ')) {
-    const words = text.split(' ');
-    let current = '';
-    const lines = [];
-    for (const w of words) {
-      if ((current + ' ' + w).trim().length > maxLen && current) {
-        lines.push(current.trim());
-        current = w;
-      } else {
-        current = current ? current + ' ' + w : w;
+  if (clean.length <= maxCharsPerLine) return clean;
+
+  const words = clean.split(' ');
+  if (words.length > 1) {
+    // Find optimal midpoint split for strictly 2 lines
+    let bestSplitIdx = 1;
+    let minDiff = Infinity;
+    const totalLen = clean.length;
+    let currentLen = 0;
+    for (let i = 0; i < words.length - 1; i++) {
+      currentLen += words[i].length + 1;
+      const diff = Math.abs(currentLen - (totalLen / 2));
+      if (diff < minDiff) {
+        minDiff = diff;
+        bestSplitIdx = i + 1;
       }
     }
-    if (current) lines.push(current.trim());
-    return lines.join('\\N');
+    const line1 = words.slice(0, bestSplitIdx).join(' ').trim();
+    const line2 = words.slice(bestSplitIdx).join(' ').trim();
+    return `${line1}\\N${line2}`;
   }
 
-  const punctRegex = /([၊။])/g;
-  if (punctRegex.test(text)) {
-    const parts = text.split(punctRegex);
-    let current = '';
-    const lines = [];
-    for (let i = 0; i < parts.length; i += 2) {
-      const segment = parts[i] + (parts[i + 1] || '');
-      if ((current + segment).length > maxLen && current) {
-        lines.push(current.trim());
-        current = segment;
-      } else {
-        current += segment;
-      }
-    }
-    if (current) lines.push(current.trim());
-    if (lines.length > 1) return lines.join('\\N');
+  const punctMatch = clean.search(/[၊။]/);
+  if (punctMatch !== -1 && punctMatch > 6 && punctMatch < clean.length - 6) {
+    const line1 = clean.slice(0, punctMatch + 1).trim();
+    const line2 = clean.slice(punctMatch + 1).trim();
+    return `${line1}\\N${line2}`;
   }
 
-  const mid = Math.floor(text.length / 2);
-  return text.slice(0, mid) + '\\N' + text.slice(mid);
+  const mid = Math.floor(clean.length / 2);
+  return `${clean.slice(0, mid).trim()}\\N${clean.slice(mid).trim()}`;
 }
 
-function parseSrtToAssEvents(srtText, marginV) {
+function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1) {
   const clean = srtText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   const rawCues = [];
+  const speed = Number.isFinite(speedMultiplier) && speedMultiplier > 0 ? speedMultiplier : 1;
 
   const blocks = clean.split(/\n\s*\n/);
   for (const block of blocks) {
@@ -383,8 +444,8 @@ function parseSrtToAssEvents(srtText, marginV) {
     const timeParts = lines[timeLineIdx].split('-->');
     if (timeParts.length !== 2) continue;
 
-    const startSec = srtTimeToSeconds(timeParts[0]);
-    let endSec = srtTimeToSeconds(timeParts[1]);
+    const startSec = srtTimeToSeconds(timeParts[0]) / speed;
+    let endSec = srtTimeToSeconds(timeParts[1]) / speed;
 
     const cueLines = lines.slice(timeLineIdx + 1);
     const cueText = cueLines
@@ -394,8 +455,9 @@ function parseSrtToAssEvents(srtText, marginV) {
       .trim();
 
     if (cueText) {
-      if (endSec <= startSec) endSec = startSec + 2.5;
-      rawCues.push({ startSec, endSec, cueText });
+      if (endSec <= startSec) endSec = startSec + (2.5 / speed);
+      const wrapped = wrapSubtitleText(cueText, 34);
+      rawCues.push({ startSec, endSec, cueText: wrapped });
     }
   }
 
@@ -416,8 +478,7 @@ function parseSrtToAssEvents(srtText, marginV) {
   for (const cue of rawCues) {
     const start = secondsToAssTime(cue.startSec);
     const end = secondsToAssTime(cue.endSec);
-    const wrapped = wrapSubtitleText(cue.cueText, 32);
-    events.push(`Dialogue: 0,${start},${end},Default,,0,0,${marginV},,${wrapped}`);
+    events.push(`Dialogue: 0,${start},${end},Default,,0,0,${marginV},,${cue.cueText}`);
   }
 
   return events;
@@ -433,12 +494,13 @@ function generateAssSubtitle(canvas, settings) {
     ? Math.max(28, Math.round(canvas.height * 0.026))
     : Math.max(26, Math.round(canvas.height * 0.036));
 
-  // Distance from bottom to center within blur strip
+  // Precise vertical alignment matching canvas preview exactly
   let marginV = Math.max(20, Math.round(canvas.height * 0.08));
   if (settings.blurEnabled) {
-    const blurCenterY = canvas.height * (settings.blurPosition / 100);
+    const blurCenterY = canvas.height * ((settings.blurPosition ?? 82) / 100);
     const centerFromBottom = canvas.height - blurCenterY;
-    marginV = Math.max(10, Math.round(centerFromBottom - fontSize * 0.55));
+    // Account for 1.35x line-height of 2-line subtitle text to place center exactly at blurCenterY
+    marginV = Math.max(10, Math.round(centerFromBottom - (fontSize * 1.35 * 0.5)));
   }
 
   // Style configurations in ASS format (&HAABBGGRR in hex)
@@ -482,15 +544,14 @@ function generateAssSubtitle(canvas, settings) {
 
   let dialogueEvents = [];
   if (text.includes('-->')) {
-    dialogueEvents = parseSrtToAssEvents(text, marginV);
+    dialogueEvents = parseSrtToAssEvents(text, marginV, settings.audioSpeed || 1);
   }
 
   if (dialogueEvents.length === 0) {
-    // If input has SRT markers (-->) or looks like SRT code, DO NOT burn raw timestamps onto the video!
     if (text.includes('-->') || /^\d+\s*$/m.test(text)) {
       return null;
     }
-    const escapedText = wrapSubtitleText(text.replace(/[{}]/g, '').replace(/\r?\n/g, '\\N'), 32);
+    const escapedText = wrapSubtitleText(text, 34);
     dialogueEvents.push(`Dialogue: 0,0:00:00.00,5:00:00.00,Default,,0,0,${marginV},,${escapedText}`);
   }
 
@@ -514,7 +575,7 @@ ${dialogueEvents.join('\n')}
 `;
 }
 
-function buildVideoFilter(settings, assFilePath) {
+function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed) {
   const canvas = settings.aspectRatio === '9:16'
     ? { width: 1080, height: 1920 }
     : settings.aspectRatio === '1:1'
@@ -522,33 +583,48 @@ function buildVideoFilter(settings, assFilePath) {
       : settings.aspectRatio === '4:5'
         ? { width: 1080, height: 1350 }
         : { width: 1920, height: 1080 };
-  const filters = [
-    `scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`,
-    `pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`,
-  ];
-  if (settings.videoSpeed !== 1) filters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
-  const base = filters.join(',');
 
-  let videoStream = base;
+  const vFilters = [];
+  if (settings.videoSpeed && settings.videoSpeed !== 1) {
+    vFilters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
+  }
+  vFilters.push(`scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`);
+  vFilters.push(`pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`);
 
-  // 1. BLUR STRIP FILTER (Strong blur + opaque dark backing so text is 100% hidden)
+  let vChain = `[0:v]${vFilters.join(',')}`;
+
+  // 1. True Frosted Glass Blur Band
   if (settings.blurEnabled) {
-    const thickness = (settings.blurThickness / 100).toFixed(4);
-    const topValue = Math.max(0, Math.min(1 - Number(thickness), (settings.blurPosition - settings.blurThickness / 2) / 100));
+    const rawThickness = Number(settings.blurThickness) || 14;
+    const rawPos = Number(settings.blurPosition) || 82;
+    const thickness = (rawThickness / 100).toFixed(4);
+    const topValue = Math.max(0, Math.min(1 - Number(thickness), (rawPos - rawThickness / 2) / 100));
     const top = topValue.toFixed(4);
-    const lumaRad = Math.min(14, Math.max(3, Math.round(settings.blurIntensity / 3)));
-    const chromaRad = Math.min(4, Math.max(1, Math.round(lumaRad / 3)));
-    videoStream = `${base},split=2[base][blurSource];[blurSource]crop=iw:ih*${thickness}:0:ih*${top},boxblur=luma_radius=${lumaRad}:luma_power=2:chroma_radius=${chromaRad}:chroma_power=2[blurBand];[base][blurBand]overlay=0:main_h*${top},drawbox=x=0:y=ih*${top}:w=iw:h=ih*${thickness}:color=black@0.92:t=fill`;
+    const lumaRad = Math.min(32, Math.max(8, Math.round((Number(settings.blurIntensity) || 35) * 0.75)));
+    const chromaRad = Math.min(16, Math.max(4, Math.round(lumaRad * 0.5)));
+
+    vChain = `${vChain}[vscaled];` +
+      `[vscaled]split=2[vbase][vblur];` +
+      `[vblur]crop=iw:ih*${thickness}:0:ih*${top},boxblur=luma_radius=${lumaRad}:luma_power=3:chroma_radius=${chromaRad}:chroma_power=3[blurBand];` +
+      `[vbase][blurBand]overlay=0:main_h*${top}`;
   }
 
-  // 2. SUBTITLE TEXT FILTER (Burmese Akkhayar 21 via libass - only if subtitleEnabled)
+  // 2. Burmese Akkhayar 21 ASS Subtitle Filter
   if (settings.subtitleEnabled && assFilePath) {
     const escapedAssPath = assFilePath.replace(/\\/g, '/').replace(/'/g, "'\\''");
     const escapedFontsDir = FONTS_DIR.replace(/\\/g, '/').replace(/'/g, "'\\''");
-    videoStream = `${videoStream},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
+    vChain = `${vChain},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
   }
 
-  return videoStream;
+  vChain = `${vChain}[vout]`;
+
+  const filterParts = [vChain];
+  if (hasAudio) {
+    const aFilter = buildAudioFilter(audioSpeed || 1);
+    filterParts.push(`[1:a]${aFilter}[aout]`);
+  }
+
+  return filterParts.join(';');
 }
 
 function buildAudioFilter(speed) {

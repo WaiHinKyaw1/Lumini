@@ -7,7 +7,7 @@ import { logGeneration } from '../services/supabase';
 import {
   Upload, FileText, Download, Trash2, Play, Pause,
   CheckCircle2, AlertCircle, Sparkles, Copy, Check,
-  ChevronRight, Languages, Clock, Mic, Film, Send, Code, ListFilter, Plus
+  ChevronRight, Languages, Clock, Mic, Film, Send, Code, ListFilter, Plus, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -27,6 +27,7 @@ interface FileItem {
   file: File;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   statusText?: string;
+  progress?: number;
   result?: string;
   error?: string;
 }
@@ -159,8 +160,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
       r.readAsDataURL(file);
     });
 
-  // Client-side lightweight audio extraction (WAV 16kHz mono) for ultra-fast Gemini transcription
-  const extractAudioFromVideo = async (videoFile: File): Promise<string> => {
+  // Client-side lightweight audio extraction and compression (WAV 16kHz mono) for ultra-fast Gemini transcription
+  const compressAudioFile = async (mediaFile: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
       const audioCtx = new AudioCtx();
@@ -169,8 +170,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
         try {
           const ab = e.target?.result as ArrayBuffer;
           const audioBuffer = await audioCtx.decodeAudioData(ab);
-          const numCh = 1; // mono for compact size
-          const sampleRate = Math.min(24000, audioBuffer.sampleRate);
+          const numCh = 1; // mono for compact size (32KB/sec)
+          const sampleRate = 16000; // 16kHz gold standard for speech AI
           const offlineCtx = new OfflineAudioContext(numCh, Math.ceil(audioBuffer.duration * sampleRate), sampleRate);
           const source = offlineCtx.createBufferSource();
           source.buffer = audioBuffer;
@@ -197,21 +198,21 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
           }
           const blob = new Blob([buf], { type: 'audio/wav' });
           const r2 = new FileReader();
-          r2.onload = () => resolve((r2.result as string).split(',')[1]);
+          r2.onload = () => resolve({ base64: (r2.result as string).split(',')[1], mimeType: 'audio/wav' });
           r2.onerror = reject;
           r2.readAsDataURL(blob);
         } catch (err) { reject(err); }
         finally { if (audioCtx.state !== 'closed') audioCtx.close(); }
       };
       reader.onerror = reject;
-      reader.readAsArrayBuffer(videoFile);
+      reader.readAsArrayBuffer(mediaFile);
     });
   };
 
   const processFile = async (item: FileItem) => {
     if (item.file.size > 250 * 1024 * 1024) throw new Error('ဖိုင်ဆိုဒ် ကြီးလွန်းပါသည် (အများဆုံး 250MB)');
     if (!onSpendCredits(CREDIT_COSTS[ContentType.SUBTITLE])) throw new Error('Credit မလုံလောက်ပါ');
-    setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' as const, statusText: 'စတင်ပြင်ဆင်နေပါသည်...' } : i));
+    setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' as const, statusText: 'စတင်ပြင်ဆင်နေပါသည်...', progress: 5 } : i));
     try {
       let base64 = '';
       let mimeType = 'audio/mp3';
@@ -223,51 +224,139 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
           try { isWorkerOnline = await isMediaWorkerAvailable(); } catch { }
         }
 
-        if (isWorkerOnline) {
-          // AWS EC2 FFmpeg ultra-fast audio extraction (0.5s - converts 100MB video to 300KB MP3!)
-          setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'ဆာဗာသို့ တင်သွင်းနေပါသည်...' } : i));
-          const uploaded = await uploadMedia(item.file, (pct) => {
-            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: `ဗီဒီယို တင်နေပါသည် (${pct}%)...` } : i));
-          });
+        let extractedSuccess = false;
 
-          setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'FFmpeg ဖြင့် အသံဖိုင် သီးသန့် ခွဲထုတ်နေပါသည်...' } : i));
-          const extracted = await extractAudioFromMedia(uploaded.fileId);
-          base64 = extracted.audioBase64;
-          mimeType = extracted.mimeType || 'audio/mp3';
-        } else {
-          // Fallback: browser audio extraction
-          setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'Browser တွင် အသံဖိုင် ခွဲထုတ်နေပါသည်...' } : i));
+        if (isWorkerOnline) {
           try {
-            base64 = await extractAudioFromVideo(item.file);
-            mimeType = 'audio/wav';
+            // AWS EC2 FFmpeg ultra-fast audio extraction (converts 100MB video to 300KB MP3!)
+            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'ဆာဗာသို့ တင်သွင်းနေပါသည်...', progress: 10 } : i));
+            const uploaded = await uploadMedia(item.file, (pct) => {
+              const overall = Math.min(45, 10 + Math.round(pct * 0.35));
+              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: `ဗီဒီယို တင်နေပါသည် (${pct}%)...`, progress: overall } : i));
+            });
+
+            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'FFmpeg ဖြင့် အသံဖိုင် သီးသန့် ခွဲထုတ်နေပါသည်...', progress: 48 } : i));
+            const extracted = await extractAudioFromMedia(uploaded.fileId);
+            base64 = extracted.audioBase64;
+            mimeType = extracted.mimeType || 'audio/mp3';
+            extractedSuccess = true;
+            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, progress: 50 } : i));
+          } catch (uploadErr) {
+            console.warn('Media worker extraction failed, falling back to local extraction:', uploadErr);
+          }
+        }
+
+        if (!extractedSuccess) {
+          // Fallback: browser audio extraction
+          setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'Browser တွင် အသံဖိုင် ခွဲထုတ်နေပါသည်...', progress: 25 } : i));
+          try {
+            const compressed = await compressAudioFile(item.file);
+            base64 = compressed.base64;
+            mimeType = compressed.mimeType;
+            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, progress: 50 } : i));
           } catch {
             if (item.file.size > 25 * 1024 * 1024) {
               throw new Error('ဗီဒီယိုဖိုင် အရွယ်အစား ကြီးမားပါသည် (>25MB)။ အသံဖိုင် (MP3/M4A/WAV) သို့ပြောင်း၍ တင်သွင်းပါက ၃ စက္ကန့်အတွင်း အမြန်ဆုံး ရရှိပါမည်။');
             }
+            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'ဗီဒီယိုဖိုင် ဖတ်ရှုနေပါသည်...', progress: 35 } : i));
             base64 = await fileToBase64(item.file);
             mimeType = item.file.type || 'video/mp4';
+            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, progress: 50 } : i));
           }
         }
       } else {
-        // Direct Audio File: Instant read (<1s)
-        setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'အသံဖိုင် ဖတ်ရှုနေပါသည်...' } : i));
-        base64 = await fileToBase64(item.file);
-        mimeType = item.file.type || 'audio/mp3';
+        // Direct Audio File: Compress to 16kHz mono WAV in browser (<1s) for lightweight ultra-fast Gemini transfer
+        setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'အသံဖိုင် 16kHz သို့ အမြန်ပြောင်းလဲနေပါသည်...', progress: 20 } : i));
+        try {
+          const compressed = await compressAudioFile(item.file);
+          base64 = compressed.base64;
+          mimeType = compressed.mimeType;
+          setQueue(prev => prev.map(i => i.id === item.id ? { ...i, progress: 48 } : i));
+        } catch {
+          base64 = await fileToBase64(item.file);
+          mimeType = item.file.type || 'audio/mp3';
+          setQueue(prev => prev.map(i => i.id === item.id ? { ...i, progress: 48 } : i));
+        }
       }
 
-      setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'Gemini AI Subtitle ထုတ်ယူနေပါသည်...' } : i));
-      const result = await generateSubtitles(base64, mimeType, language);
+      setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'Gemini AI Subtitle စတင်ချိတ်ဆက်နေပါသည်...', progress: 50 } : i));
+
+      // Active progress heartbeat while waiting for Gemini AI stream so progress never stalls
+      let currentProgress = 50;
+      const progressTimer = setInterval(() => {
+        if (currentProgress < 95) {
+          const step = currentProgress < 75 ? 2 : (currentProgress < 88 ? 1 : (Math.random() > 0.4 ? 1 : 0));
+          currentProgress += step;
+          const statusMessages = [
+            'AI Subtitle စတင်ချိတ်ဆက်နေပါသည်...',
+            'အသံလှိုင်းများကို AI မှ စတင်နားဆင်နေပါသည်...',
+            'စကားပြောသံနှင့် အချိန် Timeline များကို တွက်ချက်နေပါသည်...',
+            'Subtitle စာတန်းများကို စတင်ရေးသားထုတ်ယူနေပါသည်...',
+            'စာတန်းများကို အချောသတ် စစ်ဆေးနေပါသည်...'
+          ];
+          const msgIdx = Math.min(statusMessages.length - 1, Math.floor((currentProgress - 50) / 10));
+          setQueue(prev => prev.map(i => i.id === item.id && i.status === 'processing' ? {
+            ...i,
+            statusText: statusMessages[msgIdx],
+            progress: currentProgress
+          } : i));
+        }
+      }, 700);
+
+      let result = '';
+      try {
+        result = await generateSubtitles(base64, mimeType, language, (partialText, cueCount) => {
+          if (!isMounted.current) return;
+          const dynamicPct = Math.min(96, Math.max(currentProgress, 72 + Math.min(24, cueCount * 2)));
+          const cueLabel = cueCount > 0 ? ` (${cueCount} Cues တွေ့ရှိ)` : '';
+          setQueue(prev => prev.map(i => i.id === item.id ? {
+            ...i,
+            statusText: `AI စာတန်းများ ထုတ်ယူနေပါသည်${cueLabel}...`,
+            progress: dynamicPct,
+            result: partialText
+          } : i));
+          if (selectedItemId === item.id && partialText) {
+            setRawSrtText(partialText);
+            const parsed = parseSrtCues(partialText);
+            if (parsed.length > 0) setCues(parsed);
+          }
+        });
+      } finally {
+        clearInterval(progressTimer);
+      }
 
       if (!isMounted.current) return;
+      const finalCues = parseSrtCues(result);
+      if (finalCues.length === 0 && !result.includes('-->')) {
+        throw new Error('အသံဖိုင်တွင် စကားပြောသံ ရှင်းလင်းစွာ မပါရှိပါ သို့မဟုတ် Subtitle စာတန်း မထွက်ရှိပါ။');
+      }
+
       const u = auth.currentUser;
       if (u) {
         logGeneration(u.uid, u.email || '', 'subtitles', { fileName: item.file.name, language }, { resultLength: result?.length || 0 }).catch(() => { });
       }
-      setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'completed' as const, statusText: 'အောင်မြင်ပါသည်', result } : i));
-      toast.success(`${item.file.name} — Subtitle အောင်မြင်စွာ ထုတ်ယူပြီးပါပြီ!`);
+      setQueue(prev => prev.map(i => i.id === item.id ? {
+        ...i,
+        status: 'completed' as const,
+        statusText: `အောင်မြင်ပါသည် (${finalCues.length} Cues)`,
+        progress: 100,
+        result
+      } : i));
+      if (selectedItemId === item.id) {
+        setCues(finalCues);
+        setRawSrtText(result);
+      }
+      toast.success(`${item.file.name} — Subtitle အောင်မြင်စွာ ထုတ်ယူပြီးပါပြီ! (${finalCues.length} Cues)`);
     } catch (err: unknown) {
       if (isMounted.current) {
-        setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'failed' as const, statusText: 'မအောင်မြင်ပါ', error: (err as { message?: string })?.message } : i));
+        const errorMsg = (err as { message?: string })?.message || 'ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်';
+        setQueue(prev => prev.map(i => i.id === item.id ? {
+          ...i,
+          status: 'failed' as const,
+          statusText: 'မအောင်မြင်ပါ',
+          progress: 0,
+          error: errorMsg
+        } : i));
         throw err;
       }
     }
@@ -548,7 +637,14 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold text-slate-800 dark:text-zinc-100 truncate">{item.file.name}</p>
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-[11px] font-bold text-slate-800 dark:text-zinc-100 truncate">{item.file.name}</p>
+                        {item.status === 'processing' && (
+                          <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 font-mono shrink-0">
+                            {item.progress || 5}%
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[9px] text-slate-400 dark:text-zinc-500 mt-0.5 truncate max-w-[170px]">
                         {item.statusText || getStatusLabel(item.status)}
                         {item.status === 'completed' && item.result && ` • ${parseSrtCues(item.result).length} Cues`}
@@ -572,6 +668,14 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                       </button>
                     </div>
                   </div>
+                  {item.status === 'processing' && (
+                    <div className="mt-2.5 w-full bg-indigo-100 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-teal-400 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${Math.max(5, item.progress || 5)}%` }}
+                      />
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -662,7 +766,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                     {selectedItem.status === 'processing' && (
                       <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold">
                         <div className="w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        AI Transcribing...
+                        AI Transcribing ({selectedItem.progress || 5}%)...
                       </span>
                     )}
                   </div>
@@ -699,19 +803,72 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                 {/* Editor Content Area */}
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                   {selectedItem.status === 'processing' ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-4 py-20">
+                    <div className="flex flex-col items-center justify-center h-full gap-5 py-12 px-6">
                       <div className="relative">
-                        <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center">
-                          <Sparkles className="w-7 h-7 text-indigo-400 animate-pulse" />
+                        <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-indigo-500/20 via-purple-500/20 to-teal-500/20 border border-indigo-500/30 flex items-center justify-center shadow-lg shadow-indigo-500/10">
+                          <Sparkles className="w-9 h-9 text-indigo-400 animate-pulse" />
                         </div>
-                        <div className="absolute inset-0 rounded-2xl border-2 border-indigo-500/30 animate-ping" />
+                        <div className="absolute inset-0 rounded-3xl border-2 border-indigo-500/30 animate-ping opacity-60" />
                       </div>
-                      <div className="text-center space-y-1">
-                        <p className="text-sm font-bold text-slate-800 dark:text-zinc-100">{selectedItem.statusText || 'Gemini AI Subtitle Transcribing...'}</p>
-                        <p className="text-xs text-slate-400 dark:text-zinc-500">
-                          အသံဖိုင်မှ စကားလုံးများနှင့် Timeline များကို တိကျစွာ ခွဲထုတ်နေပါသည်
+
+                      <div className="text-center space-y-2 max-w-md w-full">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200 px-1">
+                          <span className="flex items-center gap-1.5 truncate max-w-[300px]">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping inline-block shrink-0" />
+                            {selectedItem.statusText || 'Gemini AI Subtitle Transcribing...'}
+                          </span>
+                          <span className="font-mono text-indigo-500 dark:text-indigo-400 text-sm font-black shrink-0 ml-2">
+                            {selectedItem.progress || 5}%
+                          </span>
+                        </div>
+
+                        {/* Large Sleek Progress Bar */}
+                        <div className="w-full bg-gray-100 dark:bg-white/10 h-3 rounded-full overflow-hidden p-0.5 border border-gray-200 dark:border-white/10 shadow-inner">
+                          <div
+                            className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-teal-400 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${Math.max(5, selectedItem.progress || 5)}%` }}
+                          />
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 dark:text-zinc-500 pt-0.5">
+                          အသံဖိုင်မှ စကားလုံးများနှင့် Timeline များကို AI ဖြင့် တိကျစွာ ခွဲထုတ်ရေးသားနေပါသည်
                         </p>
+
+                        <div className="pt-2 flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => {
+                              setQueue(prev => prev.map(i => i.id === selectedItem.id ? { ...i, status: 'pending' as const, progress: 0, statusText: 'Pending' } : i));
+                              setIsProcessingAll(false);
+                              toast('လုပ်ဆောင်ချက်ကို ရပ်တန့်လိုက်ပါသည်');
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-rose-500/20 text-slate-600 dark:text-zinc-300 hover:text-rose-400 text-[11px] font-bold transition-all flex items-center gap-1"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Cancel (ရပ်တန့်မည်)</span>
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Live Cues Preview if already streaming in */}
+                      {cues.length > 0 && (
+                        <div className="w-full max-w-lg mt-3 p-4 rounded-2xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 space-y-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-zinc-300 pb-1.5 border-b border-gray-200 dark:border-white/5">
+                            <span className="flex items-center gap-1.5 text-emerald-500">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              Live Generated Cues ({cues.length})
+                            </span>
+                            <span className="text-[10px] text-zinc-400 font-mono">Stream တိုက်ရိုက် ရေးသားနေပါသည်</span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                            {cues.slice(-5).map((c, i) => (
+                              <div key={i} className="text-xs p-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/5 flex items-start gap-2">
+                                <span className="font-mono text-[9px] text-indigo-400 shrink-0 font-bold mt-0.5">{c.start}</span>
+                                <span className="text-slate-800 dark:text-zinc-200 line-clamp-1">{c.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : selectedItem.status === 'failed' ? (
                     <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-center">

@@ -62,8 +62,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </h2>
             <p className="text-zinc-400 text-xs leading-relaxed px-2">
               ဤ module ကို load လုပ်ရာတွင် အခြားပြဿနာတစ်ချို့ တွေ့ရှိရပါသည်။
-              ကျန်းမာသော app အခွင်းအရေးများသည် ဆက်လက်အလုပ်လုပ်နိုင်ပါသည်။
             </p>
+            {this.state.error?.message && (
+              <p className="text-rose-400/90 text-[11px] font-mono bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20 break-words text-left">
+                {this.state.error.message}
+              </p>
+            )}
           </div>
           <button
             type="button"

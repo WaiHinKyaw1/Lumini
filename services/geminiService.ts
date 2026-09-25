@@ -18,8 +18,10 @@ const getAIClient = () => {
 };
 
 const CANDIDATE_FLASH_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
   'gemini-3-flash-preview',
-  'gemini-3.6-flash'
+  'gemini-2.5-flash'
 ];
 
 export const generateText = async (prompt: string, systemInstruction: string) => {
@@ -57,7 +59,7 @@ export const generateImage = async (prompt: string, aspectRatio: "1:1" | "16:9" 
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
-    contents: { parts },
+    contents: parts,
     config: {
       imageConfig: { 
         aspectRatio,
@@ -103,18 +105,31 @@ export const generateVideo = async (prompt: string) => {
   return `${videoUri}&key=${key}`;
 };
 
+export function cleanSrtOutput(rawText: string): string {
+  let text = (rawText || '').trim();
+  // Strip markdown code fences
+  text = text.replace(/```(?:srt|text)?/gi, '').replace(/```/g, '').trim();
+  // Strip leading non-SRT text before the first cue
+  const firstCueMatch = text.search(/(?:^|\n)\s*(?:\d+\s*\n\s*)?\d{1,2}:\d{2}:\d{2}[,\.]\d{3}\s*-->/);
+  if (firstCueMatch !== -1) {
+    text = text.slice(firstCueMatch).trim();
+  }
+  return text;
+}
+
 export const generateSubtitles = async (
   fileBase64: string, 
   mimeType: string, 
-  language: string = 'BURMESE'
-) => {
+  language: string = 'BURMESE',
+  onProgressChunk?: (partialCleanSrt: string, cueCount: number) => void
+): Promise<string> => {
   const ai = getAIClient();
   
   const systemInstruction = `You are an expert media transcriptionist and subtitle generator.
 Transcribe the provided media into a clean, accurate SubRip (.srt) subtitle file.
 
 CRITICAL RULES:
-1. Output ONLY pure SRT text. Do NOT use markdown code blocks (\`\`\`srt), do NOT add explanations or introductory text.
+1. Output ONLY pure SRT text. Do NOT use markdown code blocks (\`\`\`srt), do NOT add explanations, introductory text, or concluding notes.
 2. Standard SRT format:
 1
 00:00:01,000 --> 00:00:04,500
@@ -122,35 +137,88 @@ Subtitle text here
 
 3. Target language: ${language}.
 4. Timestamps must be strictly accurate to the spoken words.
-5. Keep each cue concise (2 to 5 seconds, max 30-35 characters per line) for optimal movie subtitle readability.
+5. Keep each cue concise (2 to 5 seconds, max 35 characters per line) for optimal movie subtitle readability.
 6. Ensure consecutive cues do NOT have overlapping timestamps.`;
 
-  const prompt = `Transcribe this media file into a clean, millisecond-accurate SRT subtitle file in ${language}.`;
+  const prompt = `Transcribe this media file into a clean, millisecond-accurate SRT subtitle file in ${language}. Output only standard SRT starting immediately with cue 1.`;
 
   let lastError: any = null;
-  for (const model of CANDIDATE_FLASH_MODELS) {
+  const models = CANDIDATE_FLASH_MODELS;
+
+  for (const model of models) {
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: {
-          parts: [
-            { inlineData: { data: fileBase64, mimeType } },
-            { text: prompt }
-          ]
-        },
-        config: {
-          systemInstruction,
-          temperature: 0.1,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+      const executeWithTimeout = async (): Promise<string> => {
+        try {
+          const direct = await ai.models.generateContent({
+            model,
+            contents: [
+              { inlineData: { data: fileBase64, mimeType } },
+              { text: prompt }
+            ],
+            config: {
+              systemInstruction,
+              temperature: 0.1
+            }
+          });
+          const cleaned = cleanSrtOutput(direct.text || "");
+          if (cleaned && cleaned.includes('-->')) {
+            if (onProgressChunk) {
+              const cuesCount = (cleaned.match(/-->/g) || []).length;
+              onProgressChunk(cleaned, cuesCount);
+            }
+            return cleaned;
+          }
+          if (direct.text?.trim()) {
+            const fallback = cleanSrtOutput(direct.text);
+            if (fallback) return fallback;
+          }
+        } catch (genErr: any) {
+          console.warn(`Direct generateContent on ${model} failed, trying stream:`, genErr?.message || genErr);
+          // Try streaming
+          const responseStream = await ai.models.generateContentStream({
+            model,
+            contents: [
+              { inlineData: { data: fileBase64, mimeType } },
+              { text: prompt }
+            ],
+            config: {
+              systemInstruction,
+              temperature: 0.1
+            }
+          });
+          
+          let fullRaw = "";
+          for await (const chunk of responseStream) {
+            const text = chunk.text || "";
+            fullRaw += text;
+            if (onProgressChunk && fullRaw.trim()) {
+              const cuesCount = (fullRaw.match(/-->/g) || []).length;
+              onProgressChunk(cleanSrtOutput(fullRaw), cuesCount);
+            }
+          }
+          
+          const cleaned = cleanSrtOutput(fullRaw);
+          if (cleaned && cleaned.includes('-->')) {
+            return cleaned;
+          }
+          if (fullRaw.trim()) {
+            return cleanSrtOutput(fullRaw);
+          }
         }
-      });
-      
-      let result = response.text || "";
-      result = result.replace(/```(?:srt|text)?/g, '').replace(/```/g, '').trim();
-      if (result) return result;
+        throw new Error(`Model ${model} returned empty or invalid subtitle format`);
+      };
+
+      const result = await Promise.race([
+        executeWithTimeout(),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`Timeout after 120s on model ${model}`)), 120000))
+      ]);
+
+      if (result && (result.includes('-->') || result.trim().length > 10)) {
+        return result;
+      }
     } catch (err: any) {
       lastError = err;
-      console.warn(`Model ${model} subtitle generation failed, trying next:`, err?.message || err);
+      console.warn(`Model ${model} failed:`, err?.message || err);
       continue;
     }
   }
@@ -178,19 +246,27 @@ export const analyzeDocument = async (
 
   parts.push({ text: prompt });
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.5-flash',
-    contents: {
-      parts: parts
-    },
-    config: {
-      systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
-      temperature: 0.2,
-      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+  let lastError: any = null;
+  for (const model of CANDIDATE_FLASH_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: parts,
+        config: {
+          systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
+          temperature: 0.2,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+        }
+      });
+      if (response.text) return response.text;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`analyzeDocument on ${model} failed:`, err?.message || err);
+      continue;
     }
-  });
+  }
   
-  return response.text || "The AI was unable to generate a result.";
+  throw lastError || new Error("The AI was unable to generate a result.");
 };
 
 export const analyzeDocumentStream = async (
@@ -214,25 +290,34 @@ export const analyzeDocumentStream = async (
 
   parts.push({ text: prompt });
 
-  const responseStream = await ai.models.generateContentStream({
-    model: 'gemini-3.5-flash',
-    contents: {
-      parts: parts
-    },
-    config: {
-      systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
-      temperature: 0.2,
-      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+  let lastError: any = null;
+  for (const model of CANDIDATE_FLASH_MODELS) {
+    try {
+      const responseStream = await ai.models.generateContentStream({
+        model,
+        contents: parts,
+        config: {
+          systemInstruction: systemInstruction || "You are a helpful AI assistant analyzing provided media.",
+          temperature: 0.2,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+        }
+      });
+      
+      let fullText = "";
+      for await (const chunk of responseStream) {
+        const text = chunk.text || "";
+        fullText += text;
+        onChunk(text);
+      }
+      return fullText;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`analyzeDocumentStream on ${model} failed:`, err?.message || err);
+      continue;
     }
-  });
-  
-  let fullText = "";
-  for await (const chunk of responseStream) {
-    const text = chunk.text || "";
-    fullText += text;
-    onChunk(text);
   }
-  return fullText;
+  
+  throw lastError || new Error("The AI was unable to generate a stream result.");
 };
 
 // Helper to write string to DataView

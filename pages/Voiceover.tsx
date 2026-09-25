@@ -1,28 +1,11 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSpeech, playAudio } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
+import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import {
-  analyzeVoice,
-  applyClonePostProcessing,
-  loadClones,
-  saveClones,
-  removeClone,
-  readFileAsDataUrl,
-  startRecording,
-  createElevenClone,
-  synthesizeWithClone,
-  getElevenKey,
-  setElevenKey,
-  analyzeSpeakingStyle,
-  applySpeakingRate,
-  type VoiceProfile,
-  type SpeakingStyleProfile,
-} from '../services/voiceClone';
-import { createBackendVoiceClone, isVoiceCloneBackendConfigured, synthesizeBackendVoiceClone } from '../services/voiceCloneApi';
-
+import { analyzeVoice, startRecording, type VoiceProfile } from '../services/voiceClone';
+import { getVoxCPMStatus, createVoxCPMVoiceClone, synthesizeVoxCPMSpeech } from '../services/voiceCloneApi';
+import { Sparkles, Mic, Upload, Play, Square, Download, Trash2, CheckCircle2, Volume2, RefreshCw } from 'lucide-react';
 
 interface VoiceoverProps {
   onSpendCredits: (amount: number) => boolean;
@@ -39,7 +22,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPreviewing, setIsPreviewing] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,51 +30,103 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  // --- Voice Clone Studio states ---
-  const [mode, setMode] = useState<'studio' | 'clone'>('studio');
-  const [clones, setClones] = useState<VoiceProfile[]>([]);
-  const [activeCloneId, setActiveCloneId] = useState<string | null>(null);
-  const [cloneName, setCloneName] = useState('');
-  const [cloneFile, setCloneFile] = useState<File | null>(null);
-  const [cloneUrl, setCloneUrl] = useState<string | null>(null);
-  const [styleFile, setStyleFile] = useState<File | null>(null);
-  const [styleUrl, setStyleUrl] = useState<string | null>(null);
-  const [styleProfile, setStyleProfile] = useState<SpeakingStyleProfile | null>(null);
-  const [savedStyles, setSavedStyles] = useState<Array<SpeakingStyleProfile & { id: string; name: string }>>([]);
-  const [activeStyleId, setActiveStyleId] = useState<string>('');
+  // --- Simplified Sample Voice & Narration Style State ---
+  const [sampleFile, setSampleFile] = useState<File | null>(null);
+  const [sampleAudioUrl, setSampleAudioUrl] = useState<string | null>(null);
+  const [analyzedProfile, setAnalyzedProfile] = useState<VoiceProfile | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [cloneStatus, setCloneStatus] = useState<string>('');
-  const [elevenKey, setElevenKeyState] = useState<string>('');
-  const [cloningRemote, setCloningRemote] = useState<boolean>(false);
-  
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  const [sampleStatus, setSampleStatus] = useState<string | null>(null);
+  const [voxcpmOnline, setVoxcpmOnline] = useState<boolean>(false);
 
-  // Recent-task restore: repopulate input fields from a previous generation
-  const handleRestoreVoiceover = (input: JsonValue) => {
-    if (!input || typeof input !== 'object') return;
-    if (typeof (input as JsonRecord).text === 'string') setText((input as JsonRecord).text as string);
-    // Logged 'character' may be an id or a name — resolve either
-    if ((input as JsonRecord).character) {
-      const byId = characters.find((c) => c.id === String((input as JsonRecord).character));
-      const byName = characters.find((c) => c.name === String((input as JsonRecord).character));
-      if (byId) setCharacterId(byId.id);
-      else if (byName) setCharacterId(byName.id);
-    }
-    if ((input as JsonRecord).tone) setTone(String((input as JsonRecord).tone));
-    if (typeof (input as JsonRecord).voiceSpeed === 'number') setVoiceSpeed((input as JsonRecord).voiceSpeed as number);
-    if (typeof (input as JsonRecord).voicePitch === 'number') setVoicePitch((input as JsonRecord).voicePitch as number);
-    if (typeof (input as JsonRecord).clone === 'string') {
-      const savedClone = clones.find((clone) =>
-        clone.id === String((input as JsonRecord).clone) || clone.name === String((input as JsonRecord).clone),
-      );
-      if (savedClone) setClone(savedClone.id);
-    }
-    setMode('studio');
-    setError(null);
-  };
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isMounted = useRef(true);
+
+  // VoxCPM GPU Server Connection Check
+  const checkVoxCPM = async () => {
+    try {
+      const status = await getVoxCPMStatus();
+      if (isMounted.current) {
+        setVoxcpmOnline(!!status?.online);
+      }
+    } catch {
+      if (isMounted.current) setVoxcpmOnline(false);
+    }
+  };
+
+  useEffect(() => {
+    isMounted.current = true;
+    checkVoxCPM();
+    const interval = setInterval(checkVoxCPM, 15000);
+    return () => {
+      isMounted.current = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const MAX_CHARS = 15000;
+
+  const characters = [
+    { 
+      id: 'thiha_mm', 
+      name: 'THIHA', 
+      baseVoice: 'Fenrir', 
+      desc: 'Powerful & Commanding',
+      bio: 'သတင်း၊ ကြေညာချက်များနှင့် movie recap အတွက် ခန့်ညားဩဇာရှိသောအသံ' 
+    },
+    { 
+      id: 'nilar_mm', 
+      name: 'NILAR', 
+      baseVoice: 'Kore', 
+      desc: 'Sweet & Natural',
+      bio: 'ချိုသာကြည်လင်အေးချမ်းသော အသံ'
+    },
+    { 
+      id: 'minkhant_mm', 
+      name: 'MIN KHANT', 
+      baseVoice: 'Puck', 
+      desc: 'Energetic & Youthful',
+      bio: 'တက်ကြွမြူးကြွသော လူငယ် movie recap စတိုင်'
+    },
+    { 
+      id: 'maythu_mm', 
+      name: 'MAY THU', 
+      baseVoice: 'Zephyr', 
+      desc: 'Soft & Poetic',
+      bio: 'နူးညံ့သိမ်မွေ့သော ပုံပြင်ပြော အသံ'
+    },
+    { 
+      id: 'mya_mm', 
+      name: 'MYA', 
+      baseVoice: 'Kore', 
+      desc: 'မြန်မာပီသ အသံ (Female)',
+      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သော အသံ' 
+    },
+    { 
+      id: 'nyeins_mm', 
+      name: 'NYEIN', 
+      baseVoice: 'Alnilam', 
+      desc: 'မြန်မာပီသ အသံ (Male)',
+      bio: 'မြန်မာအချကျအလက်နဲ့ ပီပြင်ခိုင်မာလေးနက်တဲ့ ယောက်္ကျားအသံ' 
+    },
+    { 
+      id: 'charon_main', 
+      name: 'CHARON', 
+      baseVoice: 'Charon', 
+      desc: 'Deep & Cinematic', 
+      bio: 'Cinematic deep male voice for global content' 
+    },
+  ];
+
+  const NARRATION_TONES = [
+    { id: 'recap_trend', name: 'Trending Movie Recap', desc: 'ခေတ်စားနေတဲ့ စတိုင်' },
+    { id: 'hype_viral', name: 'Viral Hype', desc: 'အရှိန်ပြင်း ဆွဲဆောင်မှု' },
+    { id: 'comedy_laugh', name: 'Comedy Recap', desc: 'ဟာသနှော စောင်းမြောင်း' },
+    { id: 'thrilling', name: 'Action Thriller', desc: 'ရင်ဖို စိတ်လှုပ်ရှား' },
+    { id: 'mystery', name: 'Mystery Suspense', desc: 'သည်းထိတ် လျှို့ဝှက်' },
+    { id: 'professional', name: 'Formal News', desc: 'သတင်းကြေညာ သံ' },
+  ];
 
   useEffect(() => {
     if (countdown === null) return;
@@ -107,87 +141,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const MAX_CHARS = 15000;
-
-  const characters = [
-    { 
-      id: 'thiha_mm', 
-      name: 'THIHA', 
-      baseVoice: 'Fenrir', 
-      desc: 'Powerful & Commanding',
-      bio: 'ဩဇာရှိသောအသံ - သတင်း၊ ကြေညာချက်များနှင့် အစီအစဉ်များအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ စကားပြောပြတ်သားပြီး ခန့်ညားသောပုံစံဖြစ်သည်။' 
-    },
-    { 
-      id: 'nilar_mm', 
-      name: 'NILAR', 
-      baseVoice: 'Kore', 
-      desc: 'Sweet & Natural',
-      bio: 'ချိုသာကြည်လင်သောအသံ - Vlog၊ ပုံပြင်များနှင့် နေ့စဉ်စကားပြောများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ နားထောင်ရသူကို စိတ်အေးချမ်းစေသည့်ပုံစံဖြစ်သည်။'
-    },
-    { 
-      id: 'minkhant_mm', 
-      name: 'MIN KHANT', 
-      baseVoice: 'Puck', 
-      desc: 'Energetic & Youthful',
-      bio: 'တက်ကြွသောအသံ - Review၊ နည်းပညာအကြောင်းအရာများနှင့် လူငယ်အကြိုက် ဗီဒီယိုများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်ဆန်ပြီး လန်းဆန်းသောပုံစံဖြစ်သည်။'
-    },
-    { 
-      id: 'maythu_mm', 
-      name: 'MAY THU', 
-      baseVoice: 'Zephyr', 
-      desc: 'Soft & Poetic',
-      bio: 'နူးညံ့သိမ်မွေ့သောအသံ - ကဗျာ၊ စာပေနှင့် စိတ်ခံစားမှုအသားပေး အကြောင်းအရာများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အပြောညင်သာပြီး ထိရှလွယ်သောပုံစံဖြစ်သည်။'
-    },
-    { id: 'charon_main', name: 'CHARON', baseVoice: 'Charon', desc: 'Deep & Formal', bio: 'High-fidelity deep male voice for global content.' },
-    { 
-      id: 'mya_mm', 
-      name: 'MYA', 
-      baseVoice: 'Kore', 
-      desc: 'မြန်မာပီသ အသံ',
-      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ချိုသာကြည်လင်တဲ့ အသံ - သတင်း၊ ပုံပြင်၊ movie recap အားလုံးအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။' 
-    },
-    { 
-      id: 'nyeins_mm', 
-      name: 'NYEIN', 
-      baseVoice: 'Alnilam', 
-      desc: 'မြန်မာပီသ အသံ',
-      bio: 'မြန်မာစကားပီသကျကျန်ကျန် ပြောတတ်သောအချကျအလက်နဲ့ ပီပြင်ခိုင်မာလေးနက်တဲ့ ယောက်္ကျားအသံ - ဇာတ်ကြီးဇတ်ချော၊ မှတ်ချက်နှင့် documentary အတွက် အကောင်းဆုံးဖြစ်ပါသည်။ မြန်မာဖိအားနှင့် တွက်တိုက်အသံ ဖိအားပီပြင်စွာ ထွက်ရှိပါသည်။' 
-    },
-    { 
-      id: 'soesoe_mm', 
-      name: 'SOE SOE', 
-      baseVoice: 'Sulafat', 
-      desc: 'Warm & Authentic',
-      bio: 'မြန်မာပီသသောနွေးထွေးအသံ - စိတ်ခံစားမှုအပြည့် ဇာတ်ကြီးဇာတ်ချော၊ သတင်းမှတ်ချက်နှင့် ဇာတ်လမ်းတိုများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အသံညိုနှင့် နားဝင်ပီသသောပုံစံဖြစ်သည်။' 
-    },
-    { 
-      id: 'winhtet_mm', 
-      name: 'WIN HTET', 
-      baseVoice: 'Alnilam', 
-      desc: 'Bold & Resonant',
-      bio: 'ပီသခိုင်မာသောယောက်္ကျားအသံ - အားကစား၊ ကြေညာချက်၊ ဗီဒီယိုမှတ်ချက်နှင့် ခန့်ညားရမည့်အကြောင်းအရာများအတွက် အကောင်းဆုံးဖြစ်ပါသည်။ အသံပြင်းပြင်းနှင့် ယုံကြည်စိတ်အပြည့်ပုံစံဖြစ်သည်။' 
-    },
-  ];
-
   useEffect(() => {
-    setClones(loadClones());
-    try {
-      const stored = localStorage.getItem('lumini_speaking_styles');
-      if (stored) {
-        const parsed = JSON.parse(stored) as Array<SpeakingStyleProfile & { id: string; name: string }>;
-        setSavedStyles(parsed);
-        const savedActiveStyle = localStorage.getItem('lumini_active_style');
-        const active = parsed.find((style) => style.id === savedActiveStyle) || parsed[0];
-        if (active) {
-          setActiveStyleId(active.id);
-          setStyleProfile(active);
-        }
-      }
-    } catch {
-      localStorage.removeItem('lumini_speaking_styles');
-    }
-    const savedActive = localStorage.getItem('lumini_active_clone');
-    if (savedActive) setActiveCloneId(savedActive);
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
@@ -195,193 +149,102 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      isMounted.current = false;
       document.removeEventListener('mousedown', handleClickOutside);
-      if (audioCtxRef.current) audioCtxRef.current.close();
     };
   }, []);
 
-  useEffect(() => () => {
-    if (styleUrl) URL.revokeObjectURL(styleUrl);
-  }, [styleUrl]);
-
-  // --- Voice Clone Studio handlers ---
-  const activeClone = clones.find((c) => c.id === activeCloneId);
-  const hasNeuralClone = Boolean(activeClone?.voiceId && (isVoiceCloneBackendConfigured() || getElevenKey()));
-
-  const setClone = (id: string | null) => {
-    setActiveCloneId(id);
-    if (id) localStorage.setItem('lumini_active_clone', id);
-    else localStorage.removeItem('lumini_active_clone');
-    setIsChecked(false);
-    setAudioUrl(null);
-    setError(null);
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Handle sample voice upload and auto-analyze
+  const handleSampleFileUpload = async (file: File) => {
     if (!file) return;
     if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|ogg|webm)$/i)) {
-      setCloneStatus('Audio file only (MP3/WAV/M4A/OGG)');
+      setSampleStatus('အသံဖိုင် (MP3/WAV/M4A/OGG) သာ တင်သွင်းပါ');
       return;
     }
-    if (file.size > 12 * 1024 * 1024) {
-      setCloneStatus('File too large (max 12 MB). 10-30s of speech is ideal.');
-      return;
-    }
-    if (cloneUrl) URL.revokeObjectURL(cloneUrl);
-    setCloneFile(file);
-    setCloneUrl(URL.createObjectURL(file));
-    setCloneStatus(null);
-  };
-
-  const handleStyleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|m4a|ogg|webm)$/i)) {
-      setError('Style sample must be an audio file.');
-      return;
-    }
-    if (styleUrl) URL.revokeObjectURL(styleUrl);
-    setStyleFile(file);
-    setStyleUrl(URL.createObjectURL(file));
-    setStyleProfile(null);
-    setError(null);
-    try {
-      const analyzed = await analyzeSpeakingStyle(file);
-      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'My style';
-      const saved = { ...analyzed, id: crypto.randomUUID(), name: baseName.slice(0, 32) };
-      const next = [saved, ...savedStyles.filter((style) => style.name.toLowerCase() !== saved.name.toLowerCase())].slice(0, 8);
-      setSavedStyles(next);
-      setActiveStyleId(saved.id);
-      setStyleProfile(saved);
-      localStorage.setItem('lumini_speaking_styles', JSON.stringify(next));
-      localStorage.setItem('lumini_active_style', saved.id);
-    } catch {
-      setError('Could not analyze the style sample. Try a clear audio file.');
-    }
-  };
-
-  const handleStyleSelect = (id: string) => {
-    setActiveStyleId(id);
-    localStorage.setItem('lumini_active_style', id);
-    const selected = savedStyles.find((style) => style.id === id) || null;
-    setStyleProfile(selected);
-    setStyleFile(null);
-    if (styleUrl) {
-      URL.revokeObjectURL(styleUrl);
-      setStyleUrl(null);
-    }
-  };
-
-  const handleRecord = async () => {
-    if (isRecording) return;
-    setIsRecording(true);
-    setCloneStatus('Recording... speak naturally for 10-30 seconds');
-    try {
-      const { stop } = await startRecording();
-      const recordingStop = stop;
-      (window as unknown as { __cloneRecordingStop?: () => void }).__cloneRecordingStop = recordingStop;
-    } catch {
-      setIsRecording(false);
-      setCloneStatus('Microphone access denied.');
-    }
-  };
-
-  const handleStopRecording = async () => {
-    const stopFn = (window as unknown as { __cloneRecordingStop?: () => void }).__cloneRecordingStop;
-    if (!stopFn) { setIsRecording(false); return; }
-    try {
-      const data = await stopFn();
-      // stop() may return a data URL (string) or a raw Blob
-      let dataUrl: string;
-      let blob: Blob;
-      if (typeof data === 'string') {
-        dataUrl = data;
-        const response = await fetch(dataUrl);
-        blob = await response.blob();
-      } else {
-        blob = data as unknown as Blob;
-        dataUrl = URL.createObjectURL(blob);
-      }
-      const file = new File([blob], 'lumini_recording.webm', { type: 'audio/webm' });
-      setCloneFile(file);
-      setCloneUrl(dataUrl);
-      setIsRecording(false);
-      setCloneStatus(null);
-    } catch {
-      setIsRecording(false);
-      setCloneStatus('Recording failed.');
-    }
-  };
-
-  const handleCreateClone = async () => {
-    if (!cloneName.trim()) { setCloneStatus('Voice profile name is required.'); return; }
-    if (!cloneFile) { setCloneStatus('Upload or record a voice sample first.'); return; }
-
+    if (sampleAudioUrl) URL.revokeObjectURL(sampleAudioUrl);
+    
+    const url = URL.createObjectURL(file);
+    setSampleFile(file);
+    setSampleAudioUrl(url);
     setIsAnalyzing(true);
-    setCloneStatus('Analyzing voice characteristics...');
+    setSampleStatus('အသံလှိုင်းနှင့် Narration Style ကို စတင်စစ်ဆေးနေပါသည်...');
+    setError(null);
+
     try {
-      let audioUrl = cloneUrl;
-      if (!audioUrl) {
-        audioUrl = URL.createObjectURL(cloneFile);
-      }
-      const profile = await analyzeVoice(audioUrl, cloneName.trim());
+      const profile = await analyzeVoice(url, file.name.replace(/\.[^/.]+$/, ''));
+      setAnalyzedProfile(profile);
 
-      // Optional: also create a real instant voice clone on ElevenLabs (free tier)
-      // when the user has provided their own API key. This enables true zero-shot
-      // voice cloning: the generated speech sounds like the reference recording.
-      const key = elevenKey || getElevenKey();
-      if ((isVoiceCloneBackendConfigured() || key) && cloneFile) {
-        try {
-          setCloningRemote(true);
-          setCloneStatus('Creating secure neural voice clone on ElevenLabs...');
-          const remote = isVoiceCloneBackendConfigured()
-            ? await createBackendVoiceClone(profile.name, cloneFile)
-            : await createElevenClone(profile.name, cloneFile);
-          profile.voiceId = remote.voiceId;
-          setCloneStatus(`Real voice clone "${remote.name}" created! Generating speech with it now.`);
-        } catch (e) {
-          console.warn('ElevenLabs clone failed, keeping client-side profile:', e);
-          profile.voiceId = undefined;
-        } finally {
-          setCloningRemote(false);
-        }
+      // Auto-set voice pitch and speed offset based on sample acoustic traits
+      if (profile.traits.energy === 'energetic') {
+        setTone('recap_trend');
+      } else if (profile.traits.pace === 'fast') {
+        setTone('hype_viral');
       }
-
-      const newClones = [profile, ...clones].slice(0, 5); // max 5 saved clones (free)
-      saveClones(newClones);
-      setClones(newClones);
-      setClone(profile.id);
-      setCloneName('');
-      setCloneFile(null);
-      if (cloneUrl) { URL.revokeObjectURL(cloneUrl); }
-      setCloneUrl(null);
-      setCloneStatus(profile.voiceId
-        ? 'Voice cloned successfully (real neural clone)! Generate audio in your voice.'
-        : 'Voice cloned successfully! Generate audio using this profile.');
+      
+      setSampleStatus(`အသံစတိုင် ခွဲခြမ်းစိတ်ဖြာပြီးပါပြီ (${Math.round(profile.traits.pitchHz)}Hz • ${profile.traits.tone} tone • ${profile.traits.energy} energy)`);
     } catch (err: unknown) {
-      setCloneStatus('Voice analysis failed. Use a clean 10-30s recording with speech only.');
+      console.warn('Sample voice analysis error:', err);
+      setSampleStatus('Sample voice မှတ်တမ်းတင်ပြီးပါပြီ (စကားပြောဟန်ပန်ကို အလိုအလျောက် သုံးစွဲပါမည်)');
+      setAnalyzedProfile({
+        id: crypto.randomUUID(),
+        name: file.name,
+        createdAt: Date.now(),
+        durationSeconds: 10,
+        traits: { gender: 'unknown', pitchHz: 160, tone: 'warm', energy: 'energetic', pace: 'fast' },
+        prompt: "Speak in the exact energetic movie recap narration style matched from the reference sample audio."
+      });
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleDeleteClone = (id: string) => {
-    const newClones = clones.filter((c) => c.id !== id);
-    saveClones(newClones);
-    setClones(newClones);
-    if (activeCloneId === id) setClone(null);
+  const handleMicRecord = async () => {
+    if (isRecording) return;
+    setIsRecording(true);
+    setSampleStatus('မိုက်ခရိုဖုန်းဖြင့် အသံသွင်းနေပါသည် (၅ မှ ၁၅ စက္ကန့် စကားပြောပါ)...');
+    try {
+      const { stop } = await startRecording();
+      (window as unknown as { __sampleRecordingStop?: () => Promise<string | Blob> }).__sampleRecordingStop = stop;
+    } catch {
+      setIsRecording(false);
+      setSampleStatus('မိုက်ခရိုဖုန်း အသုံးပြုခွင့် မရရှိပါ');
+    }
   };
 
-  const cloneCost = 10;
+  const handleStopMicRecord = async () => {
+    const stopFn = (window as unknown as { __sampleRecordingStop?: () => Promise<string | Blob> }).__sampleRecordingStop;
+    if (!stopFn) { setIsRecording(false); return; }
+    try {
+      const data = await stopFn();
+      let blob: Blob;
+      if (typeof data === 'string') {
+        const res = await fetch(data);
+        blob = await res.blob();
+      } else {
+        blob = data as Blob;
+      }
+      const file = new File([blob], 'my_voice_sample.webm', { type: 'audio/webm' });
+      setIsRecording(false);
+      await handleSampleFileUpload(file);
+    } catch {
+      setIsRecording(false);
+      setSampleStatus('အသံသွင်းယူမှု မအောင်မြင်ပါ');
+    }
+  };
+
+  const handleClearSample = () => {
+    if (sampleAudioUrl) URL.revokeObjectURL(sampleAudioUrl);
+    setSampleFile(null);
+    setSampleAudioUrl(null);
+    setAnalyzedProfile(null);
+    setSampleStatus(null);
+  };
 
   const handlePaste = async () => {
     try {
       const clipboardText = await navigator.clipboard.readText();
       setText(clipboardText.slice(0, MAX_CHARS));
       setIsChecked(false);
-    } catch (err) {
+    } catch {
       setError("Clipboard access denied.");
     }
   };
@@ -391,12 +254,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     setAudioUrl(null);
     setIsChecked(false);
     stopAudio();
-  };
-
-  const handleCheck = () => {
-    if (!text.trim()) { setError("Script is empty."); return; }
-    setIsChecked(true);
-    setError(null);
   };
 
   const stopAudio = () => {
@@ -412,18 +269,18 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         setIsPlaying(true);
         const { ctx } = await playAudio(audioUrl, () => { setIsPlaying(false); audioCtxRef.current = null; });
         audioCtxRef.current = ctx;
-      } catch (err) { setError("Playback error."); setIsPlaying(false); }
+      } catch { setError("Playback error."); setIsPlaying(false); }
     }
   };
 
-  const handlePreview = async (e: React.MouseEvent, charId: string) => {
+  const handlePreviewVoice = async (e: React.MouseEvent, charId: string) => {
     e.stopPropagation();
     if (isPreviewing) {
-        if (isPreviewing === charId) {
-            stopAudio();
-            return;
-        }
+      if (isPreviewing === charId) {
         stopAudio();
+        return;
+      }
+      stopAudio();
     }
     
     setIsPreviewing(charId);
@@ -432,37 +289,25 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
     try {
       const sampleText = char.name.includes('THIHA') || char.name.includes('NILAR') || char.name.includes('MIN KHANT') || char.name.includes('MAY THU')
-        ? `မင်္ဂလာပါ။ ကျွန်တော့်အမည်က ${char.name.split(' ')[0]} ဖြစ်ပြီး၊ လုမီနာ အေအိုင်ရဲ့ အဆင့်မြင့် အသံပိုင်ရှင်ဖြစ်ပါတယ်။` 
-        : `Hello! This is ${char.name}. How can I help you today?`;
+        ? `မင်္ဂလာပါ။ ကျွန်တော်က ${char.name.split(' ')[0]} ဖြစ်ပြီး Movie Recap အသံသွင်းပေးမယ့် အသံပိုင်ရှင် ဖြစ်ပါတယ်။` 
+        : `Hello! This is ${char.name}. Ready to record your video narration.`;
       
       const blobUrl = await generateSpeech(sampleText, char.baseVoice, 0, 0);
       if (isMounted.current) {
         const { ctx } = await playAudio(blobUrl, () => { 
-            if (isMounted.current) {
-                setIsPreviewing(null); 
-                audioCtxRef.current = null; 
-            }
-            URL.revokeObjectURL(blobUrl); 
+          if (isMounted.current) {
+            setIsPreviewing(null); 
+            audioCtxRef.current = null; 
+          }
+          URL.revokeObjectURL(blobUrl); 
         });
         audioCtxRef.current = ctx;
       }
     } catch (err: unknown) { 
-        if (isMounted.current) {
-            setError((err as { message?: string })?.message || "Preview failed."); 
-            setIsPreviewing(null); 
-            try {
-              const msg = (err as { message?: string })?.message || "";
-              const openBrace = msg.indexOf('{');
-              const closeBrace = msg.lastIndexOf('}');
-              if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
-                const jsonStr = msg.substring(openBrace, closeBrace + 1);
-                if (jsonStr.includes('isQuotaError')) {
-                  const parsed = JSON.parse(jsonStr);
-                  setCountdown(parsed.retryAfter || 45);
-                }
-              }
-            } catch (_) {}
-        }
+      if (isMounted.current) {
+        setError((err as { message?: string })?.message || "Preview failed."); 
+        setIsPreviewing(null); 
+      }
     }
   };
 
@@ -470,68 +315,65 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     if (!text.trim() || !isChecked) return;
     setError(null);
     stopAudio();
-    if (!onSpendCredits(CREDIT_COSTS[ContentType.VOICEOVER])) { setError("Not enough credits."); return; }
+    if (!onSpendCredits(CREDIT_COSTS[ContentType.VOICEOVER])) { 
+      setError("လုံလောက်သော Credit မရှိပါ။"); 
+      return; 
+    }
 
     setIsProcessing(true);
-    setProcessingStage('Preparing your voiceover…');
+    setProcessingStage('Movie Recap ဇာတ်ညွှန်းအသံ စတင်ဖန်တီးနေပါသည်...');
     const char = characters.find(c => c.id === characterId);
     
-    // Create a voice map for multi-voice tagging (includes voice clones)
     const voiceMap: Record<string, string> = {};
-    characters.forEach(c => {
-      voiceMap[c.name] = c.baseVoice;
-    });
+    characters.forEach(c => { voiceMap[c.name] = c.baseVoice; });
 
-    // A selected clone must be used as the source voice. Do not silently fall
-    // back to the character voice (for example, Thiha) when the clone is not
-    // available; professional voice tools make this state explicit.
-    if (activeClone && !activeClone.voiceId) {
-      setIsProcessing(false);
-      setError('This sample clone is not ready for speech yet. Create the clone with ElevenLabs/backend access, then try again.');
-      return;
-    }
-    const clonePrefix = activeClone?.prompt || '';
-    const canUseRemoteClone = Boolean(activeClone?.voiceId && (isVoiceCloneBackendConfigured() || getElevenKey()));
+    // Auto-inject analyzed sample voice style prompt
+    const styleInstruction = analyzedProfile
+      ? `${analyzedProfile.prompt} Match the natural human timbre, fast movie recap rhythm, and vocal expressions of the uploaded sample.`
+      : '';
 
     try {
-      let blobUrl: string;
+      let blobUrl = '';
+      let usedEngine = 'Gemini 3.1 Flash Speech';
 
-      if (isMounted.current && canUseRemoteClone && activeClone?.voiceId) {
-        // Real neural voice clone synthesis (ElevenLabs free tier, multilingual v2)
-        setProcessingStage('Generating with your cloned voice…');
-        const requestedRate = styleProfile?.rate || 1;
-        const audioBlob = isVoiceCloneBackendConfigured()
-          ? await synthesizeBackendVoiceClone(activeClone.voiceId, text, requestedRate)
-          : await synthesizeWithClone(activeClone.voiceId, text);
-        blobUrl = URL.createObjectURL(audioBlob);
-      } else if (activeClone) {
-        throw new Error('The selected voice clone is unavailable. Please recreate it or configure the voice provider.');
-      } else {
-        setProcessingStage('Generating Burmese speech…');
-        blobUrl = await generateSpeech(text, char?.baseVoice || 'Kore', voiceSpeed, voicePitch, voiceMap, tone, clonePrefix);
+      // Smart Engine Routing: Use VoxCPM (Colab GPU) when sample voice is provided, Gemini Speech for built-in voices
+      const voxcpmUrl = (import.meta.env.VITE_VOXCPM_URL || '').trim();
+      let voxcpmSuccess = false;
 
-        // Post-process towards the cloned voice if one is active
-        if (isMounted.current && activeClone) {
-          try {
-            const pitchShift = Math.round(((activeClone.traits.pitchHz - 155) / 155) * 100);
-            const { blobUrl: processedUrl, dispose } = await applyClonePostProcessing(blobUrl, pitchShift);
-            if (isMounted.current) {
-              blobUrl = processedUrl;
-              (window as unknown as { __cloneProcessedDispose?: () => void }).__cloneProcessedDispose = dispose;
-            } else {
-              dispose();
-            }
-          } catch (e) {
-            console.warn('Clone post-processing skipped:', e);
-          }
+      if (sampleFile && voxcpmUrl) {
+        try {
+          setProcessingStage('VoxCPM2 Free GPU ဖြင့် အသံနှင့် စတိုင် ပုံတူကူးယူနေပါသည် (48kHz)...');
+          const registered = await createVoxCPMVoiceClone(
+            sampleFile.name,
+            sampleFile,
+            `Speak in an energetic movie recap narration style. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`
+          );
+          const requestedSpeed = Math.max(0.5, Math.min(2.0, 1.0 + (voiceSpeed / 100)));
+          const audioBlob = await synthesizeVoxCPMSpeech(
+            registered.voiceId,
+            text,
+            `Energetic movie recap narration. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`,
+            requestedSpeed
+          );
+          blobUrl = URL.createObjectURL(audioBlob);
+          voxcpmSuccess = true;
+          usedEngine = 'VoxCPM2 Neural 48kHz';
+        } catch (voxErr) {
+          console.warn('VoxCPM GPU synthesis failed, falling back to Gemini Speech:', voxErr);
         }
       }
 
-      if (styleProfile && !(canUseRemoteClone && activeClone?.voiceId && isVoiceCloneBackendConfigured())) {
-        setProcessingStage('Matching speaking style…');
-        const rendered = await applySpeakingRate(await (await fetch(blobUrl)).blob(), styleProfile.rate);
-        URL.revokeObjectURL(blobUrl);
-        blobUrl = URL.createObjectURL(rendered);
+      if (!voxcpmSuccess) {
+        setProcessingStage('Gemini 3.1 AI Speech ဖြင့် အသံကြည်လင်စွာ ထုတ်ယူနေပါသည်...');
+        blobUrl = await generateSpeech(
+          text, 
+          char?.baseVoice || 'Kore', 
+          voiceSpeed, 
+          voicePitch, 
+          voiceMap, 
+          tone, 
+          styleInstruction
+        );
       }
 
       if (isMounted.current) {
@@ -544,553 +386,354 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           currentUser.uid,
           currentUser.email || '',
           'voiceover',
-          { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null, cloneMode: canUseRemoteClone ? 'neural' : activeClone ? 'style-fallback' : 'built-in' },
-          { status: 'success', info: 'Voiceover audio generated successfully' },
-        ).then(() => {
-          window.dispatchEvent(
-            new CustomEvent('lumini:taskLogged', {
-              detail: {
-                module: 'voiceover',
-                input: { text, characterId: char?.id || characterId, tone, voiceSpeed, voicePitch, clone: activeClone?.name || null },
-              },
-            }),
-          );
-          if (isMounted.current) setRefreshTrigger(prev => prev + 1);
-        }).catch(() => undefined);
+          { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, engine: usedEngine, withSampleVoice: !!analyzedProfile },
+          { status: 'success', info: `Voiceover audio generated successfully via ${usedEngine}` }
+        ).catch(() => undefined);
       }
     } catch (err: unknown) { 
-        if (isMounted.current) {
-          setError((err as { message?: string })?.message || "Synthesis failed."); 
-          try {
-            const msg = (err as { message?: string })?.message || "";
-            const openBrace = msg.indexOf('{');
-            const closeBrace = msg.lastIndexOf('}');
-            if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
-              const jsonStr = msg.substring(openBrace, closeBrace + 1);
-              if (jsonStr.includes('isQuotaError')) {
-                const parsed = JSON.parse(jsonStr);
-                setCountdown(parsed.retryAfter || 45);
-              }
-            }
-          } catch (_) {}
-        }
-    } 
-    finally { 
-        if (isMounted.current) {
-          setIsProcessing(false);
-          setProcessingStage(null);
-        }
+      if (isMounted.current) {
+        setError((err as { message?: string })?.message || "Voiceover synthesis failed."); 
+      }
+    } finally { 
+      if (isMounted.current) {
+        setIsProcessing(false);
+        setProcessingStage(null);
+      }
     }
   };
 
   const selectedChar = characters.find(c => c.id === characterId);
 
   return (
-    <div className="module-page max-w-xl mx-auto pb-4">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center shadow-md shadow-accent/20">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
-        </div>
-        <div>
-          <h1 className="movie-h2 !text-lg !mb-0 uppercase tracking-tighter">Voiceover Studio</h1>
-          <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">{CREDIT_COSTS[ContentType.VOICEOVER]} credits</p>
-        </div>
-      </div>
-
-      {/* Mode switcher: Synthesis Studio / Voice Clone */}
-      <div className="flex mb-4 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-1" role="tablist">
-        <button
-          role="tab"
-          aria-selected={mode === 'studio'}
-          onClick={() => setMode('studio')}
-          className={`flex-1 py-2 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all ${
-            mode === 'studio' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'border border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-zinc-400 dark:hover:border-white/10 dark:hover:text-zinc-200'
-          }`}
-        >
-          Synthesis Studio
-        </button>
-        <button
-          role="tab"
-          aria-selected={mode === 'clone'}
-          onClick={() => setMode('clone')}
-          className={`flex-1 py-2 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all ${
-            mode === 'clone' ? 'bg-accent text-white shadow-md shadow-accent/20' : 'border border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-zinc-400 dark:hover:border-white/10 dark:hover:text-zinc-200'
-          }`}
-        >
-          Voice Clone Studio
-        </button>
-      </div>
-
-      {mode === 'clone' ? (
-        /* ===================== VOICE CLONE STUDIO ===================== */
-        <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center shadow-md shadow-fuchsia-500/20 flex-shrink-0">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">Voice Clone Studio</h2>
-              <p className="movie-meta !text-[9px] !mb-0 uppercase tracking-widest text-zinc-500">{cloneCost} credits</p>
-            </div>
+    <div className="module-page max-w-2xl mx-auto pb-12">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <Volume2 className="w-5 h-5 text-white" />
           </div>
-
-          {/* ElevenLabs real-clone option (free tier, optional) */}
-          <div className="space-y-2 p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg">
-            <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block text-accent">Real Neural Clone (Optional)</label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={elevenKey}
-                onChange={(e) => { setElevenKeyState(e.target.value); setElevenKey(e.target.value); }}
-                placeholder="ElevenLabs API key (xi-api-key)"
-                className="flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 movie-body !text-[11px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const hasKey = (elevenKey || getElevenKey()) !== '';
-                  setCloneStatus(hasKey ? 'ElevenLabs key saved. Next clone will use real neural cloning.' : 'No key set — using free client-side voice shaping.');
-                }}
-                className="px-3 rounded-lg border border-slate-300 bg-slate-100 movie-meta !text-[9px] uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-accent hover:bg-accent/10 dark:border-white/10 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/15"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-
-          {/* Reference capture */}
-          <div className="space-y-2">
-            <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Reference Voice (10-30s)</label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border-2 border-dashed transition-all cursor-pointer ${
-                cloneFile ? 'border-accent bg-accent/5' : 'border-slate-300 bg-slate-50 hover:border-accent/50 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25'
-              }`}>
-                <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <span className="movie-meta !text-[8px] uppercase tracking-widest text-zinc-400 !mb-0">Upload Audio</span>
-                <input type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" onChange={handleFileChange} className="hidden" />
-              </label>
-              <button
-                type="button"
-                onClick={isRecording ? handleStopRecording : handleRecord}
-                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border transition-all ${
-                  isRecording
-                    ? 'border-rose-500/50 bg-rose-500/10 text-rose-400 animate-pulse'
-                    : 'border-slate-300 bg-slate-50 hover:border-accent/50 text-slate-500 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25 dark:text-zinc-400'
-                }`}
-              >
-                {isRecording ? (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" /></svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                )}
-                <span className="movie-meta !text-[8px] uppercase tracking-widest !mb-0">{isRecording ? 'Stop & Save' : 'Record Mic'}</span>
-              </button>
-            </div>
-            {cloneFile && (
-              <audio controls src={cloneUrl || undefined} className="w-full h-8 rounded" />
-            )}
-          </div>
-
-          {/* Profile name + create */}
-          <div className="flex gap-2">
-            <input
-              value={cloneName}
-              onChange={(e) => setCloneName(e.target.value.slice(0, 40))}
-              placeholder="Voice profile name (e.g. My Voice)"
-              className="flex-1 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 movie-body !text-[12px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all"
-            />
-            <button
-              onClick={handleCreateClone}
-              disabled={isAnalyzing || cloningRemote}
-              className={`px-4 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
-                isAnalyzing || cloningRemote ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
-              }`}
-            >
-              {cloningRemote ? 'Cloning...' : isAnalyzing ? 'Analyzing...' : 'Clone'}
-            </button>
-          </div>
-
-          {cloneStatus && (
-            <p className={`movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-center ${cloneStatus.includes('successfully') || cloneStatus.includes('successfully') ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {cloneStatus}
-            </p>
-          )}
-
-          {/* Saved clones */}
-          {clones.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">My Voice Library</label>
-              <div className="space-y-1.5">
-                {clones.map((c) => (
-                  <div
-                    key={c.id}
-                    className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border transition-all cursor-pointer ${
-                      activeCloneId === c.id
-                        ? 'border-accent bg-accent/10'
-                        : 'border-slate-200 bg-slate-50 hover:border-accent/50 dark:border-white/10 dark:bg-black/10 dark:hover:border-white/25'
-                    }`}
-                    onClick={() => setClone(c.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        setClone(c.id);
-                      }
-                    }}
-                    aria-pressed={activeCloneId === c.id}
-                  >
-                    <div className="flex flex-col">
-                      <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-widest">{c.name}</span>
-                      <span className="movie-meta !text-[8px] !mb-0 uppercase mt-0.5 text-zinc-500">
-                        {c.traits.gender === 'unknown' ? 'Neutral' : c.traits.gender} • {Math.round(c.traits.pitchHz)}Hz • {c.traits.tone} • {c.durationSeconds}s ref
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {activeCloneId === c.id && (
-                        <span className="px-2 py-0.5 bg-accent text-white rounded-md movie-meta !text-[7px] uppercase tracking-widest !mb-0">Active</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setClone(c.id); setMode('studio'); }}
-                        className="rounded-md border border-accent/40 bg-accent/10 px-2 py-1 movie-meta !text-[8px] uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-white"
-                      >
-                        Use in script
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Delete saved voice clone ${c.name}`}
-                        onClick={(e) => { e.stopPropagation(); handleDeleteClone(c.id); }}
-                        className="p-1.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:border-rose-500 hover:bg-rose-500 hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400 transition-all"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-        </div>
-      ) : (
-      /* ===================== SYNTHESIS STUDIO ===================== */
-      <div className="glass p-4 rounded-xl border border-slate-200 dark:border-white/10 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Saved clone selection for this script */}
-        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-black/20">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <label htmlFor="saved-voice-clone" className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0 block">Voice for this script</label>
-              <p className="movie-meta !text-[9px] !mb-0 mt-1 text-slate-500 dark:text-zinc-400">
-                {activeClone ? 'Saved clone selected' : 'Built-in voice selected'}
-              </p>
-            </div>
-            {activeClone && (
-              <span className="shrink-0 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 movie-meta !text-[8px] uppercase tracking-widest text-accent !mb-0">
-                {hasNeuralClone ? 'Clone ready' : 'Needs clone'}
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+              Voiceover Studio
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                AI Powered
               </span>
-            )}
+              {voxcpmOnline ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  VoxCPM2 GPU Online
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                  Gemini 3.1 Speech
+                </span>
+              )}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">မြန်မာ Movie Recap နှင့် Video များအတွက် သဘာဝကျသော စကားပြောအသံဖန်တီးပါ</p>
           </div>
-          <select
-            id="saved-voice-clone"
-            aria-label="Choose a saved voice clone for this script"
-            value={activeCloneId || ''}
-            onChange={(event) => setClone(event.target.value || null)}
-            className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 movie-body !text-[12px] text-slate-900 outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
-          >
-            <option value="">Use built-in voice model</option>
-            {clones.map((clone) => (
-              <option key={clone.id} value={clone.id}>{clone.name}{clone.voiceId ? ' • neural clone' : ' • style fallback'}</option>
-            ))}
-          </select>
-          {activeClone ? (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
-              <div className="min-w-0">
-                <p className="movie-h2 !text-[11px] !mb-0 truncate uppercase tracking-widest text-slate-800 dark:text-zinc-100">{activeClone.name}</p>
-                <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-400">{activeClone.traits.tone} tone • {Math.round(activeClone.traits.pitchHz)}Hz • {activeClone.durationSeconds}s reference</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setClone(null)}
-                className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-1 movie-meta !text-[8px] uppercase tracking-widest text-slate-600 transition-colors hover:border-accent hover:text-accent dark:border-white/15 dark:bg-black/20 dark:text-zinc-300"
-              >
-                Use built-in
-              </button>
-            </div>
-          ) : (
-            <p className="movie-meta !text-[9px] !mb-0 text-slate-500 dark:text-zinc-400">
-              {clones.length > 0 ? 'Select a saved voice.' : 'No saved voices.'}
-            </p>
-          )}
         </div>
+      </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-black/20">
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-0">Speaking style</label>
-            <span className="movie-meta !text-[8px] !mb-0 text-slate-500 dark:text-zinc-500">speed · pauses · rhythm</span>
-          </div>
-          <select
-            aria-label="Choose a saved speaking style"
-            value={activeStyleId}
-            onChange={(event) => handleStyleSelect(event.target.value)}
-            className="mb-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 movie-body !text-[11px] text-slate-900 outline-none focus:border-accent dark:border-white/15 dark:bg-black/20 dark:text-zinc-100"
-          >
-            <option value="">Choose saved style</option>
-            {savedStyles.map((style) => (
-              <option key={style.id} value={style.id}>{style.name} · {style.rate.toFixed(2)}×</option>
-            ))}
-          </select>
-          <label className={`flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2.5 cursor-pointer transition-colors ${styleFile ? 'border-accent bg-accent/5' : 'border-slate-300 hover:border-accent/60 dark:border-white/15'}`}>
-            <div className="min-w-0">
-              <p className="movie-body !text-[11px] !mb-0 truncate text-slate-800 dark:text-zinc-100">{styleFile?.name || 'Add a style sample'}</p>
-              <p className="movie-meta !text-[8px] !mb-0 mt-0.5 text-slate-500 dark:text-zinc-500">Upload once to save a reusable style</p>
-            </div>
-            <span className="shrink-0 rounded-md bg-accent px-2.5 py-1 movie-meta !text-[8px] uppercase tracking-widest text-white">{styleFile ? 'Change' : 'Choose file'}</span>
-            <input type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" onChange={handleStyleFileChange} className="hidden" />
-          </label>
-          {styleUrl && <audio controls src={styleUrl} className="mt-2 w-full h-8 rounded" />}
-          {styleProfile && (
-            <p className="movie-meta !text-[8px] !mb-0 text-accent">
-              Style matched · {styleProfile.rate.toFixed(2)}× delivery · {Math.round(styleProfile.pauseRatio * 100)}% pause profile
-            </p>
-          )}
-        </div>
-
-        {/* Talent Selection */}
-        <div className="relative z-30" ref={dropdownRef}>
-          <label className="movie-meta !text-[8px] uppercase tracking-[0.2em] !mb-1 block">Voice Model</label>
-          <button 
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            aria-label="Choose a built-in voice model"
-            className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/20 border border-slate-300 dark:border-white/15 rounded-lg hover:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
-          >
-            <div className="flex flex-col items-start text-left">
-              <span className="movie-h2 !text-xs !mb-0 uppercase tracking-widest">{selectedChar?.name}</span>
-              <span className="movie-meta !text-[9px] !mb-0 uppercase mt-0.5">{selectedChar?.desc}</span>
-            </div>
-            <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-          </button>
-
-          {isDropdownOpen && (
-            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-midnight border border-slate-200 dark:border-white/15 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
-              <div className="max-h-[180px] overflow-y-auto custom-scrollbar p-1.5 space-y-1">
-                {characters.map((char) => (
-                  <div
-                    key={char.id}
-                    onClick={() => { setCharacterId(char.id); setIsDropdownOpen(false); }}
-                    className={`flex items-center justify-between p-2 rounded-md transition-all cursor-pointer ${
-                      characterId === char.id ? 'bg-accent/10 text-accent' : 'hover:bg-white/5 text-zinc-300'
-                    }`}
-                  >
-                    <div className="flex flex-col">
-                      <span className="movie-h2 !text-[11px] !mb-0 uppercase tracking-widest">{char.name}</span>
-                      <span className="movie-meta !text-[8px] !mb-0 uppercase mt-0.5">{char.desc}</span>
-                    </div>
-                    <button
-                      onClick={(e) => handlePreview(e, char.id)}
-                      aria-label={`Preview ${char.name} voice`}
-                      className={`p-1.5 rounded-md border transition-all ${
-                        isPreviewing === char.id ? 'border-rose-500 bg-rose-500 text-white animate-pulse' : 'border-slate-200 bg-slate-100 text-slate-500 hover:border-accent hover:bg-accent hover:text-white dark:border-white/10 dark:bg-white/10 dark:text-zinc-400'
-                      }`}
-                    >
-                      {isPreviewing === char.id ? '...' : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 11-2 0V8zm3-2l-3 2v4l3-2V5z" clipRule="evenodd" /></svg>}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Narration Style & Tone (Matches custom video-recap channel configuration) */}
+      <div className="glass p-5 rounded-2xl border border-slate-200 dark:border-white/10 space-y-5 shadow-xl">
+        
+        {/* Step 1: Script Input */}
         <div className="space-y-2">
-          <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em] block">Narration Style & Tone</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-            {[
-              { id: 'recap_trend', name: 'Trending Recap', desc: 'ခေတ်စားနေတဲ့ စတိုင်' },
-              { id: 'hype_viral', name: 'Viral Hype', desc: 'အရှိန်ပြင်း ဆွဲဆောင်မှု' },
-              { id: 'comedy_laugh', name: 'Comedy Recap', desc: 'ရယ်စရာ ဟာသနှော' },
-              { id: 'thrilling', name: 'Thrilling Recap', desc: 'စိတ်လှုပ်ရှား ရင်ဖို' },
-              { id: 'sarcastic', name: 'Sarcastic Slang', desc: 'ရွဲ့စောင်းပြော စတိုင်' },
-              { id: 'mystery', name: 'Mystery Suspense', desc: 'သည်းထိတ် လျှို့ဝှက်' },
-              { id: 'professional', name: 'Professional', desc: 'သတင်းကြေညာ သံ' },
-              { id: 'sweet', name: 'Storytelling', desc: 'ပုံပြင်ပြော ချိုအေး' },
-              { id: 'emotional', name: 'Emotional Poetry', desc: 'စိတ်ခံစားမှု အပြည့်' }
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTone(t.id)}
-                type="button"
-                className={`p-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center ${
-                  tone === t.id 
-                    ? 'bg-accent/10 border-accent text-accent shadow-md shadow-accent/5' 
-                    : 'bg-transparent border-slate-200 dark:border-white/5 text-slate-500 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/5'
-                }`}
-              >
-                <span className="movie-h2 !text-[10px] !mb-0 uppercase tracking-wider font-bold">{t.name}</span>
-                <span className="text-[7px] opacity-75 font-mono mt-0.5">{t.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-1.5">
-              <label className="movie-meta !text-[8.5px] uppercase tracking-[0.2em]">Input Script</label>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handlePaste} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-accent hover:text-accent dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Paste</button>
-              <button onClick={handleClear} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[9px] uppercase tracking-widest text-slate-500 hover:border-rose-400 hover:text-rose-500 dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Clear</button>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <span>၁။ စာသားဇာတ်ညွှန်း ထည့်သွင်းပါ</span>
+            </label>
+            <div className="flex gap-2">
+              <button onClick={handlePaste} className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-zinc-400 hover:border-indigo-500 hover:text-indigo-500 transition-colors">Paste</button>
+              <button onClick={handleClear} className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-zinc-400 hover:border-rose-400 hover:text-rose-500 transition-colors">Clear</button>
             </div>
           </div>
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value.slice(0, MAX_CHARS)); setIsChecked(false); }}
-            placeholder="Enter your script here..."
-            className="w-full h-36 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg p-3 movie-body !text-[13px] text-slate-900 dark:text-zinc-100 focus:border-accent outline-none transition-all resize-none leading-relaxed"
+            placeholder="ဖတ်ကြားလိုသော Movie Recap သို့မဟုတ် Video Script စာသားများကို ဤနေရာတွင် ရိုက်ထည့်ပါ..."
+            className="w-full h-36 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-3.5 text-sm text-slate-900 dark:text-zinc-100 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all resize-none leading-relaxed"
           />
-          <div className="movie-meta !text-[9px] text-zinc-500 uppercase tracking-widest text-right !mb-0">
-            {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
+          <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono">
+            <span>မြန်မာ / English စာလုံးပေါင်းစပ် ထောက်ပံ့သည်</span>
+            <span>{text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Parameters */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="movie-meta !text-[9px] uppercase tracking-widest">Velocity</label>
-              <span className="movie-meta !text-[9px] text-accent !mb-0">{voiceSpeed}%</span>
+        {/* Step 2: Voice Model Selection */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 block">
+            ၂။ အသံပိုင်ရှင် (Voice Model) ရွေးချယ်ပါ
+          </label>
+          <div className="relative z-30" ref={dropdownRef}>
+            <button 
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl hover:border-indigo-500 transition-all text-left"
+            >
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  {selectedChar?.name}
+                  <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500">
+                    {selectedChar?.desc}
+                  </span>
+                </span>
+                <span className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{selectedChar?.bio}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => selectedChar && handlePreviewVoice(e, selectedChar.id)}
+                  className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-xs font-bold flex items-center gap-1"
+                >
+                  {isPreviewing === selectedChar?.id ? <Square className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                  <span>နမူနာနားဆင်</span>
+                </button>
+              </div>
+            </button>
+
+            {isDropdownOpen && (
+              <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 p-2 space-y-1.5 max-h-64 overflow-y-auto">
+                {characters.map((char) => (
+                  <div
+                    key={char.id}
+                    onClick={() => { setCharacterId(char.id); setIsDropdownOpen(false); }}
+                    className={`flex items-center justify-between p-2.5 rounded-lg transition-all cursor-pointer ${
+                      characterId === char.id ? 'bg-indigo-500/10 border border-indigo-500/30' : 'hover:bg-slate-100 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">{char.name} • {char.desc}</span>
+                      <span className="text-[11px] text-slate-500 dark:text-zinc-400">{char.bio}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => handlePreviewVoice(e, char.id)}
+                      className="p-1.5 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:bg-indigo-500 hover:text-white transition-all"
+                    >
+                      {isPreviewing === char.id ? <Square className="w-3 h-3 fill-current text-rose-500" /> : <Play className="w-3 h-3 fill-current" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Step 3: Sample Voice & Narration Style (Direct Upload & Auto-Analyze) */}
+        <div className="space-y-2.5 p-3.5 rounded-xl border border-dashed border-indigo-500/30 bg-indigo-500/5 dark:bg-indigo-500/[0.02]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-zinc-100">
+                ၃။ Sample Voice / Narration Style ထည့်သွင်းရန် (Optional)
+              </label>
+            </div>
+            {analyzedProfile && (
+              <button onClick={handleClearSample} className="text-[11px] font-medium text-rose-500 hover:underline flex items-center gap-1">
+                <Trash2 className="w-3 h-3" />
+                <span>နမူနာအသံ ဖြုတ်ရန်</span>
+              </button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
+            မိမိအသံ သို့မဟုတ် နှစ်သက်ရာ Movie Recap ပြောထားသော ၅-၁၅ စက္ကန့် အသံဖိုင်ကို ထည့်သွင်းပါက AI မှ အသံအနေအထားနှင့် စကားပြောစတိုင်ကို အလိုအလျောက် သုံးစွဲပေးပါမည်။
+          </p>
+
+          {!analyzedProfile ? (
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <label className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 hover:border-indigo-500 bg-white/50 dark:bg-black/20 cursor-pointer transition-all">
+                <Upload className="w-4 h-4 text-indigo-500" />
+                <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">အသံဖိုင် တင်သွင်းရန်</span>
+                <input 
+                  type="file" 
+                  accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" 
+                  onChange={(e) => e.target.files?.[0] && handleSampleFileUpload(e.target.files[0])} 
+                  className="hidden" 
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={isRecording ? handleStopMicRecord : handleMicRecord}
+                className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
+                  isRecording 
+                    ? 'border-rose-500 bg-rose-500/10 text-rose-500 animate-pulse' 
+                    : 'border-slate-300 dark:border-white/20 bg-white/50 dark:bg-black/20 hover:border-indigo-500 text-slate-700 dark:text-zinc-300'
+                }`}
+              >
+                <Mic className={`w-4 h-4 ${isRecording ? 'text-rose-500' : 'text-indigo-500'}`} />
+                <span className="text-xs font-bold">{isRecording ? 'အသံသွင်း ရပ်ရန်' : 'မိုက်ဖြင့် အသံသွင်းရန်'}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    Sample Voice & Narration Style ချိတ်ဆက်ပြီးပါပြီ
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    {sampleFile?.name || 'My Voice Sample'} ({Math.round(analyzedProfile.traits.pitchHz)}Hz • {analyzedProfile.traits.tone} tone • {analyzedProfile.traits.energy})
+                  </span>
+                </div>
+              </div>
+              {sampleAudioUrl && (
+                <audio controls src={sampleAudioUrl} className="h-7 w-28 opacity-80" />
+              )}
+            </div>
+          )}
+
+          {sampleStatus && (
+            <p className="text-[11px] text-indigo-500 dark:text-indigo-400 text-center font-medium">
+              {sampleStatus}
+            </p>
+          )}
+        </div>
+
+        {/* Step 4: Narration Style & Tone Selection */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 block">
+            ၄။ Narration Style (အပြောစတိုင်) ရွေးချယ်ပါ
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {NARRATION_TONES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTone(t.id)}
+                type="button"
+                className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-center ${
+                  tone === t.id 
+                    ? 'bg-indigo-500/10 border-indigo-500 text-indigo-500 shadow-sm' 
+                    : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-indigo-500/50'
+                }`}
+              >
+                <span className="text-xs font-bold">{t.name}</span>
+                <span className="text-[10px] opacity-75">{t.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 5: Speed & Pitch Adjusters */}
+        <div className="grid grid-cols-2 gap-4 pt-1">
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-zinc-300">
+              <span>စကားပြောနှုန်း (Speed)</span>
+              <span className="text-indigo-500 font-mono">{voiceSpeed > 0 ? `+${voiceSpeed}%` : `${voiceSpeed}%`}</span>
             </div>
             <input 
-              type="range" min="-100" max="100" step="1" value={voiceSpeed} 
+              type="range" min="-50" max="50" step="5" value={voiceSpeed} 
               onChange={(e) => setVoiceSpeed(parseInt(e.target.value))}
-              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1.5 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500"
             />
           </div>
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="movie-meta !text-[9px] uppercase tracking-widest">Pitch</label>
-              <span className="movie-meta !text-[9px] text-accent !mb-0">{voicePitch}%</span>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-zinc-300">
+              <span>အသံအနိမ့်အမြင့် (Pitch)</span>
+              <span className="text-indigo-500 font-mono">{voicePitch > 0 ? `+${voicePitch}%` : `${voicePitch}%`}</span>
             </div>
             <input 
-              type="range" min="-100" max="100" step="1" value={voicePitch} 
+              type="range" min="-50" max="50" step="5" value={voicePitch} 
               onChange={(e) => setVoicePitch(parseInt(e.target.value))}
-              className="w-full h-1 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+              className="w-full h-1.5 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500"
             />
           </div>
         </div>
 
+        {/* Processing State */}
         {isProcessing && (
-          <div className="pt-2 space-y-2" role="status" aria-live="polite">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-accent">
-              <span className="h-3.5 w-3.5 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
-              <span>{processingStage || 'Processing…'}</span>
+          <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-500">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>{processingStage || 'အသံဖိုင် ဖန်တီးနေပါသည်...'}</span>
             </div>
-            <div className="h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-              <div className="h-full w-1/3 rounded-full bg-accent animate-[voiceProgress_1.4s_ease-in-out_infinite]" />
+            <div className="h-1 bg-indigo-500/20 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500 animate-pulse w-full" />
             </div>
           </div>
         )}
 
-        <div className="pt-1">
+        {/* Generate Action Button */}
+        <div className="pt-2">
           <button
-            onClick={isChecked ? handleGenerate : handleCheck}
- aria-label="အသံထုတ်ရန်"            disabled={isChecked && isProcessing}
-            className={`w-full py-2.5 rounded-lg movie-meta !text-[10px] uppercase tracking-[0.2em] transition-all shadow-md ${
+            onClick={isChecked ? handleGenerate : () => {
+              if (!text.trim()) { setError('ကျေးဇူးပြု၍ စာသားအရင် ရိုက်ထည့်ပါ'); return; }
+              setIsChecked(true);
+              setError(null);
+            }}
+            disabled={isChecked && isProcessing}
+            className={`w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 ${
               !isChecked 
-                ? 'border border-slate-300 bg-zinc-100 hover:bg-zinc-200 text-midnight dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white'
-                : isProcessing ? 'bg-white/5 text-zinc-500 cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20 active:scale-[0.98]'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90'
+                : isProcessing 
+                  ? 'bg-slate-300 dark:bg-zinc-800 text-slate-500 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-indigo-500/25 active:scale-[0.99]'
             }`}
           >
-            {isProcessing ? 'Synthesizing...' : isChecked ? 'Generate Audio' : 'Verify Script'}
+            {isProcessing ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>အသံဖန်တီးနေပါသည်...</span>
+              </>
+            ) : isChecked ? (
+              <>
+                <Volume2 className="w-4 h-4" />
+                <span>Generate Voiceover ({CREDIT_COSTS[ContentType.VOICEOVER]} Credits)</span>
+              </>
+            ) : (
+              <span>စာသားအတည်ပြုရန် (Verify Script)</span>
+            )}
           </button>
         </div>
       </div>
-      )}
 
+      {/* Output Audio Result Card */}
       {audioUrl && !isProcessing && (
-        <div className="mt-6 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="glass p-4 rounded-2xl border border-emerald-500/30 flex items-center gap-6">
+        <div className="mt-5 glass p-4 rounded-2xl border border-emerald-500/30 flex items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3">
             <button 
               onClick={togglePlayback} 
-              className={`w-12 h-12 rounded-full border border-emerald-500/30 flex items-center justify-center transition-all ${isPlaying ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10'}`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                isPlaying 
+                  ? 'bg-rose-500 text-white animate-pulse' 
+                  : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:scale-105'
+              }`}
             >
-              {isPlaying ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
-              ) : (
-                <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-              )}
+              {isPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
             </button>
-            <div className="flex-1">
-              <h4 className="movie-h2 !text-sm !mb-0 uppercase tracking-tight">Synthesis Output</h4>
-              <p className="movie-meta !text-[10px] !mb-0 uppercase tracking-widest text-zinc-500">{voiceSpeed}% Vel • {voicePitch}% Ptch</p>
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">အသံဖိုင် အောင်မြင်စွာ ရရှိပါပြီ</h4>
+              <p className="text-xs text-slate-500 dark:text-zinc-400">
+                {selectedChar?.name} • {NARRATION_TONES.find(t => t.id === tone)?.name}
+              </p>
             </div>
-            <div className="flex gap-4">
-              <a href={audioUrl} download="lumina_voiceover.wav" className="px-5 py-2.5 border border-accent/40 bg-accent hover:bg-accent-hover text-white rounded-xl movie-meta !text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95">Export</a>
-              <button onClick={() => setAudioUrl(null)} className="rounded-md border border-slate-200 px-2 py-1 movie-meta !text-[10px] uppercase tracking-widest text-slate-500 hover:border-rose-400 hover:text-rose-500 dark:border-white/10 dark:text-zinc-500 transition-colors !mb-0">Discard</button>
-            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a 
+              href={audioUrl} 
+              download="recap_voiceover.wav" 
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download</span>
+            </a>
+            <button 
+              onClick={() => setAudioUrl(null)} 
+              className="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
 
-      {error && (() => {
-        let parsedQuotaError = null;
-        try {
-          const openBrace = error.indexOf('{');
-          const closeBrace = error.lastIndexOf('}');
-          if (openBrace !== -1 && closeBrace !== -1 && openBrace < closeBrace) {
-            const jsonStr = error.substring(openBrace, closeBrace + 1);
-            if (jsonStr.includes('isQuotaError')) {
-              parsedQuotaError = JSON.parse(jsonStr);
-            }
-          }
-        } catch (_) {}
-
-        return (
-          <div className="mt-4">
-            {parsedQuotaError ? (
-              <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-left space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2 text-amber-500 font-extrabold text-[11px] uppercase tracking-widest">
-                    <svg className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Quota Limit Exceeded</span>
-                  </div>
-                  {countdown !== null && (
-                    <span className="px-2.5 py-1 bg-amber-500 text-midnight dark:text-black rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse">
-                      Please Wait: {countdown}s
-                    </span>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <p className="text-xs text-amber-600 dark:text-amber-400 font-bold leading-relaxed">
-                    {parsedQuotaError.mmMessage}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
-                <p className="text-rose-500 dark:text-rose-400 text-[10px] font-bold uppercase tracking-widest">{error}</p>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {/* Error / Quota Limit Display */}
+      {error && (
+        <div className="mt-4 p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
+          <p className="text-rose-500 dark:text-rose-400 text-xs font-bold">{error}</p>
+        </div>
+      )}
     </div>
   );
 };
