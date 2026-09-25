@@ -338,32 +338,26 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
       // Smart Engine Routing: Use VoxCPM (Colab GPU) when sample voice is provided, Gemini Speech for built-in voices
       const voxcpmUrl = (import.meta.env.VITE_VOXCPM_URL || '').trim();
-      let voxcpmSuccess = false;
-
-      if (sampleFile && voxcpmUrl) {
-        try {
-          setProcessingStage('VoxCPM2 Free GPU ဖြင့် အသံနှင့် စတိုင် ပုံတူကူးယူနေပါသည် (48kHz)...');
-          const registered = await createVoxCPMVoiceClone(
-            sampleFile.name,
-            sampleFile,
-            `Speak in an energetic movie recap narration style. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`
-          );
-          const requestedSpeed = Math.max(0.5, Math.min(2.0, 1.0 + (voiceSpeed / 100)));
-          const audioBlob = await synthesizeVoxCPMSpeech(
-            registered.voiceId,
-            text,
-            `Energetic movie recap narration. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`,
-            requestedSpeed
-          );
-          blobUrl = URL.createObjectURL(audioBlob);
-          voxcpmSuccess = true;
-          usedEngine = 'VoxCPM2 Neural 48kHz';
-        } catch (voxErr) {
-          console.warn('VoxCPM GPU synthesis failed, falling back to Gemini Speech:', voxErr);
+      if (sampleFile) {
+        if (!voxcpmUrl) {
+          throw new Error('VoxCPM GPU URL ကို .env တွင် ထည့်သွင်းထားခြင်း မရှိပါ။ Colab မှ URL ကို VITE_VOXCPM_URL တွင် ထည့်ပေးပါ။');
         }
-      }
-
-      if (!voxcpmSuccess) {
+        setProcessingStage('VoxCPM2 Free GPU ဖြင့် အသံနှင့် စတိုင် ပုံတူကူးယူနေပါသည် (48kHz)...');
+        const registered = await createVoxCPMVoiceClone(
+          sampleFile.name,
+          sampleFile,
+          `Speak in an energetic movie recap narration style. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`
+        );
+        const requestedSpeed = Math.max(0.5, Math.min(2.0, 1.0 + (voiceSpeed / 100)));
+        const audioBlob = await synthesizeVoxCPMSpeech(
+          registered.voiceId,
+          text,
+          `Energetic movie recap narration. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`,
+          requestedSpeed
+        );
+        blobUrl = URL.createObjectURL(audioBlob);
+        usedEngine = 'VoxCPM2 Neural 48kHz';
+      } else {
         setProcessingStage('Gemini 3.1 AI Speech ဖြင့် အသံကြည်လင်စွာ ထုတ်ယူနေပါသည်...');
         blobUrl = await generateSpeech(
           text, 
