@@ -328,7 +328,7 @@ function writeString(view: DataView, offset: number, string: string) {
 }
 
 // Subtitle chunking helper to keep sentences natural, avoiding truncation, quality loss, or volume drops
-const splitTextIntoChunks = (text: string, maxLength: number = 400): string[] => {
+export const splitTextIntoChunks = (text: string, maxLength: number = 400): string[] => {
   // First, split by major punctuation: Burmese period (။), English period (.), exclamation (!), question mark (?), newlines/tabs
   const initialSegments = text.split(/(?<=[။\.!\?\n\r\t])/);
   const refinedSegments: string[] = [];
@@ -483,7 +483,7 @@ const decodeBase64ToAudioBuffer = async (ctx: AudioContext, base64: string): Pro
 };
 
 // Seamlessly join multiple audio chunks into a single clean stream
-const concatenateAudioBuffers = (ctx: AudioContext, buffers: AudioBuffer[]): AudioBuffer => {
+export const concatenateAudioBuffers = (ctx: AudioContext, buffers: AudioBuffer[]): AudioBuffer => {
   if (buffers.length === 0) {
     return ctx.createBuffer(1, 1, 24000);
   }
@@ -510,7 +510,7 @@ const concatenateAudioBuffers = (ctx: AudioContext, buffers: AudioBuffer[]): Aud
 };
 
 // Standard clean PCM WAV generation from Float32 AudioBuffer
-const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+export const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   const numOfChan = buffer.numberOfChannels;
   const sampleRate = buffer.sampleRate;
   const format = 1; // PCM
@@ -544,6 +544,18 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   floatTo16BitPCM(view, 44, result);
   
   return new Blob([wavBuffer], { type: 'audio/wav' });
+};
+
+export const convertAudioBlobToWav = async (blob: Blob): Promise<Blob> => {
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  const ctx = new AudioContextClass();
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    return audioBufferToWav(audioBuffer);
+  } finally {
+    if (ctx.state !== 'closed') ctx.close();
+  }
 };
 
 const interleave = (inputL: Float32Array, inputR: Float32Array): Float32Array => {

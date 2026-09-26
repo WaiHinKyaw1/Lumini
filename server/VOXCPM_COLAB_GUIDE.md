@@ -25,8 +25,8 @@ Google Colab (Free T4 GPU) ပေါ်တွင် **VoxCPM2 (OpenBMB 48kHz Stu
 
 ### အဆင့် (၃) - Lumini နှင့် ချိတ်ဆက်ခြင်း
 1. ထွက်လာသော `https://xxxx-xxxx.trycloudflare.com` URL ကို ကူးယူပါ။
-2. Lumini ၏ `.env` ဖိုင်တွင် ထည့်သွင်းပါ:
+2. Lumini ၏ Voiceover စာမျက်နှာ အပေါ်ရှိ **`VoxCPM2 (Offline - Connect)`** ခလုတ်ကို နှိပ်ပြီး URL အသစ်ကို ထည့်သွင်းကာ **Save & Test GPU Connection** ကို နှိပ်ပါ (သို့မဟုတ် `.env` ထဲတွင် ထည့်သွင်းပါ):
    ```env
-   VITE_MEDIA_WORKER_URL=https://xxxx-xxxx.trycloudflare.com
+   VITE_VOXCPM_URL=https://xxxx-xxxx.trycloudflare.com
    ```
-3. ယခု [Voiceover Studio](file:///d:/Lumini/pages/Voiceover.tsx) တွင် မိမိအသံ / Sample Voice ဖြင့် 48kHz စက်ရုပ်သံကင်းစင်သော Zero-Shot Voiceover ကို အခမဲ့ ထုတ်ယူနိုင်ပါပြီ!
+3. စိမ်းရောင်မီး 🟢 **`VoxCPM2 GPU Online (48kHz)`** ပေါ်လာသည်နှင့် Zero-Shot Voiceover ကို ၁၀၀% အခမဲ့ စတင်ထုတ်ယူနိုင်ပါပြီ!

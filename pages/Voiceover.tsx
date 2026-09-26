@@ -1,11 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { generateSpeech, playAudio } from '../services/geminiService';
+import toast from 'react-hot-toast';
+import { generateSpeech, playAudio, convertAudioBlobToWav } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { analyzeVoice, startRecording, type VoiceProfile } from '../services/voiceClone';
-import { getVoxCPMStatus, createVoxCPMVoiceClone, synthesizeVoxCPMSpeech } from '../services/voiceCloneApi';
-import { Sparkles, Mic, Upload, Play, Square, Download, Trash2, CheckCircle2, Volume2, RefreshCw } from 'lucide-react';
+import { 
+  getVoxCPMStatus, 
+  createVoxCPMVoiceClone, 
+  synthesizeVoxCPMSpeech,
+  getActiveVoxCPMUrl,
+  setCustomVoxCPMUrl
+} from '../services/voiceCloneApi';
+import { 
+  Sparkles, 
+  Mic, 
+  Upload, 
+  Play, 
+  Square, 
+  Download, 
+  Trash2, 
+  CheckCircle2, 
+  Volume2, 
+  RefreshCw,
+  Server,
+  ExternalLink,
+  X,
+  Settings2,
+  HelpCircle,
+  AlertCircle
+} from 'lucide-react';
 
 interface VoiceoverProps {
   onSpendCredits: (amount: number) => boolean;
@@ -15,6 +39,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [text, setText] = useState('');
   const [characterId, setCharacterId] = useState('thiha_mm');
   const [tone, setTone] = useState('recap_trend');
+  const [selectedEngine, setSelectedEngine] = useState<'auto' | 'voxcpm' | 'gemini'>('auto');
+  const [failedVoxcpmError, setFailedVoxcpmError] = useState<string | null>(null);
   
   // Advanced Controls: -100% to 100%
   const [voiceSpeed, setVoiceSpeed] = useState(0); 
@@ -24,8 +50,8 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [processingStage, setProcessingStage] = useState<string | null>(null);
   const [isPreviewing, setIsPreviewing] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [lastUsedEngine, setLastUsedEngine] = useState<string>('Gemini 3.1 Flash Speech');
   const [error, setError] = useState<string | null>(null);
-  const [isChecked, setIsChecked] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -38,6 +64,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [sampleStatus, setSampleStatus] = useState<string | null>(null);
   const [voxcpmOnline, setVoxcpmOnline] = useState<boolean>(false);
+  const [isVoxcpmModalOpen, setIsVoxcpmModalOpen] = useState<boolean>(false);
+  const [inputVoxcpmUrl, setInputVoxcpmUrl] = useState<string>('');
+  const [isCheckingVoxcpm, setIsCheckingVoxcpm] = useState<boolean>(false);
+  const [voxcpmCheckMsg, setVoxcpmCheckMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -52,6 +82,28 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       }
     } catch {
       if (isMounted.current) setVoxcpmOnline(false);
+    }
+  };
+
+  const handleSaveAndTestVoxCPM = async (urlToTest?: string) => {
+    const targetUrl = (urlToTest !== undefined ? urlToTest : inputVoxcpmUrl).trim();
+    setIsCheckingVoxcpm(true);
+    setVoxcpmCheckMsg(null);
+    setCustomVoxCPMUrl(targetUrl);
+    try {
+      const status = await getVoxCPMStatus();
+      if (status?.online) {
+        setVoxcpmOnline(true);
+        setVoxcpmCheckMsg({ text: `ချိတ်ဆက်မှု အောင်မြင်ပါသည်! (${status.engine} • ${status.device || 'GPU'})`, ok: true });
+      } else {
+        setVoxcpmOnline(false);
+        setVoxcpmCheckMsg({ text: 'မချိတ်ဆက်နိုင်သေးပါ။ URL မှန်ကန်မှုနှင့် Colab Notebook Run နေခြင်းရှိမရှိ စစ်ဆေးပေးပါ။', ok: false });
+      }
+    } catch {
+      setVoxcpmOnline(false);
+      setVoxcpmCheckMsg({ text: 'မချိတ်ဆက်နိုင်သေးပါ။ URL မှန်ကန်မှုနှင့် Colab Notebook Run နေခြင်းရှိမရှိ စစ်ဆေးပေးပါ။', ok: false });
+    } finally {
+      setIsCheckingVoxcpm(false);
     }
   };
 
@@ -222,7 +274,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       } else {
         blob = data as Blob;
       }
-      const file = new File([blob], 'my_voice_sample.webm', { type: 'audio/webm' });
+      let wavBlob = blob;
+      try {
+        wavBlob = await convertAudioBlobToWav(blob);
+      } catch (wavErr) {
+        console.warn('Could not convert mic recording to WAV:', wavErr);
+      }
+      const file = new File([wavBlob], 'my_voice_sample.wav', { type: 'audio/wav' });
       setIsRecording(false);
       await handleSampleFileUpload(file);
     } catch {
@@ -243,7 +301,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     try {
       const clipboardText = await navigator.clipboard.readText();
       setText(clipboardText.slice(0, MAX_CHARS));
-      setIsChecked(false);
     } catch {
       setError("Clipboard access denied.");
     }
@@ -252,7 +309,6 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const handleClear = () => {
     setText('');
     setAudioUrl(null);
-    setIsChecked(false);
     stopAudio();
   };
 
@@ -312,7 +368,10 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   };
 
   const handleGenerate = async () => {
-    if (!text.trim() || !isChecked) return;
+    if (!text.trim()) {
+      setError("ကျေးဇူးပြု၍ စာသားအရင် ရိုက်ထည့်ပါ");
+      return;
+    }
     setError(null);
     stopAudio();
     if (!onSpendCredits(CREDIT_COSTS[ContentType.VOICEOVER])) { 
@@ -336,29 +395,100 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
       let blobUrl = '';
       let usedEngine = 'Gemini 3.1 Flash Speech';
 
-      // Smart Engine Routing: Use VoxCPM (Colab GPU) when sample voice is provided, Gemini Speech for built-in voices
-      const voxcpmUrl = (import.meta.env.VITE_VOXCPM_URL || '').trim();
-      if (sampleFile) {
-        if (!voxcpmUrl) {
-          throw new Error('VoxCPM GPU URL ကို .env တွင် ထည့်သွင်းထားခြင်း မရှိပါ။ Colab မှ URL ကို VITE_VOXCPM_URL တွင် ထည့်ပေးပါ။');
+      // Engine Resolution:
+      const voxcpmUrl = getActiveVoxCPMUrl();
+
+      if (selectedEngine === 'voxcpm') {
+        // User explicitly chose VoxCPM: must run on VoxCPM only
+        if (!voxcpmOnline || !voxcpmUrl) {
+          setInputVoxcpmUrl(getActiveVoxCPMUrl());
+          setVoxcpmCheckMsg({
+            text: 'VoxCPM Colab GPU Server ချိတ်ဆက်မထားပါ (Offline)။ ကျေးဇူးပြု၍ Colab Notebook တွင် ပေါ်လာသော trycloudflare.com URL အသစ်ကို ထည့်သွင်းပေးပါ။',
+            ok: false
+          });
+          setIsVoxcpmModalOpen(true);
+          throw new Error('VoxCPM Colab GPU Server ချိတ်ဆက်မထားပါ (Offline)။ ကျေးဇူးပြု၍ Colab URL အသစ်ကို ထည့်သွင်းပေးပါ။');
         }
-        setProcessingStage('VoxCPM2 Free GPU ဖြင့် အသံနှင့် စတိုင် ပုံတူကူးယူနေပါသည် (48kHz)...');
-        const registered = await createVoxCPMVoiceClone(
-          sampleFile.name,
-          sampleFile,
-          `Speak in an energetic movie recap narration style. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`
-        );
+
+        setProcessingStage('VoxCPM2 Free GPU ဖြင့် 48kHz စတူဒီယို အသံဖန်တီးနေပါသည်...');
+        let voiceIdToUse: string | null = null;
+        if (sampleFile) {
+          setProcessingStage('VoxCPM2 သို့ နမူနာအသံ ပုံတူကူးယူနေပါသည်...');
+          let cleanWavFile = sampleFile;
+          try {
+            const wavBlob = await convertAudioBlobToWav(sampleFile);
+            cleanWavFile = new File([wavBlob], 'sample_voice.wav', { type: 'audio/wav' });
+          } catch (convErr) {
+            console.warn('Sample WAV conversion skipped:', convErr);
+          }
+
+          const registered = await createVoxCPMVoiceClone(
+            cleanWavFile.name,
+            cleanWavFile,
+            `Speak in an energetic movie recap narration style. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`
+          );
+          voiceIdToUse = registered.voiceId;
+        }
+
+        setProcessingStage('VoxCPM2 Neural Diffusion ဖြင့် အသံဖန်တီးနေပါသည် (48kHz)...');
         const requestedSpeed = Math.max(0.5, Math.min(2.0, 1.0 + (voiceSpeed / 100)));
         const audioBlob = await synthesizeVoxCPMSpeech(
-          registered.voiceId,
+          voiceIdToUse,
           text,
           `Energetic movie recap narration. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`,
           requestedSpeed
         );
         blobUrl = URL.createObjectURL(audioBlob);
-        usedEngine = 'VoxCPM2 Neural 48kHz';
+        usedEngine = sampleFile ? 'VoxCPM2 48kHz Neural Clone' : 'VoxCPM2 48kHz Studio';
+
+      } else if (selectedEngine === 'auto' && voxcpmOnline && voxcpmUrl && !!sampleFile) {
+        // Smart Auto: Use VoxCPM if online with sample voice, otherwise Gemini
+        setProcessingStage('VoxCPM2 Free GPU ဖြင့် 48kHz စတူဒီယို အသံဖန်တီးနေပါသည်...');
+        try {
+          let cleanWavFile = sampleFile;
+          try {
+            const wavBlob = await convertAudioBlobToWav(sampleFile);
+            cleanWavFile = new File([wavBlob], 'sample_voice.wav', { type: 'audio/wav' });
+          } catch (convErr) {
+            console.warn('Sample WAV conversion skipped:', convErr);
+          }
+
+          const registered = await createVoxCPMVoiceClone(
+            cleanWavFile.name,
+            cleanWavFile,
+            `Speak in an energetic movie recap narration style. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`
+          );
+
+          setProcessingStage('VoxCPM2 Neural Diffusion ဖြင့် အသံဖန်တီးနေပါသည် (48kHz)...');
+          const requestedSpeed = Math.max(0.5, Math.min(2.0, 1.0 + (voiceSpeed / 100)));
+          const audioBlob = await synthesizeVoxCPMSpeech(
+            registered.voiceId,
+            text,
+            `Energetic movie recap narration. ${NARRATION_TONES.find(t => t.id === tone)?.name || ''}`,
+            requestedSpeed
+          );
+          blobUrl = URL.createObjectURL(audioBlob);
+          usedEngine = 'VoxCPM2 48kHz Neural Clone';
+        } catch (voxErr) {
+          console.warn('Auto mode VoxCPM failed, falling back to Gemini:', voxErr);
+          setProcessingStage('Gemini 3.1 AI Speech ဖြင့် အစားထိုး ထုတ်ယူနေပါသည်...');
+          blobUrl = await generateSpeech(
+            text, 
+            char?.baseVoice || 'Kore', 
+            voiceSpeed, 
+            voicePitch, 
+            voiceMap, 
+            tone, 
+            styleInstruction
+          );
+          usedEngine = 'Gemini 3.1 Style-Cloned AI Speech';
+        }
+
       } else {
-        setProcessingStage('Gemini 3.1 AI Speech ဖြင့် အသံကြည်လင်စွာ ထုတ်ယူနေပါသည်...');
+        // Gemini 3.1 AI Speech
+        setProcessingStage(sampleFile 
+          ? 'Gemini 3.1 AI Speech (Style Cloned) ဖြင့် အသံကြည်လင်စွာ ထုတ်ယူနေပါသည်...' 
+          : 'Gemini 3.1 AI Speech ဖြင့် အသံကြည်လင်စွာ ထုတ်ယူနေပါသည်...');
         blobUrl = await generateSpeech(
           text, 
           char?.baseVoice || 'Kore', 
@@ -368,10 +498,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           tone, 
           styleInstruction
         );
+        usedEngine = sampleFile ? 'Gemini 3.1 Style-Cloned AI Speech' : 'Gemini 3.1 AI Speech';
       }
 
       if (isMounted.current) {
         setAudioUrl(blobUrl);
+        setLastUsedEngine(usedEngine);
       }
       
       const currentUser = auth.currentUser;
@@ -396,112 +528,209 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
     }
   };
 
+  const handleFallbackToGemini = async () => {
+    if (!text.trim()) return;
+    setError(null);
+    setFailedVoxcpmError(null);
+    setIsProcessing(true);
+    setProcessingStage('Gemini 3.1 AI Speech ဖြင့် အသံဖန်တီးနေပါသည်...');
+    const char = characters.find(c => c.id === characterId);
+    const voiceMap: Record<string, string> = {};
+    characters.forEach(c => { voiceMap[c.name] = c.baseVoice; });
+    const styleInstruction = analyzedProfile
+      ? `${analyzedProfile.prompt} Match the natural human timbre, fast movie recap rhythm, and vocal expressions of the uploaded sample.`
+      : '';
+    try {
+      const blobUrl = await generateSpeech(
+        text, 
+        char?.baseVoice || 'Kore', 
+        voiceSpeed, 
+        voicePitch, 
+        voiceMap, 
+        tone, 
+        styleInstruction
+      );
+      if (isMounted.current) {
+        setAudioUrl(blobUrl);
+        setLastUsedEngine(sampleFile ? 'Gemini 3.1 Speech (Style Matched)' : 'Gemini 3.1 Flash Speech');
+      }
+    } catch (err: unknown) {
+      if (isMounted.current) {
+        setError((err as { message?: string })?.message || "Gemini speech generation failed.");
+      }
+    } finally {
+      if (isMounted.current) {
+        setIsProcessing(false);
+        setProcessingStage(null);
+      }
+    }
+  };
+
   const selectedChar = characters.find(c => c.id === characterId);
 
   return (
     <div className="module-page max-w-2xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
-            <Volume2 className="w-5 h-5 text-white" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-sm flex-shrink-0">
+            <Volume2 className="w-4 h-4" />
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              Voiceover Studio
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-                AI Powered
-              </span>
-              {voxcpmOnline ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  VoxCPM2 GPU Online
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                  Gemini 3.1 Speech
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-zinc-400">မြန်မာ Movie Recap နှင့် Video များအတွက် သဘာဝကျသော စကားပြောအသံဖန်တီးပါ</p>
-          </div>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+            Voiceover Studio
+          </h1>
         </div>
+
+        {/* Colab GPU Settings Pill */}
+        <button
+          type="button"
+          onClick={() => {
+            setInputVoxcpmUrl(getActiveVoxCPMUrl());
+            setVoxcpmCheckMsg(null);
+            setIsVoxcpmModalOpen(true);
+          }}
+          className={`text-xs font-medium px-3 py-1.5 rounded-full border flex items-center gap-1.5 transition-all ${
+            voxcpmOnline
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+              : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-white/10 hover:border-indigo-400'
+          }`}
+          title="VoxCPM Colab GPU Server Settings"
+        >
+          <span className={`w-2 h-2 rounded-full ${voxcpmOnline ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+          <span>{voxcpmOnline ? 'VoxCPM (Online)' : 'VoxCPM GPU'}</span>
+          <Settings2 className="w-3 h-3 opacity-60" />
+        </button>
       </div>
 
-      <div className="glass p-5 rounded-2xl border border-slate-200 dark:border-white/10 space-y-5 shadow-xl">
+      <div className="glass p-5 rounded-2xl border border-slate-200 dark:border-white/10 space-y-4 shadow-xl">
         
-        {/* Step 1: Script Input */}
-        <div className="space-y-2">
+        {/* Script Input */}
+        <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-              <span>၁။ စာသားဇာတ်ညွှန်း ထည့်သွင်းပါ</span>
+            <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+              ဇာတ်ညွှန်း (Script)
             </label>
-            <div className="flex gap-2">
-              <button onClick={handlePaste} className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-zinc-400 hover:border-indigo-500 hover:text-indigo-500 transition-colors">Paste</button>
-              <button onClick={handleClear} className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-zinc-400 hover:border-rose-400 hover:text-rose-500 transition-colors">Clear</button>
+            <div className="flex items-center gap-1.5">
+              <button 
+                type="button"
+                onClick={handlePaste} 
+                className="px-2 py-0.5 rounded border border-slate-200 dark:border-white/10 text-[11px] text-slate-600 dark:text-zinc-400 hover:text-indigo-500 hover:border-indigo-500 transition-colors"
+              >
+                Paste
+              </button>
+              <button 
+                type="button"
+                onClick={handleClear} 
+                className="px-2 py-0.5 rounded border border-slate-200 dark:border-white/10 text-[11px] text-slate-600 dark:text-zinc-400 hover:text-rose-500 hover:border-rose-400 transition-colors"
+              >
+                Clear
+              </button>
             </div>
           </div>
           <textarea
             value={text}
-            onChange={(e) => { setText(e.target.value.slice(0, MAX_CHARS)); setIsChecked(false); }}
-            placeholder="ဖတ်ကြားလိုသော Movie Recap သို့မဟုတ် Video Script စာသားများကို ဤနေရာတွင် ရိုက်ထည့်ပါ..."
-            className="w-full h-36 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-3.5 text-sm text-slate-900 dark:text-zinc-100 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all resize-none leading-relaxed"
+            onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
+            placeholder="ဖတ်ကြားလိုသော Movie Recap သို့မဟုတ် Video Script စာသားများကို ရိုက်ထည့်ပါ..."
+            className="w-full h-32 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-zinc-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none transition-all resize-none leading-relaxed"
           />
-          <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono">
-            <span>မြန်မာ / English စာလုံးပေါင်းစပ် ထောက်ပံ့သည်</span>
+          <div className="flex justify-end text-[11px] text-slate-400 font-mono">
             <span>{text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Step 2: Voice Model Selection */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 block">
-            ၂။ အသံပိုင်ရှင် (Voice Model) ရွေးချယ်ပါ
+        {/* Engine Segment Bar */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+          <button
+            type="button"
+            onClick={() => { setSelectedEngine('auto'); setError(null); }}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+              selectedEngine === 'auto'
+                ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            ⚡ Auto
+          </button>
+          <button
+            type="button"
+            onClick={() => { 
+              setSelectedEngine('voxcpm'); 
+              setError(null);
+              if (!voxcpmOnline) {
+                setInputVoxcpmUrl(getActiveVoxCPMUrl());
+                setVoxcpmCheckMsg(null);
+                setIsVoxcpmModalOpen(true);
+              }
+            }}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all text-center flex items-center justify-center gap-1.5 ${
+              selectedEngine === 'voxcpm'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${voxcpmOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            VoxCPM (GPU)
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSelectedEngine('gemini'); setError(null); }}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+              selectedEngine === 'gemini'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            🤖 Gemini 3.1
+          </button>
+        </div>
+
+        {/* Voice Model Selection */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+            အသံ (Voice)
           </label>
           <div className="relative z-30" ref={dropdownRef}>
             <button 
+              type="button"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl hover:border-indigo-500 transition-all text-left"
+              className="w-full flex items-center justify-between p-2.5 bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl hover:border-indigo-500 transition-all text-left"
             >
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  {selectedChar?.name}
-                  <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500">
-                    {selectedChar?.desc}
-                  </span>
-                </span>
-                <span className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{selectedChar?.bio}</span>
-              </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => selectedChar && handlePreviewVoice(e, selectedChar.id)}
-                  className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-xs font-bold flex items-center gap-1"
-                >
-                  {isPreviewing === selectedChar?.id ? <Square className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                  <span>နမူနာနားဆင်</span>
-                </button>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {selectedChar?.name}
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  • {selectedChar?.desc}
+                </span>
               </div>
+              <button
+                type="button"
+                onClick={(e) => selectedChar && handlePreviewVoice(e, selectedChar.id)}
+                className="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-xs font-semibold flex items-center gap-1"
+              >
+                {isPreviewing === selectedChar?.id ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                <span>နမူနာနားဆင်</span>
+              </button>
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 p-2 space-y-1.5 max-h-64 overflow-y-auto">
+              <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 p-1.5 space-y-1 max-h-60 overflow-y-auto">
                 {characters.map((char) => (
                   <div
                     key={char.id}
                     onClick={() => { setCharacterId(char.id); setIsDropdownOpen(false); }}
-                    className={`flex items-center justify-between p-2.5 rounded-lg transition-all cursor-pointer ${
+                    className={`flex items-center justify-between p-2 rounded-lg transition-all cursor-pointer ${
                       characterId === char.id ? 'bg-indigo-500/10 border border-indigo-500/30' : 'hover:bg-slate-100 dark:hover:bg-white/5'
                     }`}
                   >
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-slate-900 dark:text-white">{char.name} • {char.desc}</span>
-                      <span className="text-[11px] text-slate-500 dark:text-zinc-400">{char.bio}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">{char.bio}</span>
                     </div>
                     <button
                       type="button"
                       onClick={(e) => handlePreviewVoice(e, char.id)}
-                      className="p-1.5 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:bg-indigo-500 hover:text-white transition-all"
+                      className="p-1 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:bg-indigo-500 hover:text-white transition-all"
                     >
                       {isPreviewing === char.id ? <Square className="w-3 h-3 fill-current text-rose-500" /> : <Play className="w-3 h-3 fill-current" />}
                     </button>
@@ -512,32 +741,53 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </div>
         </div>
 
-        {/* Step 3: Sample Voice & Narration Style (Direct Upload & Auto-Analyze) */}
-        <div className="space-y-2.5 p-3.5 rounded-xl border border-dashed border-indigo-500/30 bg-indigo-500/5 dark:bg-indigo-500/[0.02]">
+        {/* Narration Tone */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+            စတိုင် (Tone)
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {NARRATION_TONES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTone(t.id)}
+                type="button"
+                className={`py-2 px-2.5 rounded-xl border text-center transition-all text-xs font-medium ${
+                  tone === t.id 
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold' 
+                    : 'border-slate-200 dark:border-white/10 text-slate-700 dark:text-zinc-300 hover:border-indigo-400 bg-slate-50 dark:bg-black/20'
+                }`}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sample Voice Clone (Optional) */}
+        <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-indigo-500" />
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-zinc-100">
-                ၃။ Sample Voice / Narration Style ထည့်သွင်းရန် (Optional)
-              </label>
-            </div>
+            <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Voice Clone / Sample (Optional)</span>
+            </label>
             {analyzedProfile && (
-              <button onClick={handleClearSample} className="text-[11px] font-medium text-rose-500 hover:underline flex items-center gap-1">
+              <button 
+                type="button"
+                onClick={handleClearSample} 
+                className="text-[11px] text-rose-500 hover:underline flex items-center gap-1"
+              >
                 <Trash2 className="w-3 h-3" />
-                <span>နမူနာအသံ ဖြုတ်ရန်</span>
+                <span>နမူနာအသံ ဖြုတ်မည်</span>
               </button>
             )}
           </div>
 
-          <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
-            မိမိအသံ သို့မဟုတ် နှစ်သက်ရာ Movie Recap ပြောထားသော ၅-၁၅ စက္ကန့် အသံဖိုင်ကို ထည့်သွင်းပါက AI မှ အသံအနေအထားနှင့် စကားပြောစတိုင်ကို အလိုအလျောက် သုံးစွဲပေးပါမည်။
-          </p>
-
           {!analyzedProfile ? (
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              <label className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 hover:border-indigo-500 bg-white/50 dark:bg-black/20 cursor-pointer transition-all">
-                <Upload className="w-4 h-4 text-indigo-500" />
-                <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">အသံဖိုင် တင်သွင်းရန်</span>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-slate-200 dark:border-white/10 hover:border-indigo-500 bg-slate-50 dark:bg-black/20 cursor-pointer transition-all">
+                <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="text-xs font-medium text-slate-700 dark:text-zinc-300">အသံဖိုင် တင်မည်</span>
                 <input 
                   type="file" 
                   accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm" 
@@ -549,31 +799,26 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               <button
                 type="button"
                 onClick={isRecording ? handleStopMicRecord : handleMicRecord}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
+                className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border transition-all ${
                   isRecording 
                     ? 'border-rose-500 bg-rose-500/10 text-rose-500 animate-pulse' 
-                    : 'border-slate-300 dark:border-white/20 bg-white/50 dark:bg-black/20 hover:border-indigo-500 text-slate-700 dark:text-zinc-300'
+                    : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 hover:border-indigo-500 text-slate-700 dark:text-zinc-300'
                 }`}
               >
-                <Mic className={`w-4 h-4 ${isRecording ? 'text-rose-500' : 'text-indigo-500'}`} />
-                <span className="text-xs font-bold">{isRecording ? 'အသံသွင်း ရပ်ရန်' : 'မိုက်ဖြင့် အသံသွင်းရန်'}</span>
+                <Mic className={`w-3.5 h-3.5 ${isRecording ? 'text-rose-500' : 'text-indigo-500'}`} />
+                <span className="text-xs font-medium">{isRecording ? 'အသံသွင်း ရပ်မည်' : 'မိုက်ဖြင့် အသံသွင်းမည်'}</span>
               </button>
             </div>
           ) : (
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    Sample Voice & Narration Style ချိတ်ဆက်ပြီးပါပြီ
-                  </span>
-                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">
-                    {sampleFile?.name || 'My Voice Sample'} ({Math.round(analyzedProfile.traits.pitchHz)}Hz • {analyzedProfile.traits.tone} tone • {analyzedProfile.traits.energy})
-                  </span>
-                </div>
+            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[200px]">
+                  {sampleFile?.name || 'Voice Sample'}
+                </span>
               </div>
               {sampleAudioUrl && (
-                <audio controls src={sampleAudioUrl} className="h-7 w-28 opacity-80" />
+                <audio controls src={sampleAudioUrl} className="h-6 w-28 opacity-80" />
               )}
             </div>
           )}
@@ -585,35 +830,11 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           )}
         </div>
 
-        {/* Step 4: Narration Style & Tone Selection */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 block">
-            ၄။ Narration Style (အပြောစတိုင်) ရွေးချယ်ပါ
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {NARRATION_TONES.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTone(t.id)}
-                type="button"
-                className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-center ${
-                  tone === t.id 
-                    ? 'bg-indigo-500/10 border-indigo-500 text-indigo-500 shadow-sm' 
-                    : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-indigo-500/50'
-                }`}
-              >
-                <span className="text-xs font-bold">{t.name}</span>
-                <span className="text-[10px] opacity-75">{t.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Step 5: Speed & Pitch Adjusters */}
+        {/* Speed & Pitch */}
         <div className="grid grid-cols-2 gap-4 pt-1">
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-zinc-300">
-              <span>စကားပြောနှုန်း (Speed)</span>
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              <span>Speed</span>
               <span className="text-indigo-500 font-mono">{voiceSpeed > 0 ? `+${voiceSpeed}%` : `${voiceSpeed}%`}</span>
             </div>
             <input 
@@ -622,9 +843,9 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               className="w-full h-1.5 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500"
             />
           </div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-zinc-300">
-              <span>အသံအနိမ့်အမြင့် (Pitch)</span>
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              <span>Pitch</span>
               <span className="text-indigo-500 font-mono">{voicePitch > 0 ? `+${voicePitch}%` : `${voicePitch}%`}</span>
             </div>
             <input 
@@ -638,7 +859,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         {/* Processing State */}
         {isProcessing && (
           <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-indigo-500">
+            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-500">
               <RefreshCw className="w-4 h-4 animate-spin" />
               <span>{processingStage || 'အသံဖိုင် ဖန်တီးနေပါသည်...'}</span>
             </div>
@@ -651,18 +872,13 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         {/* Generate Action Button */}
         <div className="pt-2">
           <button
-            onClick={isChecked ? handleGenerate : () => {
-              if (!text.trim()) { setError('ကျေးဇူးပြု၍ စာသားအရင် ရိုက်ထည့်ပါ'); return; }
-              setIsChecked(true);
-              setError(null);
-            }}
-            disabled={isChecked && isProcessing}
-            className={`w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 ${
-              !isChecked 
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-black hover:opacity-90'
-                : isProcessing 
-                  ? 'bg-slate-300 dark:bg-zinc-800 text-slate-500 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-indigo-500/25 active:scale-[0.99]'
+            type="button"
+            onClick={handleGenerate}
+            disabled={isProcessing}
+            className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2 ${
+              isProcessing 
+                ? 'bg-slate-300 dark:bg-zinc-800 text-slate-500 cursor-not-allowed' 
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/25 active:scale-[0.99]'
             }`}
           >
             {isProcessing ? (
@@ -670,13 +886,11 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>အသံဖန်တီးနေပါသည်...</span>
               </>
-            ) : isChecked ? (
+            ) : (
               <>
                 <Volume2 className="w-4 h-4" />
                 <span>Generate Voiceover ({CREDIT_COSTS[ContentType.VOICEOVER]} Credits)</span>
               </>
-            ) : (
-              <span>စာသားအတည်ပြုရန် (Verify Script)</span>
             )}
           </button>
         </div>
@@ -697,7 +911,12 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
               {isPlaying ? <Square className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
             </button>
             <div>
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">အသံဖိုင် အောင်မြင်စွာ ရရှိပါပြီ</h4>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>အသံဖိုင် အောင်မြင်စွာ ရရှိပါပြီ</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                  {lastUsedEngine}
+                </span>
+              </h4>
               <p className="text-xs text-slate-500 dark:text-zinc-400">
                 {selectedChar?.name} • {NARRATION_TONES.find(t => t.id === tone)?.name}
               </p>
@@ -724,8 +943,160 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
 
       {/* Error / Quota Limit Display */}
       {error && (
-        <div className="mt-4 p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
-          <p className="text-rose-500 dark:text-rose-400 text-xs font-bold">{error}</p>
+        <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl space-y-2.5 text-center shadow-sm">
+          <div className="flex items-center justify-center gap-1.5 text-rose-500 font-bold text-xs">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>အသံဖန်တီးမှု သတိပေးချက်</span>
+          </div>
+          <p className="text-rose-600 dark:text-rose-400 text-xs font-medium leading-relaxed max-w-xl mx-auto">
+            {error.includes('Failed to fetch') 
+              ? `VoxCPM Colab GPU သို့ ချိတ်ဆက်၍မရပါ (Failed to fetch)။ URL အဟောင်း ဖြစ်နေနိုင်ပါသည်။ အောက်ပါ Colab GPU URL စစ်ဆေးမည် ကို နှိပ်ပြီး URL အသစ် ထည့်သွင်းပေးပါ။`
+              : error}
+          </p>
+          
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleFallbackToGemini}
+              disabled={isProcessing}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Gemini 3.1 Speech ဖြင့် ချက်ချင်း ဖန်တီးမည် (Fallback)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setInputVoxcpmUrl(getActiveVoxCPMUrl());
+                setVoxcpmCheckMsg(null);
+                setIsVoxcpmModalOpen(true);
+              }}
+              className="px-3.5 py-2 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+            >
+              <Server className="w-3.5 h-3.5" />
+              <span>Colab GPU URL စစ်ဆေးမည်</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* VoxCPM Colab GPU Connection Modal */}
+      {isVoxcpmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
+                  <Server className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    VoxCPM2 Free GPU ချိတ်ဆက်မှု
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">OpenBMB 48kHz High-Fidelity Studio Voice Cloner</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsVoxcpmModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Server Status Banner */}
+            <div className={`p-3 rounded-xl border flex items-center justify-between ${
+              voxcpmOnline 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${voxcpmOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span className="text-xs font-bold">
+                  {voxcpmOnline ? 'GPU Server အဆင်သင့်ဖြစ်နေပါသည် (Online)' : 'GPU Server ချိတ်ဆက်မထားပါ (Offline)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveAndTestVoxCPM(inputVoxcpmUrl)}
+                disabled={isCheckingVoxcpm}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-current hover:bg-current/10 transition-all flex items-center gap-1"
+              >
+                <RefreshCw className={`w-3 h-3 ${isCheckingVoxcpm ? 'animate-spin' : ''}`} />
+                <span>စစ်ဆေးရန်</span>
+              </button>
+            </div>
+
+            {/* URL Input */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                  Cloudflare Public URL (Colab မှ ရရှိသော URL)
+                </label>
+                {import.meta.env.VITE_VOXCPM_URL && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const freshEnv = String(import.meta.env.VITE_VOXCPM_URL).trim();
+                      setInputVoxcpmUrl(freshEnv);
+                      handleSaveAndTestVoxCPM(freshEnv);
+                    }}
+                    className="text-[10px] text-indigo-500 hover:underline font-bold"
+                  >
+                    ⚡ Use .env URL
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={inputVoxcpmUrl}
+                  onChange={(e) => setInputVoxcpmUrl(e.target.value)}
+                  placeholder="https://xxxx-xxxx.trycloudflare.com"
+                  className="flex-1 px-3 py-2 text-xs bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-indigo-500 text-slate-900 dark:text-zinc-100 font-mono"
+                />
+                <button
+                  type="button"
+                  disabled={isCheckingVoxcpm}
+                  onClick={() => handleSaveAndTestVoxCPM(inputVoxcpmUrl)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                >
+                  {isCheckingVoxcpm ? 'စစ်ဆေးနေ...' : 'Save & Connect'}
+                </button>
+              </div>
+              {voxcpmCheckMsg && (
+                <p className={`text-xs mt-1 ${voxcpmCheckMsg.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {voxcpmCheckMsg.text}
+                </p>
+              )}
+            </div>
+
+            {/* Colab Quick Guide */}
+            <div className="p-3.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl space-y-2 text-xs text-slate-600 dark:text-zinc-300">
+              <div className="font-bold flex items-center gap-1.5 text-indigo-500">
+                <HelpCircle className="w-4 h-4" />
+                <span>Google Colab (Free T4 GPU) ဖြင့် Run နည်း:</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                Google Colab သည် Cloud ပေါ်ရှိ အခမဲ့ GPU ဖြစ်သဖြင့် အမြဲတမ်း Auto မ Run နိုင်ပါ။ Session ပိတ်သွားပါက အောက်ပါအတိုင်း ပြန် Run ပေးရပါသည်:
+              </p>
+              <ol className="list-decimal list-inside space-y-1 text-[11px] leading-relaxed">
+                <li><a href="https://colab.research.google.com" target="_blank" rel="noreferrer" className="text-indigo-500 underline inline-flex items-center gap-0.5">Google Colab <ExternalLink className="w-3 h-3 inline" /></a> သို့ သွားပြီး <code className="bg-slate-200 dark:bg-white/10 px-1 rounded">server/VoxCPM_Colab_Free_GPU.ipynb</code> ကို တင်ပါ</li>
+                <li><strong>Runtime &rarr; Change runtime type &rarr; T4 GPU</strong> ရွေးပြီး <strong>Run all</strong> ကို နှိပ်ပါ</li>
+                <li>အောက်ဆုံးတွင် ထွက်လာသော <code className="bg-slate-200 dark:bg-white/10 px-1 rounded">https://xxxx.trycloudflare.com</code> URL ကို ကူးယူပြီး အပေါ်တွင် Paste လုပ်ပါ</li>
+              </ol>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsVoxcpmModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-all"
+              >
+                ပိတ်မည် (Close)
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

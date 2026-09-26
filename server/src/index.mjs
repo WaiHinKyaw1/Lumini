@@ -387,48 +387,95 @@ function secondsToAssTime(seconds) {
 }
 
 // Strictly format into at most 2 lines (never 3 lines)
+function findBestBurmeseSplitPoint(text) {
+  const mid = text.length / 2;
+
+  // 1. If spaces exist, split at space closest to midpoint
+  const spaces = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === ' ') spaces.push(i);
+  }
+  if (spaces.length > 0) {
+    let best = spaces[0];
+    let minDiff = Math.abs(best - mid);
+    for (const sp of spaces) {
+      const diff = Math.abs(sp - mid);
+      if (diff < minDiff) {
+        minDiff = diff;
+        best = sp;
+      }
+    }
+    return best;
+  }
+
+  // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation closest to midpoint
+  const puncts = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '၊' || text[i] === '။') puncts.push(i + 1);
+  }
+  if (puncts.length > 0) {
+    let best = puncts[0];
+    let minDiff = Math.abs(best - mid);
+    for (const p of puncts) {
+      const diff = Math.abs(p - mid);
+      if (diff < minDiff) {
+        minDiff = diff;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  // 3. Burmese syllable boundary: look for a consonant [\u1000-\u1021] NOT preceded by virama \u1039
+  const syllableStarts = [];
+  const minBound = Math.floor(text.length * 0.25);
+  const maxBound = Math.floor(text.length * 0.75);
+  for (let i = minBound; i <= maxBound; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x1000 && code <= 0x1021) {
+      const prevCode = i > 0 ? text.charCodeAt(i - 1) : 0;
+      if (prevCode !== 0x1039) {
+        syllableStarts.push(i);
+      }
+    }
+  }
+  if (syllableStarts.length > 0) {
+    let best = syllableStarts[0];
+    let minDiff = Math.abs(best - mid);
+    for (const s of syllableStarts) {
+      const diff = Math.abs(s - mid);
+      if (diff < minDiff) {
+        minDiff = diff;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  return Math.floor(mid);
+}
+
+// Strictly format into at most 2 lines (never 3 lines)
 function wrapSubtitleText(text, maxCharsPerLine = 34) {
   if (!text) return '';
   const clean = text
-    .replace(/\\N/g, ' ')
+    .replace(/\\N/gi, ' ')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
   if (clean.length <= maxCharsPerLine) return clean;
 
-  const words = clean.split(' ');
-  if (words.length > 1) {
-    // Find optimal midpoint split for strictly 2 lines
-    let bestSplitIdx = 1;
-    let minDiff = Infinity;
-    const totalLen = clean.length;
-    let currentLen = 0;
-    for (let i = 0; i < words.length - 1; i++) {
-      currentLen += words[i].length + 1;
-      const diff = Math.abs(currentLen - (totalLen / 2));
-      if (diff < minDiff) {
-        minDiff = diff;
-        bestSplitIdx = i + 1;
-      }
-    }
-    const line1 = words.slice(0, bestSplitIdx).join(' ').trim();
-    const line2 = words.slice(bestSplitIdx).join(' ').trim();
-    return `${line1}\\N${line2}`;
-  }
+  const splitIdx = findBestBurmeseSplitPoint(clean);
+  const line1 = clean.slice(0, splitIdx).trim();
+  const line2 = clean.slice(splitIdx).trim();
 
-  const punctMatch = clean.search(/[၊။]/);
-  if (punctMatch !== -1 && punctMatch > 6 && punctMatch < clean.length - 6) {
-    const line1 = clean.slice(0, punctMatch + 1).trim();
-    const line2 = clean.slice(punctMatch + 1).trim();
-    return `${line1}\\N${line2}`;
-  }
-
-  const mid = Math.floor(clean.length / 2);
-  return `${clean.slice(0, mid).trim()}\\N${clean.slice(mid).trim()}`;
+  if (!line1) return line2;
+  if (!line2) return line1;
+  return `${line1}\\N${line2}`;
 }
 
-function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1) {
+function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, canvas = { width: 1080, height: 1920 }) {
   const clean = srtText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   const rawCues = [];
   const speed = Number.isFinite(speedMultiplier) && speedMultiplier > 0 ? speedMultiplier : 1;
@@ -456,7 +503,7 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1) {
 
     if (cueText) {
       if (endSec <= startSec) endSec = startSec + (2.5 / speed);
-      const wrapped = wrapSubtitleText(cueText, 34);
+      const wrapped = wrapSubtitleText(cueText, 32);
       rawCues.push({ startSec, endSec, cueText: wrapped });
     }
   }
@@ -474,11 +521,30 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1) {
     }
   }
 
+  const isPortrait = canvas.height > canvas.width;
+  const baseFontSize = isPortrait
+    ? Math.max(26, Math.round(canvas.height * 0.024))
+    : Math.max(24, Math.round(canvas.height * 0.034));
+  const availableWidth = canvas.width * 0.88;
+
   const events = [];
   for (const cue of rawCues) {
     const start = secondsToAssTime(cue.startSec);
     const end = secondsToAssTime(cue.endSec);
-    events.push(`Dialogue: 0,${start},${end},Default,,0,0,${marginV},,${cue.cueText}`);
+
+    // Calculate maximum line length to dynamically scale font size
+    const parts = cue.cueText.split('\\N');
+    const maxLineLen = Math.max(...parts.map((p) => p.length));
+
+    // Burmese letters average ~0.72 of font size in width
+    const maxFitFontSize = Math.floor(availableWidth / Math.max(1, maxLineLen * 0.72));
+    const cueFontSize = Math.max(22, Math.min(baseFontSize, maxFitFontSize));
+
+    const formattedText = cueFontSize < baseFontSize
+      ? `{\\fs${cueFontSize}}${cue.cueText}`
+      : cue.cueText;
+
+    events.push(`Dialogue: 0,${start},${end},Default,,0,0,${marginV},,${formattedText}`);
   }
 
   return events;
@@ -491,8 +557,8 @@ function generateAssSubtitle(canvas, settings) {
   const fontName = 'Akkhayar21';
   const isPortrait = canvas.height > canvas.width;
   const fontSize = isPortrait
-    ? Math.max(28, Math.round(canvas.height * 0.026))
-    : Math.max(26, Math.round(canvas.height * 0.036));
+    ? Math.max(26, Math.round(canvas.height * 0.024))
+    : Math.max(24, Math.round(canvas.height * 0.034));
 
   // Precise vertical alignment matching canvas preview exactly
   let marginV = Math.max(20, Math.round(canvas.height * 0.08));
@@ -544,15 +610,22 @@ function generateAssSubtitle(canvas, settings) {
 
   let dialogueEvents = [];
   if (text.includes('-->')) {
-    dialogueEvents = parseSrtToAssEvents(text, marginV, settings.audioSpeed || 1);
+    dialogueEvents = parseSrtToAssEvents(text, marginV, settings.audioSpeed || 1, canvas);
   }
 
   if (dialogueEvents.length === 0) {
     if (text.includes('-->') || /^\d+\s*$/m.test(text)) {
       return null;
     }
-    const escapedText = wrapSubtitleText(text, 34);
-    dialogueEvents.push(`Dialogue: 0,0:00:00.00,5:00:00.00,Default,,0,0,${marginV},,${escapedText}`);
+    const escapedText = wrapSubtitleText(text, 32);
+    const parts = escapedText.split('\\N');
+    const maxLineLen = Math.max(...parts.map((p) => p.length));
+    const availableWidth = canvas.width * 0.88;
+    const maxFitFontSize = Math.floor(availableWidth / Math.max(1, maxLineLen * 0.72));
+    const cueFontSize = Math.max(22, Math.min(fontSize, maxFitFontSize));
+    const formattedText = cueFontSize < fontSize ? `{\\fs${cueFontSize}}${escapedText}` : escapedText;
+
+    dialogueEvents.push(`Dialogue: 0,0:00:00.00,5:00:00.00,Default,,0,0,${marginV},,${formattedText}`);
   }
 
   const marginLR = isPortrait ? 25 : 60;
@@ -593,20 +666,25 @@ function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed) {
 
   let vChain = `[0:v]${vFilters.join(',')}`;
 
-  // 1. True Frosted Glass Blur Band
+  // 1. True Frosted Glass Blur Band (natural video blur without opaque black block)
   if (settings.blurEnabled) {
-    const rawThickness = Number(settings.blurThickness) || 14;
+    const rawThickness = Number(settings.blurThickness) || 16;
     const rawPos = Number(settings.blurPosition) || 82;
     const thickness = (rawThickness / 100).toFixed(4);
     const topValue = Math.max(0, Math.min(1 - Number(thickness), (rawPos - rawThickness / 2) / 100));
     const top = topValue.toFixed(4);
-    const lumaRad = Math.min(32, Math.max(8, Math.round((Number(settings.blurIntensity) || 35) * 0.75)));
-    const chromaRad = Math.min(16, Math.max(4, Math.round(lumaRad * 0.5)));
+    const bottom = (topValue + Number(thickness)).toFixed(4);
+    const lumaRad = Math.min(32, Math.max(10, Math.round((Number(settings.blurIntensity) || 35) * 0.75)));
+    const chromaRad = Math.min(16, Math.max(5, Math.round(lumaRad * 0.5)));
 
+    // Frosted glass overlay: blurred video band + subtle 12% tint + delicate glass edge borders
     vChain = `${vChain}[vscaled];` +
       `[vscaled]split=2[vbase][vblur];` +
-      `[vblur]crop=iw:ih*${thickness}:0:ih*${top},boxblur=luma_radius=${lumaRad}:luma_power=3:chroma_radius=${chromaRad}:chroma_power=3[blurBand];` +
-      `[vbase][blurBand]overlay=0:main_h*${top}`;
+      `[vblur]crop=w=iw:h=trunc(ih*${thickness}/2)*2:x=0:y=trunc(ih*${top}/2)*2,boxblur=luma_radius=${lumaRad}:luma_power=3:chroma_radius=${chromaRad}:chroma_power=3[blurBand];` +
+      `[vbase][blurBand]overlay=x=0:y=trunc(main_h*${top}/2)*2,` +
+      `drawbox=x=0:y=trunc(ih*${top}/2)*2:w=iw:h=trunc(ih*${thickness}/2)*2:color=black@0.12:t=fill,` +
+      `drawbox=x=0:y=trunc(ih*${top}/2)*2:w=iw:h=2:color=white@0.22:t=fill,` +
+      `drawbox=x=0:y=trunc(ih*${bottom}/2)*2-2:w=iw:h=2:color=white@0.22:t=fill`;
   }
 
   // 2. Burmese Akkhayar 21 ASS Subtitle Filter

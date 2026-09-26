@@ -617,35 +617,73 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         // Strictly wrap into at most 2 lines (never 3 lines)
         const maxLineWidth = width * 0.88;
         const wrapTextToMax2Lines = (text: string, maxW: number): string[] => {
-          const clean = text.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+          const clean = text.replace(/\\N/gi, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
           ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
           if (ctx.measureText(clean).width <= maxW) return [clean];
 
-          const words = clean.split(' ');
-          if (words.length > 1) {
-            let bestSplit = 1;
-            let minDiff = Infinity;
-            for (let i = 1; i < words.length; i++) {
-              const l1 = words.slice(0, i).join(' ');
-              const l2 = words.slice(i).join(' ');
-              const w1 = ctx.measureText(l1).width;
-              const w2 = ctx.measureText(l2).width;
-              const diff = Math.abs(w1 - w2);
+          const mid = clean.length / 2;
+
+          // 1. If spaces exist, split at space closest to midpoint
+          const spaces: number[] = [];
+          for (let i = 0; i < clean.length; i++) {
+            if (clean[i] === ' ') spaces.push(i);
+          }
+          if (spaces.length > 0) {
+            let best = spaces[0];
+            let minDiff = Math.abs(best - mid);
+            for (const sp of spaces) {
+              const diff = Math.abs(sp - mid);
               if (diff < minDiff) {
                 minDiff = diff;
-                bestSplit = i;
+                best = sp;
               }
             }
-            return [words.slice(0, bestSplit).join(' ').trim(), words.slice(bestSplit).join(' ').trim()];
+            return [clean.slice(0, best).trim(), clean.slice(best).trim()];
           }
 
-          const punctMatch = clean.search(/[၊။]/);
-          if (punctMatch !== -1 && punctMatch > 6 && punctMatch < clean.length - 6) {
-            return [clean.slice(0, punctMatch + 1).trim(), clean.slice(punctMatch + 1).trim()];
+          // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation closest to midpoint
+          const puncts: number[] = [];
+          for (let i = 0; i < clean.length; i++) {
+            if (clean[i] === '၊' || clean[i] === '။') puncts.push(i + 1);
+          }
+          if (puncts.length > 0) {
+            let best = puncts[0];
+            let minDiff = Math.abs(best - mid);
+            for (const p of puncts) {
+              const diff = Math.abs(p - mid);
+              if (diff < minDiff) {
+                minDiff = diff;
+                best = p;
+              }
+            }
+            return [clean.slice(0, best).trim(), clean.slice(best).trim()];
           }
 
-          const mid = Math.floor(clean.length / 2);
-          return [clean.slice(0, mid).trim(), clean.slice(mid).trim()];
+          // 3. Burmese syllable boundary: look for a consonant [\u1000-\u1021] NOT preceded by virama \u1039
+          const syllableStarts: number[] = [];
+          const minBound = Math.floor(clean.length * 0.25);
+          const maxBound = Math.floor(clean.length * 0.75);
+          for (let i = minBound; i <= maxBound; i++) {
+            const code = clean.charCodeAt(i);
+            if (code >= 0x1000 && code <= 0x1021) {
+              const prev = i > 0 ? clean.charCodeAt(i - 1) : 0;
+              if (prev !== 0x1039) syllableStarts.push(i);
+            }
+          }
+          if (syllableStarts.length > 0) {
+            let bestSyl = syllableStarts[0];
+            let minDiff = Math.abs(bestSyl - mid);
+            for (const s of syllableStarts) {
+              const diff = Math.abs(s - mid);
+              if (diff < minDiff) {
+                minDiff = diff;
+                bestSyl = s;
+              }
+            }
+            return [clean.slice(0, bestSyl).trim(), clean.slice(bestSyl).trim()];
+          }
+
+          return [clean.slice(0, Math.floor(mid)).trim(), clean.slice(Math.floor(mid)).trim()];
         };
 
         // Auto-scale font so both lines fit cleanly within maxLineWidth

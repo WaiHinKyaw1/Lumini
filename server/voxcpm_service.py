@@ -149,20 +149,18 @@ def split_burmese_text(text: str, max_chunk_len: int = 140) -> list[str]:
 
 @app.post("/api/voxcpm/synthesize")
 async def synthesize_speech(
-    voice_id: str = Form(...),
+    voice_id: Optional[str] = Form(None),
     text: str = Form(...),
     instruction: Optional[str] = Form(None),
     speed: float = Form(1.0)
 ):
     audio_path = None
-    for ext in [".wav", ".mp3", ".webm", ".m4a", ".ogg"]:
-        candidate = VOICE_PROMPTS_DIR / f"{voice_id}{ext}"
-        if candidate.exists():
-            audio_path = candidate
-            break
-
-    if not audio_path:
-        raise HTTPException(status_code=404, detail="Voice sample ID not found.")
+    if voice_id and voice_id != "default":
+        for ext in [".wav", ".mp3", ".webm", ".m4a", ".ogg"]:
+            candidate = VOICE_PROMPTS_DIR / f"{voice_id}{ext}"
+            if candidate.exists():
+                audio_path = candidate
+                break
 
     model = get_model()
     
@@ -172,7 +170,7 @@ async def synthesize_speech(
         import torch
 
         try:
-            chunks = split_burmese_text(text, max_chunk_len=130)
+            chunks = split_burmese_text(text, max_chunk_len=240)
             print(f"🎙️ Synthesizing {len(chunks)} Burmese sentence chunks with high-fidelity diffusion...")
 
             audio_pieces = []
@@ -192,14 +190,14 @@ async def synthesize_speech(
                     wav_chunk = model.generate(
                         text=chunk,
                         reference_wav_path=str(audio_path),
-                        cfg_value=2.5,
-                        inference_timesteps=15
+                        cfg_value=2.0,
+                        inference_timesteps=10
                     )
                 else:
                     wav_chunk = model.generate(
                         text=chunk,
-                        cfg_value=2.5,
-                        inference_timesteps=15
+                        cfg_value=2.0,
+                        inference_timesteps=10
                     )
 
                 # Convert PyTorch Tensor to numpy for soundfile
