@@ -48,7 +48,14 @@ export const generateText = async (prompt: string, systemInstruction: string) =>
   throw lastError || new Error("No response generated.");
 };
 
-export const generateImage = async (prompt: string, aspectRatio: "1:1" | "16:9" | "9:16" = "1:1", imageBase64?: string, mimeType: string = 'image/png') => {
+export type ImageAspectRatio = "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
+
+export const generateImage = async (
+  prompt: string,
+  aspectRatio: ImageAspectRatio = "16:9",
+  imageBase64?: string,
+  mimeType: string = 'image/png'
+) => {
   const ai = getAIClient();
   const parts: any[] = [];
   

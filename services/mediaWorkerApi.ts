@@ -17,6 +17,12 @@ export interface SyncSettings {
   subtitleEnabled?: boolean;
   subtitleText?: string;
   subtitleStyle?: string;
+  subtitleOffset?: number;
+  logoFileId?: string;
+  logoY?: number; // 0 to 100% (vertical position)
+  logoAlign?: 'left' | 'center' | 'right';
+  logoScale?: number; // 4 to 40%
+  logoOpacity?: number; // 0.1 to 1.0
 }
 
 export interface SyncJob {
@@ -125,11 +131,12 @@ export function uploadMedia(
   });
 }
 
-export async function createSyncJob(fileId: string, settings: SyncSettings, audioFileId?: string): Promise<SyncJob> {
+export async function createSyncJob(fileId: string, settings: SyncSettings, audioFileId?: string, logoFileId?: string): Promise<SyncJob> {
+  const effectiveLogoId = logoFileId || settings.logoFileId;
   const response = await fetchWithTimeout(`${requireBaseUrl()}/api/sync/jobs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileId, audioFileId, settings }),
+    body: JSON.stringify({ fileId, audioFileId, logoFileId: effectiveLogoId, settings }),
   });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Could not create sync job.');
   return response.json() as Promise<SyncJob>;

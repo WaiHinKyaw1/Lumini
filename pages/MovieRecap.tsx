@@ -60,7 +60,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
-  const [logoPosition, setLogoPosition] = useState<'Top Right' | 'Top Left' | 'Bottom Right' | 'Bottom Left'>('Top Right');
+  const [logoY, setLogoY] = useState<number>(8); // Vertical Position (0% = Top, 100% = Bottom)
+  const [logoAlign, setLogoAlign] = useState<'left' | 'center' | 'right'>('right');
+  const [logoScale, setLogoScale] = useState<number>(14); // 4% to 35% width
+  const [logoOpacity, setLogoOpacity] = useState<number>(100); // 20% to 100%
 
   // --- State: AI Generation (Optional Veo prompt fallback) ---
   const [aiPrompt, setAiPrompt] = useState('');
@@ -77,7 +80,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [subtitleEnabled, setSubtitleEnabled] = useState(false);
   const [subtitleText, setSubtitleText] = useState('');
   const [srtFileName, setSrtFileName] = useState('');
-  const [subtitleStyle, setSubtitleStyle] = useState('akkhayar-yellow');
+  const [subtitleStyle, setSubtitleStyle] = useState('font-akkhayar');
+  const [subtitleOffset, setSubtitleOffset] = useState<number>(0);
   const [blurEnabled, setBlurEnabled] = useState(true);
   const [blurPosition, setBlurPosition] = useState(82);
   const [blurThickness, setBlurThickness] = useState(18);
@@ -164,7 +168,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
   };
 
-  const getActiveSubtitleCue = (srtText: string, timeSec: number): string => {
+  const getActiveSubtitleCue = (srtText: string, timeSec: number, offsetSec = 0): string => {
     if (!srtText || !srtText.includes('-->')) return srtText.trim();
     const blocks = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split(/\n\s*\n/);
     const toSec = (t: string) => {
@@ -175,6 +179,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       return 0;
     };
 
+    const adjustedTime = timeSec - offsetSec;
+
     for (const block of blocks) {
       const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean);
       const timeLine = lines.find((l) => l.includes('-->'));
@@ -182,7 +188,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       const [startStr, endStr] = timeLine.split('-->');
       const start = toSec(startStr);
       const end = toSec(endStr);
-      if (timeSec >= start && timeSec <= end) {
+      if (adjustedTime >= start && adjustedTime <= end) {
         const timeIdx = lines.indexOf(timeLine);
         return lines.slice(timeIdx + 1).join(' ').replace(/<[^>]*>/g, '').trim();
       }
@@ -209,6 +215,71 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     return matches ? matches.length : 0;
   };
 
+  const getSrtDuration = (srtText: string): number => {
+    if (!srtText || !srtText.includes('-->')) return 0;
+    const blocks = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split(/\n\s*\n/);
+    const toSec = (t: string) => {
+      const parts = t.trim().replace(',', '.').split(':');
+      if (parts.length === 3) {
+        return (parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0);
+      }
+      return 0;
+    };
+    let maxEnd = 0;
+    for (const block of blocks) {
+      const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+      const timeLine = lines.find((l) => l.includes('-->'));
+      if (!timeLine) continue;
+      const [, endStr] = timeLine.split('-->');
+      const end = toSec(endStr);
+      if (end > maxEnd) maxEnd = end;
+    }
+    return maxEnd;
+  };
+
+  const handleAutoFitSrtToAudio = () => {
+    if (!audioDuration || !subtitleText.includes('-->')) {
+      toast.error('Voiceover အသံဖိုင် သို့မဟုတ် SRT ဖိုင် လိုအပ်ပါသည်');
+      return;
+    }
+    const srtDur = getSrtDuration(subtitleText);
+    if (srtDur <= 0) {
+      toast.error('SRT ဖိုင် timestamp ကို ရှာမတွေ့ပါ');
+      return;
+    }
+    const targetAudioDur = audioFile && audioDuration > 0
+      ? (audioDuration / audioSpeed)
+      : (videoDuration > 0 ? (videoDuration / videoSpeed) : 0);
+    if (targetAudioDur <= 0) {
+      toast.error('ကြာချိန်ကို တွက်ချက်၍ မရသေးပါ');
+      return;
+    }
+    const ratio = targetAudioDur / srtDur;
+    const blocks = subtitleText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split(/\n\s*\n/);
+    const toSec = (t: string) => {
+      const parts = t.trim().replace(',', '.').split(':');
+      if (parts.length === 3) {
+        return (parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0);
+      }
+      return 0;
+    };
+
+    const newBlocks: string[] = [];
+    for (const block of blocks) {
+      const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+      const timeLineIdx = lines.findIndex((l) => l.includes('-->'));
+      if (timeLineIdx === -1) continue;
+      const [startStr, endStr] = lines[timeLineIdx].split('-->');
+      const newStart = toSec(startStr) * ratio;
+      const newEnd = toSec(endStr) * ratio;
+      lines[timeLineIdx] = `${formatSrtTimestamp(newStart)} --> ${formatSrtTimestamp(newEnd)}`;
+      newBlocks.push(lines.join('\n'));
+    }
+    setSubtitleText(newBlocks.join('\n\n'));
+    setSubtitleOffset(0);
+    toast.success(`SRT စာတန်းများကို အသံဖိုင်ကြာချိန် (${formatTimeSimple(targetAudioDur)}) နှင့် အပြည့်အဝ Fit လုပ်ပြီး ညှိပေးလိုက်ပါပြီ!`);
+  };
+
   const handleSrtFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -219,6 +290,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       if (content) {
         setSubtitleText(content.trim());
         setSubtitleEnabled(true);
+        setSubtitleOffset(0);
         toast.success(`Burma SRT ဖိုင် (${file.name}) တင်သွင်းပြီးပါပြီ!`);
       }
     };
@@ -229,6 +301,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const handleRemoveSrt = () => {
     setSubtitleText('');
     setSrtFileName('');
+    setSubtitleOffset(0);
     if (srtFileInputRef.current) srtFileInputRef.current.value = '';
     toast.success('SRT စာတန်းထိုးဖိုင်ကို ဖယ်ရှားလိုက်ပါသည်');
   };
@@ -239,21 +312,48 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       toast.error('ဒေါင်းလုဒ်လုပ်ရန် SRT ဖိုင် မရှိသေးပါ');
       return;
     }
-    const duration = videoDuration > 0 ? videoDuration : 60;
-    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
     let srtContent = '';
     if (text.includes('-->')) {
-      srtContent = text;
-    } else if (lines.length <= 1) {
-      srtContent = `1\n00:00:00,000 --> ${formatSrtTimestamp(duration)}\n${text}\n`;
+      const speed = audioFile ? audioSpeed : videoSpeed;
+      if (speed !== 1 || subtitleOffset !== 0) {
+        const blocks = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split(/\n\s*\n/);
+        const toSec = (t: string) => {
+          const parts = t.trim().replace(',', '.').split(':');
+          if (parts.length === 3) {
+            return (parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0);
+          }
+          return 0;
+        };
+        const adjustedBlocks: string[] = [];
+        let cueCount = 1;
+        for (const block of blocks) {
+          const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+          const timeLineIdx = lines.findIndex((l) => l.includes('-->'));
+          if (timeLineIdx === -1) continue;
+          const [startStr, endStr] = lines[timeLineIdx].split('-->');
+          const start = Math.max(0, (toSec(startStr) / speed) + subtitleOffset);
+          const end = Math.max(start + 0.25, (toSec(endStr) / speed) + subtitleOffset);
+          const textLines = lines.slice(timeLineIdx + 1);
+          adjustedBlocks.push(`${cueCount++}\n${formatSrtTimestamp(start)} --> ${formatSrtTimestamp(end)}\n${textLines.join('\n')}`);
+        }
+        srtContent = adjustedBlocks.join('\n\n');
+      } else {
+        srtContent = text;
+      }
     } else {
-      const segmentDuration = duration / lines.length;
-      lines.forEach((line, idx) => {
-        const start = idx * segmentDuration;
-        const end = (idx + 1) * segmentDuration;
-        srtContent += `${idx + 1}\n${formatSrtTimestamp(start)} --> ${formatSrtTimestamp(end)}\n${line}\n\n`;
-      });
+      const duration = videoDuration > 0 ? (videoDuration / videoSpeed) : 60;
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (lines.length <= 1) {
+        srtContent = `1\n00:00:00,000 --> ${formatSrtTimestamp(duration)}\n${text}\n`;
+      } else {
+        const segmentDuration = duration / lines.length;
+        lines.forEach((line, idx) => {
+          const start = idx * segmentDuration;
+          const end = (idx + 1) * segmentDuration;
+          srtContent += `${idx + 1}\n${formatSrtTimestamp(start)} --> ${formatSrtTimestamp(end)}\n${line}\n\n`;
+        });
+      }
     }
 
     // Include UTF-8 BOM (\uFEFF) so all video editing software & Windows automatically recognize Burmese Unicode
@@ -261,12 +361,12 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = srtFileName || `burma_recap_${Date.now()}.srt`;
+    a.download = srtFileName ? srtFileName.replace('.srt', '_synced.srt') : `burma_synced_${Date.now()}.srt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success('Burma SRT စာတန်းထိုးဖိုင် ဒေါင်းလုဒ်လုပ်ပြီးပါပြီ!');
+    toast.success('အချိန်ကိုက် Burma SRT စာတန်းထိုးဖိုင် ဒေါင်းလုဒ်လုပ်ပြီးပါပြီ!');
   };
 
   // Auto-load SRT if redirected from Subtitle Studio
@@ -305,6 +405,17 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setVideoFile(file);
       setVideoUrl(url);
       setVideoSpeed(1.0);
+
+      // Proactively detect duration
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      tempVideo.src = url;
+      tempVideo.onloadedmetadata = () => {
+        if (Number.isFinite(tempVideo.duration) && tempVideo.duration > 0) {
+          setVideoDuration(tempVideo.duration);
+        }
+      };
+      if (videoInputRef.current) videoInputRef.current.value = '';
     }
   };
 
@@ -319,10 +430,20 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       if (!blob.type.startsWith('video/')) throw new Error('ထည့်သွင်းထားသော URL သည် ဗီဒီယိုဖိုင် မဟုတ်ပါ။');
       const file = new File([blob], 'recap-source.mp4', { type: blob.type || 'video/mp4' });
       if (videoUrl) URL.revokeObjectURL(videoUrl);
+      const url = URL.createObjectURL(file);
       setVideoFile(file);
-      setVideoUrl(URL.createObjectURL(file));
+      setVideoUrl(url);
       setResultUrl(null);
       setVideoSpeed(1.0);
+
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      tempVideo.src = url;
+      tempVideo.onloadedmetadata = () => {
+        if (Number.isFinite(tempVideo.duration) && tempVideo.duration > 0) {
+          setVideoDuration(tempVideo.duration);
+        }
+      };
     } catch (err: unknown) {
       setError((err as { message?: string })?.message || 'ဗီဒီယို URL ရယူခြင်း မအောင်မြင်ပါ။');
     }
@@ -354,6 +475,17 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setAudioUrl(url);
       setAudioSpeed(1.0);
       setError(null);
+
+      // Proactively detect audio duration
+      const tempAudio = document.createElement('audio');
+      tempAudio.preload = 'metadata';
+      tempAudio.src = url;
+      tempAudio.onloadedmetadata = () => {
+        if (Number.isFinite(tempAudio.duration) && tempAudio.duration > 0) {
+          setAudioDuration(tempAudio.duration);
+        }
+      };
+      if (audioInputRef.current) audioInputRef.current.value = '';
     }
   };
 
@@ -387,6 +519,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       const img = new Image();
       img.src = url;
       img.onload = () => setLogoImage(img);
+      if (logoInputRef.current) logoInputRef.current.value = '';
     }
   };
 
@@ -399,13 +532,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   };
 
   const onVideoLoaded = () => {
-    if (videoRef.current) {
+    if (videoRef.current && Number.isFinite(videoRef.current.duration) && videoRef.current.duration > 0) {
       setVideoDuration(videoRef.current.duration);
     }
   };
 
   const onAudioLoaded = () => {
-    if (audioRef.current) {
+    if (audioRef.current && Number.isFinite(audioRef.current.duration) && audioRef.current.duration > 0) {
       setAudioDuration(audioRef.current.duration);
     }
   };
@@ -602,7 +735,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       let subText = '';
       if (subtitleText.includes('-->')) {
         const currentAudioTime = audioFile ? (video.currentTime / videoSpeed) * audioSpeed : video.currentTime;
-        const active = getActiveSubtitleCue(subtitleText, currentAudioTime || 0);
+        const active = getActiveSubtitleCue(subtitleText, currentAudioTime || 0, subtitleOffset);
         subText = active || (video.paused ? getFirstSubtitleCue(subtitleText) : '');
       } else {
         subText = subtitleText.trim();
@@ -614,11 +747,17 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
+        let fontName = 'Akkhayar21';
+        if (subtitleStyle === 'font-kunheing') fontName = 'AJKunheing';
+        else if (subtitleStyle === 'font-jojar') fontName = 'MyanmarJojar';
+        else if (subtitleStyle === 'font-myanmaros') fontName = 'MyanmarOS';
+        else fontName = 'Akkhayar21';
+
         // Strictly wrap into at most 2 lines (never 3 lines)
         const maxLineWidth = width * 0.88;
         const wrapTextToMax2Lines = (text: string, maxW: number): string[] => {
           const clean = text.replace(/\\N/gi, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
-          ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
+          ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
           if (ctx.measureText(clean).width <= maxW) return [clean];
 
           const mid = clean.length / 2;
@@ -688,11 +827,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
         // Auto-scale font so both lines fit cleanly within maxLineWidth
         let lines = wrapTextToMax2Lines(subText, maxLineWidth);
-        ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
+        ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
         const maxMeasured = Math.max(...lines.map(l => ctx.measureText(l).width));
         if (maxMeasured > maxLineWidth) {
           fontSize = Math.max(10, Math.floor(fontSize * maxLineWidth / maxMeasured));
-          ctx.font = `bold ${fontSize}px Akkhayar21, sans-serif`;
+          ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
           lines = wrapTextToMax2Lines(subText, maxLineWidth);
         }
 
@@ -705,31 +844,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
         lines.forEach((line, idx) => {
           const lineY = startY + idx * lineHeight;
-          if (subtitleStyle === 'akkhayar-box') {
-            const metrics = ctx.measureText(line);
-            const padX = 14, padY = 5;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
-            ctx.fillRect(subX - metrics.width / 2 - padX, lineY - fontSize / 2 - padY, metrics.width + padX * 2, fontSize + padY * 2);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText(line, subX, lineY);
-          } else if (subtitleStyle === 'akkhayar-yellow') {
-            ctx.lineWidth = Math.max(2, Math.floor(height * 0.006));
-            ctx.strokeStyle = '#000000';
-            ctx.strokeText(line, subX, lineY);
-            ctx.fillStyle = '#FACC15';
-            ctx.fillText(line, subX, lineY);
-          } else if (subtitleStyle === 'akkhayar-outline') {
-            ctx.lineWidth = Math.max(3, Math.floor(height * 0.008));
-            ctx.strokeStyle = '#000000';
-            ctx.strokeText(line, subX, lineY);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText(line, subX, lineY);
-          } else {
-            ctx.shadowColor = 'rgba(0,0,0,0.85)';
-            ctx.shadowBlur = 5;
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText(line, subX, lineY);
-          }
+          ctx.lineWidth = Math.max(2.5, Math.floor(height * 0.007));
+          ctx.strokeStyle = '#000000';
+          ctx.strokeText(line, subX, lineY);
+          ctx.fillStyle = '#FACC15';
+          ctx.fillText(line, subX, lineY);
         });
       }
       ctx.restore();
@@ -737,16 +856,29 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
     // Logo Watermark
     if (logoImage) {
-      const lSize = Math.min(width, height) * 0.16;
-      const pad = 16;
-      let lx = pad, ly = pad;
-      if (logoPosition.includes('Right')) lx = width - lSize - pad;
-      if (logoPosition.includes('Bottom')) ly = height - lSize - pad;
-      ctx.globalAlpha = 0.9;
-      ctx.drawImage(logoImage, lx, ly, lSize, lSize);
-      ctx.globalAlpha = 1.0;
+      const lWidth = Math.max(32, width * (logoScale / 100));
+      const aspect = (logoImage.naturalWidth && logoImage.naturalHeight)
+        ? logoImage.naturalHeight / logoImage.naturalWidth
+        : 1;
+      const lHeight = lWidth * aspect;
+      const pad = Math.max(8, width * 0.02);
+
+      let lx = pad;
+      if (logoAlign === 'center') {
+        lx = (width - lWidth) / 2;
+      } else if (logoAlign === 'right') {
+        lx = width - lWidth - pad;
+      }
+
+      const availableH = Math.max(0, height - lHeight - (pad * 2));
+      const ly = pad + (availableH * (logoY / 100));
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.1, logoOpacity / 100);
+      ctx.drawImage(logoImage, lx, ly, lWidth, lHeight);
+      ctx.restore();
     }
-  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, zoomEnabled, zoomInterval, zoomDuration, logoImage, logoPosition, subtitleStyle, subtitleText, audioFile, videoSpeed, audioSpeed]);
+  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, zoomEnabled, zoomInterval, zoomDuration, logoImage, logoY, logoAlign, logoScale, logoOpacity, subtitleStyle, subtitleText, subtitleOffset, audioFile, videoSpeed, audioSpeed]);
 
   // Preview render loop
   useEffect(() => {
@@ -853,9 +985,22 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         uploadedAudio = await uploadMedia(
           audioFile,
           (val) => {
-            const current = Math.min(35 + Math.round(val * 0.15), 50);
+            const current = Math.min(35 + Math.round(val * 0.12), 48);
             setProgress(current);
             setStatusMessage(`အသံဖိုင် တင်နေပါသည်... (${val}%)`);
+          },
+          controller.signal
+        );
+      }
+
+      let uploadedLogo;
+      if (logoFile) {
+        setStatusMessage('လိုဂို ပုံရိပ်ကို ဆာဗာသို့ တင်နေပါသည်... (Uploading logo)');
+        uploadedLogo = await uploadMedia(
+          logoFile,
+          (val) => {
+            const current = Math.min(48 + Math.round(val * 0.04), 52);
+            setProgress(current);
           },
           controller.signal
         );
@@ -878,8 +1023,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           subtitleEnabled,
           subtitleText: subtitleEnabled ? subtitleText.trim() : '',
           subtitleStyle,
+          subtitleOffset,
+          logoFileId: uploadedLogo?.fileId,
+          logoY,
+          logoAlign,
+          logoScale,
+          logoOpacity: logoOpacity / 100,
         },
-        uploadedAudio?.fileId
+        uploadedAudio?.fileId,
+        uploadedLogo?.fileId
       );
 
       setStatusMessage('AWS Cloud ဆာဗာတွင် FFmpeg ဖြင့် ဗီဒီယို ပေါင်းစပ်နေပါသည်... (Processing on AWS)');
@@ -1042,16 +1194,16 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       </AnimatePresence>
 
       {/* HEADER */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
             <span>Movie Recap Studio</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
+            <span className="text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-semibold">
               Burmese Recap Flow
             </span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-            ဗီဒီယိုတင် → အချိုးအစားရွေး → စာတန်းထိုးပုံစံရွေး → အသံထည့် → လိုဂိုထည့် → Blur ချိန်ပြီး Burmese Recap ဗီဒီယို ထုတ်လုပ်ပါ
+            ဗီဒီယိုနှင့် အသံဖိုင်တင်သွင်းပြီး မြန်မာစာတန်းထိုး Recap ဗီဒီယို ထုတ်လုပ်ပါ
           </p>
         </div>
 
@@ -1062,22 +1214,22 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400'
             }`}>
             <span className={`w-2 h-2 rounded-full ${workerOnline ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'}`} />
-            <span>{workerOnline ? 'AWS Media Worker Connected' : 'Local Engine Ready'}</span>
+            <span>{workerOnline ? 'AWS Server Connected' : 'Local Ready'}</span>
           </div>
         </div>
       </div>
 
       {/* MAIN TWO-COLUMN WORKFLOW */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-6 items-start">
-        {/* LEFT COLUMN: 6 SEQUENTIAL STEP SECTIONS */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5 items-start">
+        {/* LEFT COLUMN: SEQUENTIAL STEP SECTIONS */}
         <div className="space-y-4">
           {/* SECTION 1: VIDEO SOURCE */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">1</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Video Upload (ဗီဒီယို ဖိုင်တင်ရန်)
+                  Video Upload (ဗီဒီယိုဖိုင်)
                 </h2>
               </div>
               {videoFile && (
@@ -1090,34 +1242,34 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             {!videoFile ? (
               <div
                 onClick={() => videoInputRef.current?.click()}
-                className="group cursor-pointer rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-6 text-center transition-all"
+                className="group cursor-pointer rounded-xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-5 text-center transition-all"
               >
-                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <Video className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                  <Video className="w-5 h-5" />
                 </div>
-                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200 mb-1">
-                  ဗီဒီယိုဖိုင် ရွေးချယ်တင်သွင်းပါ (Click or Drag & Drop)
+                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                  ဗီဒီယိုဖိုင် တင်သွင်းပါ (Click or Drag & Drop)
                 </div>
-                <div className="text-[10px] text-slate-400 dark:text-zinc-500">
+                <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
                   MP4, WebM, MOV, MKV (အများဆုံး 200MB)
                 </div>
               </div>
             ) : (
               <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-600/15 text-indigo-400 flex items-center justify-center shrink-0">
-                    <Video className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-lg bg-indigo-600/15 text-indigo-400 flex items-center justify-center shrink-0">
+                    <Video className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{videoFile.name}</p>
                     <p className="text-[10px] text-slate-400 dark:text-zinc-400">
-                      {formatFileSize(videoFile.size)} • ကြာချိန်: {formatTimeSimple(videoDuration)}
+                      {formatFileSize(videoFile.size)} • {formatTimeSimple(videoDuration)}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleRemoveVideo}
-                  className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all shrink-0"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all shrink-0"
                   title="Remove video"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1125,17 +1277,17 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
               </div>
             )}
 
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2">
               <input
                 value={videoSourceUrl}
                 onChange={(e) => setVideoSourceUrl(e.target.value)}
-                placeholder="သို့မဟုတ် Public Direct Video URL ထည့်ပါ"
-                className="min-w-0 flex-1 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-2 text-xs outline-none focus:border-indigo-400 text-slate-900 dark:text-white"
+                placeholder="သို့မဟုတ် Direct Video URL ထည့်ပါ..."
+                className="min-w-0 flex-1 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-1.5 text-xs outline-none focus:border-indigo-400 text-slate-900 dark:text-white"
               />
               <button
                 onClick={handleVideoUrl}
                 disabled={!videoSourceUrl.trim()}
-                className="px-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold disabled:opacity-40 hover:opacity-90 transition-opacity"
+                className="px-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold disabled:opacity-40 hover:opacity-90 transition-opacity"
               >
                 Load
               </button>
@@ -1144,28 +1296,28 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           </section>
 
           {/* SECTION 2: ASPECT RATIO */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">2</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Aspect Ratio (ဗီဒီယို အချိုးအစား ရွေးချယ်ရန်)
+                  Aspect Ratio (အချိုးအစား)
                 </h2>
               </div>
-              <span className="text-[11px] text-indigo-400 font-semibold">{aspectRatio}</span>
+              <span className="text-[11px] text-indigo-400 font-bold">{aspectRatio}</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-4 gap-2">
               {[
-                { id: '16:9', label: '16:9', desc: 'YouTube / Movie', iconW: 'w-6 h-3.5' },
-                { id: '9:16', label: '9:16', desc: 'TikTok / Shorts', iconW: 'w-3.5 h-6' },
-                { id: '1:1', label: '1:1', desc: 'Instagram / Square', iconW: 'w-5 h-5' },
-                { id: '4:5', label: '4:5', desc: 'Facebook Feed', iconW: 'w-4 h-5' },
+                { id: '16:9', label: '16:9', desc: 'YouTube', iconW: 'w-5 h-3' },
+                { id: '9:16', label: '9:16', desc: 'TikTok/Reels', iconW: 'w-3 h-5' },
+                { id: '1:1', label: '1:1', desc: 'Square', iconW: 'w-4 h-4' },
+                { id: '4:5', label: '4:5', desc: 'Facebook', iconW: 'w-3.5 h-4.5' },
               ].map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setAspectRatio(item.id as typeof aspectRatio)}
-                  className={`rounded-xl border p-3 text-center transition-all flex flex-col items-center justify-center gap-1.5 ${aspectRatio === item.id
+                  className={`rounded-xl border p-2.5 text-center transition-all flex flex-col items-center justify-center gap-1 ${aspectRatio === item.id
                     ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold shadow-sm ring-1 ring-indigo-500/30'
                     : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-indigo-400'
                     }`}
@@ -1178,222 +1330,276 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             </div>
           </section>
 
-          {/* SECTION 3: SUBTITLE SELECTION (WITH OR WITHOUT SUBTITLES) */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-4 shadow-sm">
+          {/* SECTION 3: SUBTITLE SELECTION & 4 BURMESE FONTS */}
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3.5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">3</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Subtitle Option (စာတန်းထိုး ပါ/မပါ ရွေးချယ်မှု)
+                  Subtitles (မြန်မာစာတန်းထိုး)
                 </h2>
               </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subtitleEnabled ? 'bg-indigo-500/20 text-indigo-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                {subtitleEnabled ? 'စာတန်းထိုးပါ (With Subtitles)' : 'စာတန်းမပါ (Clean Video)'}
-              </span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={subtitleEnabled}
+                  onChange={(e) => setSubtitleEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
+              </label>
             </div>
 
-            {/* TWO MAIN OPTIONS: NO SUBTITLE (CLEAN VIDEO) vs BURN-IN SUBTITLE */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSubtitleEnabled(false)}
-                className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${!subtitleEnabled
-                  ? 'border-indigo-500 bg-indigo-500/10 shadow-sm ring-2 ring-indigo-500/30'
-                  : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 hover:border-indigo-300'
-                  }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${!subtitleEnabled ? 'bg-indigo-600 text-white' : 'bg-gray-200 dark:bg-white/10 text-slate-500 dark:text-zinc-400'}`}>
-                      <Video className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      စာတန်းထိုး မပါ (No Subtitles)
-                    </span>
-                  </div>
-                  {!subtitleEnabled && <Check className="w-4 h-4 text-indigo-500 font-bold" />}
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-relaxed">
-                  Clean Video သန့်သန့် ထုတ်မည်။ (Blur Strip နှင့် Voiceover သာ ပါဝင်ပြီး ဗီဒီယိုထဲ စာတန်းမထိုးပါ)
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSubtitleEnabled(true)}
-                className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${subtitleEnabled
-                  ? 'border-indigo-500 bg-indigo-500/10 shadow-sm ring-2 ring-indigo-500/30'
-                  : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 hover:border-indigo-300'
-                  }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${subtitleEnabled ? 'bg-indigo-600 text-white' : 'bg-gray-200 dark:bg-white/10 text-slate-500 dark:text-zinc-400'}`}>
-                      <FileText className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      စာတန်းထိုး ထိုးမည် (With Subtitles)
-                    </span>
-                  </div>
-                  {subtitleEnabled && <Check className="w-4 h-4 text-indigo-500 font-bold" />}
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-relaxed">
-                  Blur Strip ပေါ်တွင် Akkhayar 21 မြန်မာဖောင့်ဖြင့် အချိန်ကိုက် စာတန်းထိုးပါမည်။
-                </p>
-              </button>
-            </div>
-
-            {!subtitleEnabled && subtitleText.includes('-->') && (
-              <div className="p-3 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-between">
+            {!subtitleEnabled ? (
+              <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[11px] text-slate-700 dark:text-zinc-300 font-medium">
-                    ဗီဒီယိုထဲ စာတန်းမထိုးသော်လည်း သီးသန့် SRT ဖိုင် ရှိနေပါသည် ({srtFileName || 'SRT Active'})
-                  </span>
+                  <Video className="w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <span>စာတန်းမပါ (Clean Video) ထုတ်လုပ်ပါမည်</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleDownloadSrt}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold flex items-center gap-1 transition-all"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Download SRT</span>
-                </button>
+                {subtitleText.includes('-->') && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadSrt}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold flex items-center gap-1 transition-all"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Download SRT</span>
+                  </button>
+                )}
               </div>
-            )}
-
-            {subtitleEnabled && (
-              <>
-                <div className="grid grid-cols-2 gap-2.5 pt-1">
-                  {[
-                    { id: 'akkhayar-yellow', title: 'Yellow Highlight', desc: 'ဝါရောင် Highlight Recap (အကြံပြု)', preview: 'မြန်မာစာ', textColor: 'text-amber-400' },
-                    { id: 'akkhayar-outline', title: 'White + Outline', desc: 'အဖြူရောင် + အနက်လိုင်း', preview: 'မြန်မာစာ', textColor: 'text-white' },
-                    { id: 'akkhayar-box', title: 'Dark Subtitle Box', desc: 'အနက်ရောင် Box ခံစနစ်', preview: 'မြန်မာစာ', textColor: 'text-white bg-black/60 px-2 py-0.5 rounded' },
-                    { id: 'akkhayar-clean', title: 'Clean Minimal', desc: 'ရိုးရှင်းသော အဖြူရောင်', preview: 'မြန်မာစာ', textColor: 'text-white' },
-                  ].map((style) => (
-                    <button
-                      key={style.id}
-                      onClick={() => setSubtitleStyle(style.id)}
-                      className={`rounded-xl border p-3 text-left transition-all relative ${subtitleStyle === style.id
-                        ? 'border-indigo-500 bg-indigo-500/10 shadow-sm ring-1 ring-indigo-500/30'
-                        : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 hover:border-indigo-400'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-bold text-slate-900 dark:text-white">{style.title}</span>
-                        {subtitleStyle === style.id && <Check className="w-3.5 h-3.5 text-indigo-400" />}
-                      </div>
-                      <div className="py-2 text-center bg-black/40 rounded-lg border border-white/5">
-                        <span className={`text-base font-bold ${style.textColor}`} style={{ fontFamily: 'Akkhayar21, sans-serif' }}>
-                          {style.preview}
-                        </span>
-                      </div>
-                      <span className="block mt-1.5 text-[9px] text-slate-500 dark:text-zinc-400">{style.desc}</span>
-                    </button>
-                  ))}
+            ) : (
+              <div className="space-y-3">
+                {/* 4 BURMESE FONTS SELECTION (FROM public/fonts) */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-2">
+                    Burmese Font Style (ဖောင့်ပုံစံ ရွေးချယ်ရန်)
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'font-akkhayar', title: 'Akkhayar 21', fontFamily: 'Akkhayar21, sans-serif' },
+                      { id: 'font-kunheing', title: 'AJ Kunheing', fontFamily: 'AJKunheing, sans-serif' },
+                      { id: 'font-jojar', title: 'Myanmar Jojar', fontFamily: 'MyanmarJojar, sans-serif' },
+                      { id: 'font-myanmaros', title: 'Myanmar OS', fontFamily: 'MyanmarOS, sans-serif' },
+                    ].map((font) => (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => setSubtitleStyle(font.id)}
+                        className={`rounded-xl border p-2.5 text-center transition-all relative flex flex-col justify-between ${subtitleStyle === font.id
+                          ? 'border-indigo-500 bg-indigo-500/10 shadow-sm ring-1 ring-indigo-500/30'
+                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 hover:border-indigo-400'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate">
+                            {font.title}
+                          </span>
+                          {subtitleStyle === font.id && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                        </div>
+                        <div className="py-2.5 px-1 bg-black/60 rounded-lg border border-white/5 w-full flex items-center justify-center">
+                          <span
+                            className="text-amber-400 font-bold text-sm tracking-wide"
+                            style={{ fontFamily: font.fontFamily, textShadow: '0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000' }}
+                          >
+                            မြန်မာစာတန်း
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* DEDICATED SRT UPLOAD ZONE */}
-                <div className="pt-2">
-                  {subtitleText.includes('-->') ? (
-                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-bold text-xs">
-                            SRT
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                {srtFileName || 'burma_subtitles.srt'}
-                              </span>
-                              {/* <span className="px-2 py-0.5 rounded-full text-center bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                                {getSrtCuesCount(subtitleText)} Cues Active
-                              </span> */}
-                            </div>
-                            <p className="text-[10px] text-slate-400 dark:text-zinc-400 mt-0.5">
-                              Blur Strip ပေါ်တွင် အချိန်ကိုက် မြန်မာစာတန်း အလိုအလျောက် ထိုးပေးပါမည်
-                            </p>
-                          </div>
+                {/* SRT FILE CONTROLS */}
+                {subtitleText.includes('-->') ? (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-bold text-[11px] shrink-0">
+                          SRT
                         </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => srtFileInputRef.current?.click()}
-                            className="px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 text-[10px] font-bold transition-all"
-                            title="Replace SRT"
-                          >
-                            Replace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleDownloadSrt}
-                            className="p-1.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 transition-all"
-                            title="Download SRT"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleRemoveSrt}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                            title="Remove SRT"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {srtFileName || 'burma_subtitles.srt'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 dark:text-zinc-400 truncate mt-0.5" style={{ fontFamily: 'Akkhayar21, sans-serif' }}>
+                            💬 {getFirstSubtitleCue(subtitleText)}
+                          </p>
                         </div>
                       </div>
 
-                      {/* Live Cue Sample */}
-                      <div className="px-3 py-2 rounded-lg bg-black/40 border border-white/5 text-[11px] font-mono text-zinc-300 flex items-center justify-between">
-                        <span className="truncate max-w-[85%] text-amber-300" style={{ fontFamily: 'Akkhayar21, sans-serif' }}>
-                          💬 {getFirstSubtitleCue(subtitleText)}
-                        </span>
-                        <span className="text-[9px] text-zinc-500 shrink-0">First Cue</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => srtFileInputRef.current?.click()}
+                          className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 text-[10px] font-bold transition-all"
+                        >
+                          Replace
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDownloadSrt}
+                          className="p-1 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 transition-all"
+                          title="Download Synced SRT"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveSrt}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                          title="Remove SRT"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                  ) : (
-                    <div
-                      onClick={() => srtFileInputRef.current?.click()}
-                      className="group cursor-pointer rounded-xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-5 text-center transition-all"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="text-xs font-bold text-slate-800 dark:text-zinc-200 mb-0.5">
-                        Burma SRT (.srt) စာတန်းထိုးဖိုင် တင်သွင်းပါ
-                      </div>
-                      <div className="text-[10px] text-slate-400 dark:text-zinc-500">
-                        Subtitle Studio မှ ထုတ်ယူထားသော .srt ဖိုင် သို့မဟုတ် Timeline SRT ဖိုင် တင်သွင်းပါ
-                      </div>
-                    </div>
-                  )}
 
-                  <input
-                    ref={srtFileInputRef}
-                    type="file"
-                    accept=".srt"
-                    className="hidden"
-                    onChange={handleSrtFileUpload}
-                  />
-                </div>
-              </>
+                    {/* SUBTITLE TIMING OFFSET & AUTO-FIT */}
+                    <div className="pt-2 border-t border-gray-200/60 dark:border-white/10 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <label className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                          <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Timing Nudge (စာတန်း အသံနှင့် ညှိရန်)</span>
+                        </label>
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                          subtitleOffset === 0
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : subtitleOffset > 0
+                              ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}>
+                          {subtitleOffset === 0
+                            ? '0.00s (Exact)'
+                            : subtitleOffset > 0
+                              ? `+${subtitleOffset.toFixed(2)}s (နောက်ဆုတ်)`
+                              : `${subtitleOffset.toFixed(2)}s (ရှေ့တိုး)`}
+                        </span>
+                      </div>
+
+                      {/* Slider & Precision Steppers */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSubtitleOffset((prev) => Math.max(-3.0, Number((prev - 0.05).toFixed(2))))}
+                          className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
+                          title="-0.05s"
+                        >
+                          -0.05
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubtitleOffset((prev) => Math.max(-3.0, Number((prev - 0.02).toFixed(2))))}
+                          className="w-6 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center transition-all"
+                          title="-0.02s micro step"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="range"
+                          min="-3.0"
+                          max="3.0"
+                          step="0.02"
+                          value={subtitleOffset}
+                          onChange={(e) => setSubtitleOffset(Number(Number(e.target.value).toFixed(2)))}
+                          className="flex-1 accent-indigo-500 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSubtitleOffset((prev) => Math.min(3.0, Number((prev + 0.02).toFixed(2))))}
+                          className="w-6 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-[10px] flex items-center justify-center transition-all"
+                          title="+0.02s micro step"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubtitleOffset((prev) => Math.min(3.0, Number((prev + 0.05).toFixed(2))))}
+                          className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
+                          title="+0.05s"
+                        >
+                          +0.05
+                        </button>
+                      </div>
+
+                      {/* Quick chips & Auto-Fit button */}
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1">
+                        <div className="flex flex-wrap items-center gap-1">
+                          {[
+                            { label: '-0.3s', val: -0.3 },
+                            { label: '-0.15s', val: -0.15 },
+                            { label: '-0.05s', val: -0.05 },
+                            { label: '0.0s', val: 0 },
+                            { label: '+0.05s', val: 0.05 },
+                            { label: '+0.15s', val: 0.15 },
+                            { label: '+0.3s', val: 0.3 },
+                          ].map((chip) => (
+                            <button
+                              key={chip.label}
+                              type="button"
+                              onClick={() => setSubtitleOffset(chip.val)}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${
+                                Math.abs(subtitleOffset - chip.val) < 0.01
+                                  ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400'
+                                  : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400'
+                              }`}
+                            >
+                              {chip.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {audioFile && audioDuration > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleAutoFitSrtToAudio}
+                            className="py-1 px-2.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all active:scale-95"
+                            title="Auto-Fit SRT to Voiceover length"
+                          >
+                            <Zap className="w-3 h-3 text-amber-300 animate-pulse" />
+                            <span>Auto-Fit SRT to Audio</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => srtFileInputRef.current?.click()}
+                    className="group cursor-pointer rounded-xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-4 text-center transition-all"
+                  >
+                    <FileText className="w-5 h-5 text-indigo-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+                    <div className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                      Burma SRT (.srt) စာတန်းထိုးဖိုင် တင်သွင်းပါ
+                    </div>
+                    <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
+                      Subtitle Studio မှ ထုတ်ယူထားသော .srt ဖိုင် တင်သွင်းနိုင်ပါသည်
+                    </div>
+                  </div>
+                )}
+
+                <input
+                  ref={srtFileInputRef}
+                  type="file"
+                  accept=".srt"
+                  className="hidden"
+                  onChange={handleSrtFileUpload}
+                />
+              </div>
             )}
           </section>
 
           {/* SECTION 4: VOICEOVER AUDIO */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">4</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Voiceover Audio (နောက်ခံ အသံဖိုင် ရွေးရန်)
+                  Voiceover Audio (နောက်ခံအသံ)
                 </h2>
               </div>
               {audioFile && (
                 <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Added ({formatTimeSimple(audioDuration)})
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Ready ({formatTimeSimple(audioDuration)})
                 </span>
               )}
             </div>
@@ -1401,305 +1607,137 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             {!audioFile ? (
               <div
                 onClick={() => audioInputRef.current?.click()}
-                className="group cursor-pointer rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-5 text-center transition-all"
+                className="group cursor-pointer rounded-xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-4 text-center transition-all"
               >
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                  <Music className="w-5 h-5" />
+                <Music className="w-5 h-5 text-purple-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                  Voiceover အသံဖိုင် တင်သွင်းပါ (.mp3, .wav, .m4a)
                 </div>
-                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200 mb-0.5">
-                  Burmese Voiceover အသံဖိုင် တင်ရန် (.mp3, .wav, .m4a)
-                </div>
-                <div className="text-[10px] text-slate-400 dark:text-zinc-500">
-                  အသံဖိုင် မထည့်လျှင် မူရင်း ဗီဒီယိုအသံကို အသုံးပြုပါမည်
+                <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
+                  မထည့်သွင်းပါက မူရင်းဗီဒီယိုအသံကို သုံးပါမည်
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <button
-                      onClick={toggleAudioPreview}
-                      className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 hover:bg-purple-500 transition-colors shadow-md"
-                      title={isAudioPreviewPlaying ? "Pause audio" : "Play audio preview"}
-                    >
-                      {isAudioPreviewPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                    </button>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{audioFile.name}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-zinc-400">
-                        {formatFileSize(audioFile.size)} • ကြာချိန်: {formatTimeSimple(audioDuration)}
-                      </p>
-                    </div>
-                  </div>
+              <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
                   <button
-                    onClick={handleRemoveAudio}
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all shrink-0"
-                    title="Remove audio"
+                    onClick={toggleAudioPreview}
+                    className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 hover:bg-purple-500 transition-colors shadow-md"
+                    title={isAudioPreviewPlaying ? "Pause audio" : "Play audio preview"}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {isAudioPreviewPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                   </button>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{audioFile.name}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-zinc-400">
+                      {formatFileSize(audioFile.size)} • {formatTimeSimple(audioDuration)}
+                    </p>
+                  </div>
                 </div>
-
-                {/* Duration sync comparison note */}
-                <div className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300 flex items-center justify-between">
-                  <span>ဗီဒီယို: {formatTimeSimple(videoDuration)} | အသံ: {formatTimeSimple(audioDuration)}</span>
-                  <span className={`font-semibold ${isTimelineSynced ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {isTimelineSynced ? '✓ In-Sync (အချိန်ကိုက်)' : '⚠️ Speed ချိန်ညှိရန် လိုအပ်သည်'}
-                  </span>
-                </div>
+                <button
+                  onClick={handleRemoveAudio}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all shrink-0"
+                  title="Remove audio"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             )}
             <input type="file" ref={audioInputRef} accept="audio/*" onChange={handleAudioUpload} className="hidden" />
           </section>
 
-          {/* SECTION 5: SPEED & AUDIO-VIDEO TIMELINE SYNCHRONIZATION */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-4 shadow-sm">
+          {/* SECTION 5: SPEED & TIMELINE SYNCHRONIZATION */}
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3.5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">5</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200 flex items-center gap-1.5">
                   <Gauge className="w-4 h-4 text-indigo-400" />
-                  Speed & Timeline Sync (အသံနှင့် ဗီဒီယို အချိန်ကိုက် ညှိရန်)
+                  Speed & Timeline Sync (အချိန်ကိုက် ညှိရန်)
                 </h2>
               </div>
               {audioFile && (
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                  isTimelineSynced 
-                    ? 'bg-emerald-500/20 text-emerald-400' 
-                    : durationDiff < 0 
-                      ? 'bg-amber-500/20 text-amber-400' 
-                      : 'bg-indigo-500/20 text-indigo-400'
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  isTimelineSynced ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                 }`}>
                   {isTimelineSynced ? (
                     <>
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                      <span>In-Sync (အချိန်ကိုက်)</span>
+                      <CheckCircle2 className="w-3 h-3" /> In-Sync
                     </>
                   ) : (
                     <>
-                      <AlertCircle className="w-3 h-3" />
-                      <span>{durationDiff < 0 ? 'အသံက ပိုရှည်နေသည်' : 'ဗီဒီယိုက ပိုရှည်နေသည်'}</span>
+                      <AlertCircle className="w-3 h-3" /> {durationDiff < 0 ? 'အသံ ပိုရှည်' : 'ဗီဒီယို ပိုရှည်'}
                     </>
                   )}
                 </span>
               )}
             </div>
 
-            {/* Smart Timeline Comparison Banner */}
-            <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3.5 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                {/* Video Duration Card */}
-                <div className="p-3 rounded-lg bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
-                    <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-zinc-200">
-                      <Video className="w-3.5 h-3.5 text-indigo-400" /> Video
-                    </span>
-                    <span className="font-mono text-indigo-400 font-bold">{videoSpeed.toFixed(2)}x</span>
-                  </div>
-                  <div className="text-sm font-black font-mono text-slate-900 dark:text-white">
-                    {formatTimeSimple(effectiveVideoDuration)}
-                  </div>
-                  <p className="text-[9px] text-slate-400 dark:text-zinc-500">
-                    မူရင်းကြာချိန်: {formatTimeSimple(videoDuration)}
-                  </p>
+            {/* Duration Comparison Cards */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
+                  <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-zinc-300">
+                    <Video className="w-3.5 h-3.5 text-indigo-400" /> Video
+                  </span>
+                  <span className="font-mono text-indigo-400 font-bold">{videoSpeed.toFixed(2)}x</span>
                 </div>
-
-                {/* Voiceover Duration Card */}
-                <div className="p-3 rounded-lg bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
-                    <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-zinc-200">
-                      <Music className="w-3.5 h-3.5 text-purple-400" /> Voiceover
-                    </span>
-                    <span className="font-mono text-purple-400 font-bold">{audioSpeed.toFixed(2)}x</span>
-                  </div>
-                  <div className="text-sm font-black font-mono text-slate-900 dark:text-white">
-                    {audioFile ? formatTimeSimple(effectiveAudioDuration) : 'No Audio'}
-                  </div>
-                  <p className="text-[9px] text-slate-400 dark:text-zinc-500">
-                    {audioFile ? `မူရင်းကြာချိန်: ${formatTimeSimple(audioDuration)}` : 'မူရင်း ဗီဒီယိုအသံ'}
-                  </p>
+                <div className="text-sm font-black font-mono text-slate-900 dark:text-white mt-1">
+                  {formatTimeSimple(effectiveVideoDuration)}
                 </div>
               </div>
 
-              {/* Status & Auto-Sync Action Banner */}
-              {audioFile && videoDuration > 0 && audioDuration > 0 && (
-                <div className="pt-1">
-                  {!isTimelineSynced ? (
-                    <div className="space-y-2">
-                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-300 flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold">
-                            {durationDiff < 0 
-                              ? `အသံက ဗီဒီယိုထက် ${Math.abs(durationDiff).toFixed(1)}s ပိုရှည်နေပါသည် (အသံမပြီးခင် ဗီဒီယို အရင်ဆုံးသွားပါမည်)` 
-                              : `ဗီဒီယိုက အသံထက် ${durationDiff.toFixed(1)}s ပိုရှည်နေပါသည် (အသံ အရင်ဆုံးပြီးသွားပါမည်)`}
-                          </p>
-                          <p className="text-[10px] opacity-80 mt-0.5">
-                            အသံနှင့် ဗီဒီယို တစ်ပြိုင်နက် အဆုံးသတ်စေရန် အောက်ပါ Auto Sync ခလုတ်ကို နှိပ်ပါ:
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={handleAutoMatchVideoToAudio}
-                          className="px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                          title="ဗီဒီယို speed ကို ညှိပြီး အသံကြာချိန်နှင့် အလိုအလျောက် ညီစေပါမည်"
-                        >
-                          <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                          <span>Video ကို အသံနှင့် ညှိမည် ({((videoDuration * audioSpeed) / audioDuration).toFixed(2)}x)</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleAutoMatchAudioToVideo}
-                          className="px-3 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                          title="အသံ speed ကို ညှိပြီး ဗီဒီယိုကြာချိန်နှင့် အလိုအလျောက် ညီစေပါမည်"
-                        >
-                          <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                          <span>အသံကို Video နှင့် ညှိမည် ({((audioDuration * videoSpeed) / videoDuration).toFixed(2)}x)</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span className="font-medium">ဗီဒီယိုနှင့် အသံကြာချိန် အတိအကျ အချိန်ကိုက် ညီညွတ်နေပါသည်</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleResetSpeeds}
-                        className="px-2 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[10px] font-bold flex items-center gap-1 transition-all"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Reset (1.0x)</span>
-                      </button>
-                    </div>
-                  )}
+              <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
+                  <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-zinc-300">
+                    <Music className="w-3.5 h-3.5 text-purple-400" /> Audio
+                  </span>
+                  <span className="font-mono text-purple-400 font-bold">{audioSpeed.toFixed(2)}x</span>
                 </div>
-              )}
+                <div className="text-sm font-black font-mono text-slate-900 dark:text-white mt-1">
+                  {audioFile ? formatTimeSimple(effectiveAudioDuration) : 'Original'}
+                </div>
+              </div>
             </div>
 
-            {/* Video Speed Controls */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-                  <Video className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Video Speed (ဗီဒီယို အမြန်နှုန်း ချိန်ညှိရန်)</span>
+            {/* Auto-Sync Quick Actions (when durations differ) */}
+            {audioFile && videoDuration > 0 && audioDuration > 0 && !isTimelineSynced && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleAutoMatchVideoToAudio}
+                  className="px-2.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all"
+                >
+                  <Zap className="w-3 h-3 text-amber-300" />
+                  <span>Video ကို အသံနှင့် ညှိမည်</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAutoMatchAudioToVideo}
+                  className="px-2.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all"
+                >
+                  <Zap className="w-3 h-3 text-amber-300" />
+                  <span>အသံကို Video နှင့် ညှိမည်</span>
+                </button>
+              </div>
+            )}
+
+            {/* Video Speed Slider */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <label className="font-bold text-slate-700 dark:text-zinc-300">
+                  Video Speed ({videoSpeed.toFixed(2)}x)
                 </label>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                    {videoSpeed.toFixed(2)}x
-                  </span>
-                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-                    ({formatTimeSimple(effectiveVideoDuration)})
-                  </span>
-                </div>
-              </div>
-
-              {/* Sliders and Steppers */}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setVideoSpeed((prev) => Math.max(0.25, Number((prev - 0.05).toFixed(2))))}
-                  className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
-                >
-                  -
-                </button>
-                <input
-                  type="range"
-                  min="0.25"
-                  max="2.50"
-                  step="0.05"
-                  value={videoSpeed}
-                  onChange={(e) => setVideoSpeed(Number(Number(e.target.value).toFixed(2)))}
-                  className="flex-1 accent-indigo-500 cursor-pointer"
-                />
-                <button
-                  type="button"
-                  onClick={() => setVideoSpeed((prev) => Math.min(3.0, Number((prev + 0.05).toFixed(2))))}
-                  className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
-                >
-                  +
-                </button>
-              </div>
-
-              {/* Preset Chips */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {[0.5, 0.75, 0.85, 0.9, 1.0, 1.15, 1.25, 1.5, 2.0].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setVideoSpeed(s)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition-all ${
-                      Math.abs(videoSpeed - s) < 0.02
-                        ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400 shadow-sm ring-1 ring-indigo-500/30'
-                        : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-indigo-400'
-                    }`}
-                  >
-                    {s}x
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Voiceover Speed Controls (only if audio file present) */}
-            {audioFile && (
-              <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-white/5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-                    <Music className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Voiceover Speed (အသံဖိုင် အမြန်နှုန်း ချိန်ညှိရန်)</span>
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
-                      {audioSpeed.toFixed(2)}x
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-                      ({formatTimeSimple(effectiveAudioDuration)})
-                    </span>
-                  </div>
-                </div>
-
-                {/* Sliders and Steppers */}
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setAudioSpeed((prev) => Math.max(0.5, Number((prev - 0.05).toFixed(2))))}
-                    className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2.0"
-                    step="0.05"
-                    value={audioSpeed}
-                    onChange={(e) => setAudioSpeed(Number(Number(e.target.value).toFixed(2)))}
-                    className="flex-1 accent-purple-500 cursor-pointer"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setAudioSpeed((prev) => Math.min(2.5, Number((prev + 0.05).toFixed(2))))}
-                    className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all"
-                  >
-                    +
-                  </button>
-                </div>
-
-                {/* Preset Chips */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[0.75, 0.85, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75].map((s) => (
+                <div className="flex gap-1">
+                  {[0.75, 1.0, 1.25, 1.5].map((s) => (
                     <button
                       key={s}
                       type="button"
-                      onClick={() => setAudioSpeed(s)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition-all ${
-                        Math.abs(audioSpeed - s) < 0.02
-                          ? 'border-purple-500 bg-purple-500/15 text-purple-400 shadow-sm ring-1 ring-purple-500/30'
-                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-purple-400'
+                      onClick={() => setVideoSpeed(s)}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${
+                        Math.abs(videoSpeed - s) < 0.02
+                          ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400'
+                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400'
                       }`}
                     >
                       {s}x
@@ -1707,16 +1745,61 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                   ))}
                 </div>
               </div>
+              <input
+                type="range"
+                min="0.25"
+                max="2.50"
+                step="0.05"
+                value={videoSpeed}
+                onChange={(e) => setVideoSpeed(Number(Number(e.target.value).toFixed(2)))}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Voiceover Speed Slider (only if audio file present) */}
+            {audioFile && (
+              <div className="space-y-1.5 pt-2 border-t border-gray-100 dark:border-white/5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    Voiceover Speed ({audioSpeed.toFixed(2)}x)
+                  </label>
+                  <div className="flex gap-1">
+                    {[0.85, 1.0, 1.15, 1.25].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setAudioSpeed(s)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${
+                          Math.abs(audioSpeed - s) < 0.02
+                            ? 'border-purple-500 bg-purple-500/15 text-purple-400'
+                            : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400'
+                        }`}
+                      >
+                        {s}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.05"
+                  value={audioSpeed}
+                  onChange={(e) => setAudioSpeed(Number(Number(e.target.value).toFixed(2)))}
+                  className="w-full accent-purple-500 cursor-pointer"
+                />
+              </div>
             )}
           </section>
 
           {/* SECTION 6: LOGO WATERMARK */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">6</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Logo Watermark (လိုဂို / ရေစာ ထည့်ရန်)
+                  Logo Watermark (လိုဂို)
                 </h2>
               </div>
               {logoFile && (
@@ -1729,55 +1812,135 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             {!logoFile ? (
               <div
                 onClick={() => logoInputRef.current?.click()}
-                className="group cursor-pointer rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-5 text-center transition-all"
+                className="group cursor-pointer rounded-xl border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-500/5 p-4 text-center transition-all"
               >
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                  <ImageIcon className="w-5 h-5" />
+                <ImageIcon className="w-5 h-5 text-amber-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                  လိုဂိုပုံ တင်သွင်းပါ (PNG / JPG / WebP)
                 </div>
-                <div className="text-xs font-bold text-slate-800 dark:text-zinc-200 mb-0.5">
-                  လိုဂိုပုံ ရွေးချယ်တင်သွင်းပါ (PNG / JPG)
-                </div>
-                <div className="text-[10px] text-slate-400 dark:text-zinc-500">
-                  Transparent PNG လိုဂို ထည့်သွင်းခြင်း ပိုမိုကောင်းမွန်ပါသည်
+                <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
+                  Click to browse transparent logo or channel watermark
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <img src={logoUrl || ''} alt="Logo" className="w-10 h-10 object-contain rounded-lg bg-black/40 p-1 border border-white/10" />
+                {/* File Info Bar */}
+                <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <img src={logoUrl || ''} alt="Logo" className="w-8 h-8 object-contain rounded-lg bg-black/40 p-1 border border-white/10" />
                     <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">{logoFile.name}</p>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{logoFile.name}</p>
                       <p className="text-[10px] text-slate-400 dark:text-zinc-400">{formatFileSize(logoFile.size)}</p>
                     </div>
                   </div>
                   <button
                     onClick={handleRemoveLogo}
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                    title="Remove logo"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                    title="Remove Logo"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Logo Position Selector */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 block mb-1.5">
-                    Logo Position (နေရာသတ်မှတ်ရန်)
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['Top Left', 'Top Right', 'Bottom Left', 'Bottom Right'] as const).map((pos) => (
+                {/* Vertical Position Adjust Bar (0% to 100%) */}
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-zinc-200">
+                    <span>Vertical Position (အပေါ် / အောက် နေရာချထားမှု)</span>
+                    <span className="text-indigo-400 font-mono font-semibold">
+                      {logoY}% ({logoY <= 25 ? 'Top / အပေါ်' : logoY <= 70 ? 'Center / အလယ်' : 'Bottom / အောက်'})
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={logoY}
+                    onChange={(e) => setLogoY(Number(e.target.value))}
+                    className="w-full accent-indigo-500 cursor-pointer"
+                  />
+                  {/* Preset quick buttons */}
+                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                    {[
+                      { label: 'အပေါ် (Top 8%)', val: 8 },
+                      { label: 'အလယ် (Center 50%)', val: 50 },
+                      { label: 'အောက် (Bottom 92%)', val: 92 },
+                    ].map((preset) => (
                       <button
-                        key={pos}
-                        onClick={() => setLogoPosition(pos)}
-                        className={`rounded-lg py-2 text-[10px] font-bold border transition-all ${logoPosition === pos
-                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
-                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:border-indigo-300'
-                          }`}
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setLogoY(preset.val)}
+                        className={`rounded-lg py-1 text-[10px] font-semibold border transition-all ${
+                          logoY === preset.val
+                            ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400 font-bold'
+                            : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
                       >
-                        {pos}
+                        {preset.label}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Horizontal Alignment */}
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-700 dark:text-zinc-200">
+                    Horizontal Align (ဘယ် / အလယ် / ညာ)
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { key: 'left', label: 'ဘယ် (Left)' },
+                      { key: 'center', label: 'အလယ် (Center)' },
+                      { key: 'right', label: 'ညာ (Right)' },
+                    ].map((align) => (
+                      <button
+                        key={align.key}
+                        type="button"
+                        onClick={() => setLogoAlign(align.key as 'left' | 'center' | 'right')}
+                        className={`rounded-lg py-1.5 text-[10px] font-semibold border transition-all ${
+                          logoAlign === align.key
+                            ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400 font-bold'
+                            : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {align.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Size & Opacity Controls */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1">
+                      <span>Logo Size (ဆိုဒ်)</span>
+                      <span className="text-indigo-400 font-mono">{logoScale}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="6"
+                      max="30"
+                      step="1"
+                      value={logoScale}
+                      onChange={(e) => setLogoScale(Number(e.target.value))}
+                      className="w-full accent-indigo-500 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1">
+                      <span>Opacity (ကြည်လင်မှု)</span>
+                      <span className="text-indigo-400 font-mono">{logoOpacity}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="100"
+                      step="5"
+                      value={logoOpacity}
+                      onChange={(e) => setLogoOpacity(Number(e.target.value))}
+                      className="w-full accent-indigo-500 cursor-pointer"
+                    />
                   </div>
                 </div>
               </div>
@@ -1785,13 +1948,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             <input type="file" ref={logoInputRef} accept="image/*" onChange={handleLogoUpload} className="hidden" />
           </section>
 
-          {/* SECTION 7: BLUR STRIP ADJUSTMENT */}
-          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-3 shadow-sm">
+          {/* SECTION 7: FROSTED BLUR STRIP */}
+          <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">7</span>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
-                  Frosted Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်ရန် သဘာဝ Blur အလွှာ)
+                  Frosted Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်ရန် Blur အလွှာ)
                 </h2>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -1805,15 +1968,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
               </label>
             </div>
 
-            <p className="text-[10px] text-slate-500 dark:text-zinc-400">
-              အမဲရောင် အကွက်အတုံးကြီး မဟုတ်ဘဲ ဗီဒီယိုအရောင်ကို ဆက်လက်ထိန်းသိမ်းပေးထားသော သဘာဝ Frosted Glass Blur ဖြင့် မူရင်းစာတန်းကို 100% ဖုံးအုပ်ပေးပါသည်
-            </p>
-
             {blurEnabled && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
-                  <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1.5">
-                    <span>Position (နေရာ)</span>
+              <div className="grid grid-cols-3 gap-2.5 pt-1">
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                  <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1">
+                    <span>Position</span>
                     <span className="text-indigo-400 font-mono">{blurPosition}%</span>
                   </div>
                   <input
@@ -1826,9 +1985,9 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                   />
                 </div>
 
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
-                  <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1.5">
-                    <span>Thickness (အထူ)</span>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                  <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1">
+                    <span>Thickness</span>
                     <span className="text-indigo-400 font-mono">{blurThickness}%</span>
                   </div>
                   <input
@@ -1841,9 +2000,9 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                   />
                 </div>
 
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
-                  <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1.5">
-                    <span>Strength (ပြင်းအား)</span>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                  <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-zinc-300 mb-1">
+                    <span>Strength</span>
                     <span className="text-indigo-400 font-mono">{blurIntensity}</span>
                   </div>
                   <input
@@ -1863,7 +2022,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         {/* RIGHT COLUMN: INTERACTIVE PREVIEW & ACTION */}
         <div className="space-y-4 lg:sticky lg:top-4">
           {/* VIDEO CANVAS PREVIEW CARD */}
-          <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-5 space-y-4 shadow-sm">
+          <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-3.5 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-indigo-400" />
@@ -1888,34 +2047,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 </>
               ) : (
                 <div className="text-center p-6 space-y-2 text-zinc-500">
-                  <Video className="w-10 h-10 mx-auto text-zinc-600 animate-pulse" />
+                  <Video className="w-8 h-8 mx-auto text-zinc-600 animate-pulse" />
                   <p className="text-xs font-medium">ဗီဒီယိုဖိုင် တင်သွင်းပြီးပါက Preview ပေါ်လာပါမည်</p>
                 </div>
               )}
             </div>
-
-            {/* Live Timeline & Sync Status in Preview */}
-            {videoUrl && (
-              <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-3 text-[11px] font-mono">
-                  <span className="text-indigo-400 font-semibold">🎬 {formatTimeSimple(effectiveVideoDuration)} ({videoSpeed.toFixed(2)}x)</span>
-                  {audioFile && (
-                    <span className="text-purple-400 font-semibold">🎙️ {formatTimeSimple(effectiveAudioDuration)} ({audioSpeed.toFixed(2)}x)</span>
-                  )}
-                </div>
-                {audioFile && !isTimelineSynced && (
-                  <button
-                    type="button"
-                    onClick={handleAutoMatchVideoToAudio}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all active:scale-95"
-                    title="ဗီဒီယိုနှင့် အသံကြာချိန် အလိုအလျောက် ညှိမည်"
-                  >
-                    <Zap className="w-3 h-3 text-amber-300" />
-                    <span>Auto Sync</span>
-                  </button>
-                )}
-              </div>
-            )}
 
             {/* Time Seeker */}
             {videoUrl && videoDuration > 0 && (
@@ -1940,7 +2076,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             <button
               onClick={handleGenerate}
               disabled={isProcessing || !videoUrl}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold tracking-wide shadow-lg shadow-indigo-600/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold tracking-wide shadow-lg shadow-indigo-600/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
             >
               <Sparkles className="w-4 h-4 text-indigo-200 group-hover:rotate-12 transition-transform" />
               <span>{isProcessing ? `Processing ${progress}%...` : 'Generate Burmese Recap Video'}</span>
@@ -1963,7 +2099,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-3 shadow-lg"
+              className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3 shadow-lg"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -1971,36 +2107,26 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                     ✓
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-bold text-slate-900 dark:text-white">Recap Video Ready</h3>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${subtitleEnabled
-                        ? 'bg-indigo-500/20 text-indigo-400'
-                        : 'bg-emerald-500/20 text-emerald-400'
-                        }`}>
-                        {subtitleEnabled ? 'စာတန်းထိုး ပါဝင်သည်' : 'စာတန်းထိုး မပါ (Clean Video)'}
-                      </span>
-                    </div>
-                    {/* <p className="text-[10px] text-emerald-500 mt-0.5">
-                      {subtitleEnabled
-                        ? 'မြန်မာစာတန်းထိုး ပါဝင်သော Recap ဗီဒီယို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ'
-                        : 'စာတန်းထိုး မပါဝင်သော Clean Recap ဗီဒီယို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ'}
-                    </p> */}
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white">Recap Video Ready</h3>
+                    <span className="text-[9px] text-emerald-400 font-semibold">
+                      {subtitleEnabled ? 'မြန်မာစာတန်းထိုး ပါဝင်သည်' : 'Clean Video (စာတန်းမပါ)'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={handleDownloadSrt}
-                    className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-colors"
-                    title="Burma Subtitle SRT ဖိုင် ဒေါင်းလုဒ်လုပ်ရန်"
+                    className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-colors"
+                    title="Download Burma SRT"
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    <span>Download Burma SRT</span>
+                    <span>Download SRT</span>
                   </button>
                   <a
                     href={resultUrl}
                     download={`burmese_recap_${Date.now()}.mp4`}
-                    className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-colors"
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download MP4</span>
@@ -2022,12 +2148,18 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             playsInline
             muted
             onLoadedMetadata={onVideoLoaded}
+            onLoadedData={onVideoLoaded}
+            onDurationChange={onVideoLoaded}
+            onCanPlay={onVideoLoaded}
           />
           <audio
             ref={audioRef}
             src={audioUrl || ''}
             style={{ position: 'fixed', top: -9999, left: -9999, width: 4, height: 4, opacity: 0, pointerEvents: 'none' }}
             onLoadedMetadata={onAudioLoaded}
+            onLoadedData={onAudioLoaded}
+            onDurationChange={onAudioLoaded}
+            onCanPlay={onAudioLoaded}
             onEnded={() => setIsAudioPreviewPlaying(false)}
           />
         </div>

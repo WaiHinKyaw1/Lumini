@@ -1,68 +1,94 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { generateImage, generateText } from '../services/geminiService';
-import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
-import { getBrandKit, BrandKitData } from '../src/utils/brandKit';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { generateImage, generateText, ImageAspectRatio } from '../services/geminiService';
+import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-
+import {
+  Sparkles,
+  Download,
+  Copy,
+  Type,
+  Wand2,
+  Check,
+  RefreshCw,
+  ImageIcon,
+  Sliders,
+  X
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface ThumbnailGenProps {
   onSpendCredits: (amount: number) => boolean;
 }
 
+export type BurmeseFontOption = 'font-akkhayar' | 'font-kunheing' | 'font-jojar' | 'font-myanmaros' | 'font-notosans';
+export type TextColorTheme = 'yellow' | 'white' | 'orange' | 'cyan' | 'lime';
+
+const STYLES = [
+  { name: 'Cinematic', prompt: 'blockbuster cinematic movie scene, hyper-realistic, dramatic rim lighting, 8k resolution, depth of field, anamorphic lens flare, movie still photography' },
+  { name: 'Horror', prompt: 'dark eerie horror atmosphere, mysterious foggy night, glowing high-contrast focal point, dramatic chiaroscuro shadow, cinematic suspense' },
+  { name: 'Action', prompt: 'explosive high-octane action moment, vivid neon and fire reflections, intense hero expression, dynamic motion particles, 8k movie still' },
+  { name: 'Drama', prompt: 'deep emotional storytelling still, poignant close-up lighting, cinematic film grain, raw authentic human expression' },
+  { name: 'Viral High-Contrast', prompt: 'vibrant saturated colors, extreme high-contrast lighting, shocking viral focal element, clean separation between subject and background' },
+  { name: 'Anime', prompt: 'epic anime movie aesthetic, Makoto Shinkai lighting style, magical glowing embers, vibrant fantasy landscape' }
+];
+
+const RATIOS: { id: ImageAspectRatio; label: string }[] = [
+  { id: '16:9', label: '16:9 (YouTube)' },
+  { id: '9:16', label: '9:16 (TikTok/Shorts)' },
+  { id: '1:1', label: '1:1 (Square)' },
+  { id: '4:3', label: '4:3 (Standard)' },
+];
+
+const FONTS: { id: BurmeseFontOption; name: string }[] = [
+  { id: 'font-akkhayar', name: 'Akkhayar 21' },
+  { id: 'font-kunheing', name: 'AJ Kunheing' },
+  { id: 'font-jojar', name: 'Myanmar Jojar' },
+  { id: 'font-myanmaros', name: 'Myanmar OS' },
+  { id: 'font-notosans', name: 'Noto Sans' },
+];
+
+const COLOR_THEMES: { id: TextColorTheme; color: string }[] = [
+  { id: 'yellow', color: '#FACC15' },
+  { id: 'white', color: '#FFFFFF' },
+  { id: 'orange', color: '#F97316' },
+  { id: 'cyan', color: '#06B6D4' },
+  { id: 'lime', color: '#84CC16' },
+];
+
 const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [topic, setTopic] = useState('');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [titleText, setTitleText] = useState('');
-  const [style, setStyle] = useState('Gaming');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [hooks, setHooks] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [ctrScore, setCtrScore] = useState<{ score: number; reasons: string[]; tips: string[] } | null>(null);
-  const [isScoring, setIsScoring] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>('16:9');
+  const [style, setStyle] = useState('Cinematic');
   const [file, setFile] = useState<File | null>(null);
-  const [useBrandKit, setUseBrandKit] = useState(false);
-  const [brandKit, setBrandKit] = useState<BrandKitData | null>(null);
-  const isMounted = useRef(true);
 
-  // Recent-task restore: repopulate the thumbnail generator inputs from a previous task
-  const handleRestoreThumbnail = (input: JsonValue) => {
-    if (!input || typeof input !== 'object') return;
-    if (typeof (input as JsonRecord).topic === 'string') setTopic((input as JsonRecord).topic as string);
-    if (typeof (input as JsonRecord).titleText === 'string') setTitleText((input as JsonRecord).titleText as string);
-    if (typeof (input as JsonRecord).style === 'string' && styles.some((s) => s.name === (input as JsonRecord).style)) setStyle((input as JsonRecord).style as string);
-    if ((input as JsonRecord).useBrandKit === true || (input as JsonRecord).useBrandKit === false) setUseBrandKit((input as JsonRecord).useBrandKit as boolean);
-    setResult(null);
-    setHooks([]);
-    setError(null);
-  };
+  // Typography Customization
+  const [burmeseFont, setBurmeseFont] = useState<BurmeseFontOption>('font-akkhayar');
+  const [textColorPreset, setTextColorPreset] = useState<TextColorTheme>('yellow');
+  const [textY, setTextY] = useState<number>(84);
+  const [textSize, setTextSize] = useState<number>(20);
+  const [backdropEnabled, setBackdropEnabled] = useState<boolean>(true);
+  const [backdropOpacity, setBackdropOpacity] = useState<number>(65);
+
+  // Generation & Output
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSuggestingHooks, setIsSuggestingHooks] = useState(false);
+  const [rawImageUrl, setRawImageUrl] = useState<string | null>(null);
+  const [compositeUrl, setCompositeUrl] = useState<string | null>(null);
+  const [suggestedHooks, setSuggestedHooks] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  const isMounted = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const kit = getBrandKit();
-    if (kit) {
-      setBrandKit(kit);
-      setUseBrandKit(true);
-    }
-  }, []);
-
-  React.useEffect(() => {
     return () => {
       isMounted.current = false;
     };
   }, []);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const styles = [
-    { name: 'Gaming', prompt: 'high contrast, saturated, gaming background, dramatic lighting, epic character focus' },
-    { name: 'Vlog', prompt: 'bright, cheerful, real-life aesthetic, high quality photography, soft shadows' },
-    { name: 'Mystery', prompt: 'dark, moody, curiosity-gap, silhouette focus, glowing highlights, high tension' },
-    { name: 'Educational', prompt: 'clean, professional, diagram-style elements, high readability, solid background colors' },
-    { name: 'Cinematic', prompt: 'movie poster aesthetic, 8k resolution, photorealistic, cinematic depth of field' }
-  ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -70,115 +96,245 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
+  const fileToBase64 = (f: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(f);
       reader.onload = () => {
         const base64 = (reader.result as string).split(',')[1];
         resolve(base64);
       };
-      reader.onerror = (error) => reject(error);
+      reader.onerror = (err) => reject(err);
     });
   };
 
-  const containsMyanmar = (text: string) => /[\u1000-\u109F\uAA60-\uAA7F]/.test(text);
+  // Wrap Burmese text gracefully into at most 2 lines
+  const wrapBurmeseText = (text: string, ctx: CanvasRenderingContext2D, maxWidth: number): string[] => {
+    const clean = text.replace(/\\N/gi, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!clean) return [];
+    if (ctx.measureText(clean).width <= maxWidth) return [clean];
 
-  const isMyanmarText = containsMyanmar(topic) || containsMyanmar(titleText);
+    if (clean.includes(' ')) {
+      const words = clean.split(' ');
+      const mid = Math.ceil(words.length / 2);
+      return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+    }
 
+    const punctIdx = clean.search(/[၊။]/);
+    if (punctIdx !== -1 && punctIdx < clean.length - 1) {
+      return [clean.slice(0, punctIdx + 1).trim(), clean.slice(punctIdx + 1).trim()];
+    }
+
+    const mid = Math.floor(clean.length / 2);
+    let splitAt = mid;
+    for (let i = Math.max(1, mid - 4); i < Math.min(clean.length, mid + 5); i++) {
+      const code = clean.charCodeAt(i);
+      if (code >= 0x1000 && code <= 0x1021 && (i === 0 || clean.charCodeAt(i - 1) !== 0x1039)) {
+        splitAt = i;
+        break;
+      }
+    }
+    return [clean.slice(0, splitAt).trim(), clean.slice(splitAt).trim()];
+  };
+
+  // Render Canvas
+  const renderThumbnailCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !rawImageUrl) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = rawImageUrl;
+    img.onload = () => {
+      let baseW = 1920;
+      let baseH = 1080;
+      if (aspectRatio === '9:16') { baseW = 1080; baseH = 1920; }
+      else if (aspectRatio === '1:1') { baseW = 1080; baseH = 1080; }
+      else if (aspectRatio === '4:3') { baseW = 1440; baseH = 1080; }
+
+      canvas.width = img.naturalWidth || baseW;
+      canvas.height = img.naturalHeight || baseH;
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // 1. Draw raw thumbnail image
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const activeText = titleText.trim();
+      if (!activeText) {
+        setCompositeUrl(canvas.toDataURL('image/png'));
+        return;
+      }
+
+      // 2. Select Burmese Font
+      let fontName = 'Akkhayar21';
+      if (burmeseFont === 'font-kunheing') fontName = 'AJKunheing';
+      else if (burmeseFont === 'font-jojar') fontName = 'MyanmarJojar';
+      else if (burmeseFont === 'font-myanmaros') fontName = 'MyanmarOS';
+      else if (burmeseFont === 'font-notosans') fontName = 'Noto Sans Myanmar';
+
+      let baseFontSize = Math.max(28, Math.round(h * (textSize / 280)));
+      ctx.font = `900 ${baseFontSize}px ${fontName}, "Noto Sans Myanmar", sans-serif`;
+
+      const maxTextW = w * 0.90;
+      let lines = wrapBurmeseText(activeText, ctx, maxTextW);
+
+      const maxMeasured = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      if (maxMeasured > maxTextW) {
+        baseFontSize = Math.max(22, Math.floor(baseFontSize * (maxTextW / maxMeasured)));
+        ctx.font = `900 ${baseFontSize}px ${fontName}, "Noto Sans Myanmar", sans-serif`;
+        lines = wrapBurmeseText(activeText, ctx, maxTextW);
+      }
+
+      const lineHeight = baseFontSize * 1.35;
+      const totalTextH = lines.length * lineHeight;
+
+      const centerY = (h * (textY / 100));
+      const startY = centerY - (totalTextH / 2) + (lineHeight / 2);
+
+      // 3. Backdrop Strip
+      if (backdropEnabled) {
+        const padY = Math.max(20, Math.round(h * 0.03));
+        const stripTop = Math.max(0, startY - (lineHeight * 0.72) - padY);
+        const stripHeight = totalTextH + (padY * 2) + (lineHeight * 0.25);
+
+        const grad = ctx.createLinearGradient(0, stripTop, 0, stripTop + stripHeight);
+        const alpha = (backdropOpacity / 100);
+        grad.addColorStop(0, `rgba(0, 0, 0, 0)`);
+        grad.addColorStop(0.2, `rgba(0, 0, 0, ${alpha * 0.85})`);
+        grad.addColorStop(0.5, `rgba(0, 0, 0, ${alpha})`);
+        grad.addColorStop(0.8, `rgba(0, 0, 0, ${alpha * 0.85})`);
+        grad.addColorStop(1, `rgba(0, 0, 0, 0)`);
+
+        ctx.save();
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, stripTop, w, stripHeight);
+        ctx.restore();
+      }
+
+      // 4. Color
+      let primaryColor = '#FACC15';
+      if (textColorPreset === 'white') primaryColor = '#FFFFFF';
+      else if (textColorPreset === 'orange') primaryColor = '#FB923C';
+      else if (textColorPreset === 'cyan') primaryColor = '#38BDF8';
+      else if (textColorPreset === 'lime') primaryColor = '#A3E635';
+
+      // 5. Draw text
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const textX = w / 2;
+
+      lines.forEach((line, idx) => {
+        const lineY = startY + (idx * lineHeight);
+
+        ctx.lineWidth = Math.max(7, Math.floor(baseFontSize * 0.17));
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeText(line, textX, lineY);
+
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = Math.max(8, Math.floor(baseFontSize * 0.22));
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = Math.max(3, Math.floor(baseFontSize * 0.06));
+
+        ctx.fillStyle = primaryColor;
+        ctx.fillText(line, textX, lineY);
+      });
+
+      ctx.restore();
+      setCompositeUrl(canvas.toDataURL('image/png'));
+    };
+  }, [rawImageUrl, titleText, burmeseFont, textSize, textY, textColorPreset, backdropEnabled, backdropOpacity, aspectRatio]);
+
+  useEffect(() => {
+    if (rawImageUrl) {
+      renderThumbnailCanvas();
+    }
+  }, [renderThumbnailCanvas, rawImageUrl]);
+
+  // AI Hook suggestions
+  const handleSuggestAiHooks = async () => {
+    if (!topic.trim()) {
+      toast.error('ဇာတ်လမ်း သို့မဟုတ် အကြောင်းအရာ ထည့်ပေးပါ');
+      return;
+    }
+    setIsSuggestingHooks(true);
+    try {
+      const prompt = `Write 3 short, catchy Burmese (Myanmar Unicode) headline hooks (2-4 words) for this video topic: "${topic}". Output only numbered list without extra text.`;
+      const response = await generateText(prompt, "Respond strictly in Burmese Unicode.");
+      const list = response
+        .split('\n')
+        .map((l) => l.replace(/^\d+[\.\)]\s*|^- \s*/, '').trim())
+        .filter((l) => l.length > 1);
+
+      if (list.length > 0) {
+        setSuggestedHooks(list);
+        if (!titleText.trim()) setTitleText(list[0]);
+      }
+    } catch {
+      toast.error('AI Hook ရေးဆွဲခြင်း မအောင်မြင်ပါ');
+    } finally {
+      setIsSuggestingHooks(false);
+    }
+  };
+
+  // Generate Thumbnail
   const handleGenerate = async () => {
-    if (!topic.trim()) return;
-    setError(null);
-    setResult(null);
-    setHooks([]);
-
-    if (file && file.size > 10 * 1024 * 1024) {
-      setError("Image is too large (Max 10MB). Please use a smaller file to prevent browser crashes.");
+    if (!topic.trim()) {
+      toast.error('ဇာတ်လမ်း သို့မဟုတ် အကြောင်းအရာ ထည့်ပေးပါ');
       return;
     }
 
     if (!onSpendCredits(CREDIT_COSTS[ContentType.THUMBNAIL])) {
-      setError("Insufficient credits!");
+      toast.error('Credits မလုံလောက်ပါ');
       return;
     }
 
+    setRawImageUrl(null);
+    setCompositeUrl(null);
     setIsGenerating(true);
+
     try {
-      const selectedStyle = styles.find(s => s.name === style);
+      const selectedStyleObj = STYLES.find((s) => s.name === style) || STYLES[0];
 
-      let thumbPrompt = `Professional YouTube Thumbnail for: "${topic}". Style: ${style}. Attributes: ${selectedStyle?.prompt}. Include a vibrant focal point, high-contrast text area, and viral appeal.`;
+      const promptInstruction = `You are a YouTube thumbnail photographer.
+Transform the concept into a dramatic 8k cinematic thumbnail photo prompt.
+Style: ${style} (${selectedStyleObj.prompt})
+Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k resolution, movie still, leave space for text overlay, no text/watermarks in image. Output 2 English sentences only.`;
 
-      if (useBrandKit && brandKit) {
-          thumbPrompt += ` IMPORTANT: Use the brand colors: Primary (${brandKit.primaryColor}), Secondary (${brandKit.secondaryColor}). The brand name is "${brandKit.brandName}". Use a font style similar to "${brandKit.fontFamily}". The overall aesthetic should be consistent with this brand kit.`;
-      }
+      let activeBurmeseText = titleText.trim();
 
-      if (titleText) {
-          const fontNote = isMyanmarText
-            ? "CRITICAL: Use high-quality, clean, bold Myanmar (Burmese) Unicode typography. Ensure characters are perfectly formed, properly spaced, and highly legible. The font must be a modern, thick sans-serif style suitable for thumbnails."
-            : "Use bold, readable modern font.";
-          thumbPrompt += ` The text "${titleText}" should be prominently displayed on the thumbnail. ${fontNote}`;
-      }
-
-      let imageBase64: string | undefined = undefined;
-      let mimeType: string | undefined = undefined;
-
-      if (file) {
-          imageBase64 = await fileToBase64(file);
-          mimeType = file.type;
-          thumbPrompt += " Use the provided image as the main reference or composition base.";
-      }
-
-      if (isMyanmarText) {
-          thumbPrompt += " IMPORTANT: The text is in Myanmar (Burmese) script. Render it using standard Unicode glyphs. Avoid any distortion, overlapping, or broken circles in the characters. The typography must be professional, clear, and follow standard Burmese Unicode rendering rules.";
-      }
-
-      const hookSystemPrompt = isMyanmarText
-        ? "You are a YouTube viral growth expert. Respond only in Burmese Unicode. Use natural, modern phrasing."
-        : "You are a YouTube viral growth expert.";
-
-      const [imageUrl, hooksText] = await Promise.all([
-        generateImage(thumbPrompt, "16:9", imageBase64, mimeType),
-        generateText(`Generate 3 viral, high-CTR YouTube title hooks for a video about: ${topic}. Format as a simple list.`, hookSystemPrompt)
+      const [refinedPrompt, generatedHook] = await Promise.all([
+        generateText(`Concept: "${topic}"\nGenerate viral thumbnail image prompt.`, promptInstruction),
+        !activeBurmeseText
+          ? generateText(`Write 1 short catchy Burmese 2-4 words hook for: "${topic}". Output only Burmese text.`, "Respond strictly in Burmese Unicode.")
+          : Promise.resolve('')
       ]);
 
-      if (isMounted.current) {
-        setResult(imageUrl);
-        const hookList = hooksText.split('\n').filter(h => h.trim().match(/^\d\.|^-/)).map(h => h.replace(/^\d\.\s*|^- \s*/, ''));
-        setHooks(hookList);
+      if (!activeBurmeseText && generatedHook && generatedHook.trim()) {
+        const cleanHook = generatedHook.trim().replace(/["'\r\n]/g, '');
+        activeBurmeseText = cleanHook;
+        if (isMounted.current) setTitleText(cleanHook);
       }
 
-      // AI click-rate potential score (runs right after generation, free via flash model)
-      setIsScoring(true);
-      try {
-        const scoreSystem = isMyanmarText
-          ? "You are a YouTube thumbnail CTR expert. Respond only in Burmese Unicode."
-          : "You are a YouTube thumbnail CTR expert.";
-        const scorePrompt = `Analyze this thumbnail for YouTube click-through-rate potential.
-Topic: ${topic}${titleText ? ` | Displayed text: "${titleText}"` : ''} | Style: ${style}
-Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 short reasons>], "tips": [<2 quick improvements>]}`;
-        const scoreText = await generateText(scorePrompt, scoreSystem);
-        if (isMounted.current) {
-          try {
-            const openBrace = scoreText.indexOf('{');
-            const closeBrace = scoreText.lastIndexOf('}');
-            if (openBrace !== -1 && closeBrace > openBrace) {
-              const parsed = JSON.parse(scoreText.substring(openBrace, closeBrace + 1));
-              if (typeof parsed.score === 'number') {
-                setCtrScore({
-                  score: Math.min(10, Math.max(1, Math.round(parsed.score))),
-                  reasons: Array.isArray(parsed.reasons) ? parsed.reasons.map(String) : [],
-                  tips: Array.isArray(parsed.tips) ? parsed.tips.map(String) : [],
-                });
-              }
-            }
-          } catch {
-            // score parse failed — silently skip
-          }
-        }
-      } catch {
-        // scoring is optional
-      } finally {
-        if (isMounted.current) setIsScoring(false);
+      let finalPrompt = refinedPrompt.trim();
+      let imageBase64: string | undefined = undefined;
+      let mimeType: string = 'image/png';
+      if (file) {
+        imageBase64 = await fileToBase64(file);
+        mimeType = file.type || 'image/png';
+        finalPrompt += ' Incorporate the subject from the reference image.';
+      }
+
+      const generatedImageUrl = await generateImage(finalPrompt, aspectRatio, imageBase64, mimeType);
+
+      if (isMounted.current) {
+        setRawImageUrl(generatedImageUrl);
+        toast.success('Thumbnail ထွက်ရှိပါပြီ');
       }
 
       const currentUser = auth.currentUser;
@@ -187,20 +343,14 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
           currentUser.uid,
           currentUser.email || '',
           'thumbnail',
-          { topic, titleText, style, useBrandKit },
-          { imageUrl: imageUrl?.substring(0, 200) + "...", hooks: hooksText }
+          { topic, titleText: activeBurmeseText, style, aspectRatio },
+          { imageUrl: generatedImageUrl.substring(0, 200) + "..." }
         );
-        window.dispatchEvent(
-          new CustomEvent('lumini:taskLogged', {
-            detail: { module: 'thumbnail', input: { topic, titleText, style, useBrandKit } },
-          })
-        );
-        setRefreshTrigger(prev => prev + 1);
       }
-
     } catch (err: unknown) {
       if (isMounted.current) {
-        setError((err as { message?: string })?.message || "Failed to generate thumbnail");
+        const msg = (err as { message?: string })?.message || 'Thumbnail ထုတ်လုပ်ခြင်း မအောင်မြင်ပါ';
+        toast.error(msg);
       }
     } finally {
       if (isMounted.current) {
@@ -209,80 +359,150 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
     }
   };
 
+  const handleDownload = () => {
+    const activeUrl = compositeUrl || rawImageUrl;
+    if (!activeUrl) return;
+    const a = document.createElement('a');
+    a.href = activeUrl;
+    a.download = `thumbnail_${aspectRatio.replace(':', 'x')}_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleCopyImage = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          setCopied(true);
+          toast.success('Copied to Clipboard!');
+          setTimeout(() => setCopied(false), 2000);
+        }
+      }, 'image/png');
+    } catch {
+      toast.error('Copy မရပါ။ Download ခလုတ်ကို သုံးပါ။');
+    }
+  };
+
   return (
-    <div className="module-page max-w-5xl mx-auto pb-6">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2.5 rounded-xl bg-accent/10 flex items-center justify-center">
-          <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z M4 13h16 M13 4v9 M4 9h9" />
-          </svg>
-        </div>
+    <div className="module-page max-w-6xl mx-auto pb-10 space-y-4">
+      {/* Title */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Thumbnail Studio</h1>
-          <p className="text-xs text-slate-500 dark:text-zinc-300 mt-1">Viral Design • {CREDIT_COSTS[ContentType.THUMBNAIL]} Credits</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+            Thumbnail Studio
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-zinc-400">
+            {CREDIT_COSTS[ContentType.THUMBNAIL]} Credits
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-5 space-y-4">
-          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 space-y-4">
-            <div className="flex gap-4">
-                <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`w-16 h-16 rounded-xl border border-dashed flex flex-col items-center justify-center cursor-pointer transition-all flex-shrink-0 ${file ? 'border-accent bg-accent/10' : 'border-gray-300 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5'}`}
-                >
-                     {file ? (
-                         <div className="relative w-full h-full p-1">
-                             <div className="w-full h-full bg-accent rounded-lg flex items-center justify-center text-white font-black text-[9px] uppercase tracking-widest">
-                                 IMG
-                             </div>
-                         </div>
-                     ) : (
-                         <>
-                            <svg className="w-5 h-5 text-slate-400 dark:text-zinc-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-600 uppercase tracking-wide !mb-0">Ref</span>
-                         </>
-                     )}
-                     <input ref={fileInputRef} type="file" accept="image/*,.png,.jpg,.jpeg" onChange={handleFileChange} className="hidden" />
-                </div>
-
-                <div className="flex-1 space-y-2">
-                     <div className="flex justify-between items-center px-1">
-                        <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 !mb-0">Headline Alpha</label>
-                        {isMyanmarText && <span className="text-[10px] font-bold text-accent uppercase tracking-wide animate-pulse !mb-0">Unicode Active</span>}
-                     </div>
-                     <input
-                        type="text"
-                        value={titleText}
-                        onChange={(e) => setTitleText(e.target.value)}
-                        placeholder="Title Hook..."
-                        className={`w-full h-11 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-accent outline-none ${isMyanmarText ? 'tracking-normal' : ''}`}
-                     />
-                </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 px-1 !mb-0">Topic Matrix</label>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* LEFT COLUMN: SIMPLE CONTROLS */}
+        <div className="lg:col-span-5 space-y-3.5">
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 space-y-3 shadow-sm">
+            {/* Topic Input */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                ဇာတ်လမ်း / အကြောင်းအရာ
+              </label>
               <textarea
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="Describe your video core concepts..."
-                className={`w-full h-24 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-accent outline-none transition-all resize-none ${isMyanmarText ? 'tracking-normal' : ''} leading-relaxed`}
+                rows={3}
+                placeholder="ဗီဒီယို သို့မဟုတ် ဇာတ်လမ်း အကြောင်းအရာ ရေးပါ..."
+                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-amber-500 outline-none resize-none"
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-400 px-1 !mb-0">Aesthetic Engine</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                {styles.map((s) => (
+            {/* Custom Text / Hook */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                  စာသား (Text Hook)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSuggestAiHooks}
+                  disabled={isSuggestingHooks || !topic.trim()}
+                  className="text-[11px] font-bold text-amber-500 hover:text-amber-400 flex items-center gap-1 disabled:opacity-40"
+                >
+                  <Wand2 className={`w-3 h-3 ${isSuggestingHooks ? 'animate-spin' : ''}`} />
+                  <span>AI Hook</span>
+                </button>
+              </div>
+              <input
+                type="text"
+                value={titleText}
+                onChange={(e) => setTitleText(e.target.value)}
+                placeholder="ဥပမာ- အသက်ရှင်ဖို့အတွက်..."
+                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+
+              {suggestedHooks.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {suggestedHooks.map((h, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setTitleText(h)}
+                      className={`px-2 py-0.5 rounded-lg text-xs border transition-all ${
+                        titleText === h
+                          ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
+                          : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:border-amber-500/40'
+                      }`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Ratio */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                Aspect Ratio
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {RATIOS.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setAspectRatio(r.id)}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
+                      aspectRatio === r.id
+                        ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
+                        : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-amber-500/30'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Style */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                Style
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {STYLES.map((s) => (
                   <button
                     key={s.name}
                     type="button"
                     onClick={() => setStyle(s.name)}
-                    className={`min-h-9 px-2.5 py-2 rounded-lg text-[10px] leading-tight font-semibold text-center uppercase tracking-[0.04em] transition-all border !mb-0 ${
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
                       style === s.name
-                        ? 'bg-accent border-accent text-white shadow-sm shadow-accent/20'
-                        : 'bg-transparent border-gray-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:border-accent/40'
+                        ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
+                        : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-amber-500/30'
                     }`}
                   >
                     {s.name}
@@ -291,124 +511,202 @@ Return JSON only with this shape: {"score": <1-10 integer>, "reasons": [<2-3 sho
               </div>
             </div>
 
-            {brandKit && (
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: brandKit.primaryColor }}></div>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 !mb-0">Apply Brand Matrix: {brandKit.brandName}</span>
+            {/* Optional Image */}
+            <div className="pt-1">
+              {file ? (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-xs">
+                  <span className="truncate text-slate-800 dark:text-zinc-200 font-medium">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    className="text-rose-400 p-1 hover:bg-rose-500/10 rounded-lg"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
+              ) : (
                 <button
-                  onClick={() => setUseBrandKit(!useBrandKit)}
-                  className={`w-8 h-4 rounded-full transition-all relative ${useBrandKit ? 'bg-accent' : 'bg-white/10'}`}
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2 border border-dashed border-gray-200 dark:border-white/10 hover:border-amber-500/40 rounded-xl text-xs text-slate-500 dark:text-zinc-400 flex items-center justify-center gap-1.5"
                 >
-                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useBrandKit ? 'right-0.5' : 'left-0.5'}`}></div>
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Reference Image (Optional)</span>
                 </button>
-              </div>
-            )}
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+            </div>
 
+            {/* Generate Button */}
             <button
               onClick={handleGenerate}
-              aria-label="Thumbnail generate လုပ်ရန်"
-              disabled={isGenerating || !topic}
-              className={`w-full py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
-                isGenerating || !topic
-                  ? 'bg-gray-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'
-                  : 'bg-accent hover:bg-accent-hover text-white active:scale-[0.98]'
+              disabled={isGenerating || !topic.trim()}
+              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-2 ${
+                isGenerating || !topic.trim()
+                  ? 'bg-gray-300 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
+                  : 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98]'
               }`}
             >
-              {isGenerating ? 'Designing Matrix...' : 'Generate Neural Thumbnail'}
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Generate Thumbnail</span>
+                </>
+              )}
             </button>
           </div>
-
-          {hooks.length > 0 && (
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 space-y-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-wide text-accent !mb-0 px-1">Viral CTR Title Hooks</h3>
-              <div className="space-y-2">
-                {hooks.map((hook, i) => (
-                  <div key={i} className={`bg-gray-50 dark:bg-white/5 p-3 rounded-lg text-sm text-slate-700 dark:text-zinc-200 border border-gray-200 dark:border-white/10 ${isMyanmarText ? 'tracking-normal' : ''} !leading-tight`}>
-                    {hook}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="lg:col-span-7">
-          {isGenerating ? (
-            <div className="aspect-video flex items-center justify-center">
-              <LoadingSpinner size="lg" showLabel={false} />
-            </div>
-          ) : result ? (
-            <div className="space-y-4">
-              <div className="p-1 rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden group relative">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none z-10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-black">
-                  <img src={result} alt="Generated Thumbnail" className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
-                </div>
-              </div>
-              {isScoring ? (
-                <div className="px-4 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0c0c0e]">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400 !mb-0 animate-pulse">AI CTR score တွက်နေပါပြီ...</p>
-                </div>
-              ) : ctrScore ? (
-                <div className="mx-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0c0c0e] p-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl ${
-                      ctrScore.score >= 7 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : ctrScore.score >= 5 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }`}>
-                      {ctrScore.score}
-                    </div>
-                    <div>
-                      <p className="movie-meta !text-[10px] uppercase tracking-[0.25em] text-zinc-400 !mb-0">AI Click-Rate Potential</p>
-                      <p className="movie-meta !text-[9px] text-zinc-500 !mb-0">10 ထဲက {ctrScore.score} — {ctrScore.score >= 7 ? 'အားကောင်းလှ' : ctrScore.score >= 5 ? 'ပုံမှန်အဆင့်' : 'တိုးမြှင့်နိုင်'}</p>
-                    </div>
-                  </div>
-                  {ctrScore.reasons.length > 0 && (
-                    <ul className="space-y-1">
-                      {ctrScore.reasons.map((r, i) => (
-                        <li key={i} className="text-xs text-slate-600 dark:text-zinc-300 leading-snug">• {r}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {ctrScore.tips.length > 0 && (
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-accent !mb-0">Tip: {ctrScore.tips.join(' • ')}</p>
-                  )}
-                </div>
-              ) : null}
-              <div className="flex justify-between items-center px-4">
-                <div className="flex gap-6">
-                  <button onClick={() => window.open(result, '_blank')} className="text-[10px] font-bold text-accent hover:text-accent-hover uppercase tracking-wide !mb-0 transition-colors flex items-center gap-2">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    Full Analysis
+        {/* RIGHT COLUMN: PREVIEW & MINIMAL CONTROLS */}
+        <div className="lg:col-span-7 space-y-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                Preview
+              </span>
+              {compositeUrl && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyImage}
+                    className="p-1.5 px-2.5 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-200 flex items-center gap-1"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'Copied' : 'Copy'}</span>
                   </button>
-                  <a href={result} download="viral_thumbnail.png" className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 uppercase tracking-wide !mb-0 transition-colors flex items-center gap-2">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Commit to Disk
-                  </a>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="p-1.5 px-3 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Canvas Box */}
+            <div className="relative rounded-xl overflow-hidden bg-black/90 border border-gray-200 dark:border-white/10 flex items-center justify-center min-h-[300px] max-h-[480px]">
+              {isGenerating ? (
+                <div className="p-8 text-center space-y-2">
+                  <LoadingSpinner size="lg" showLabel={false} />
+                  <p className="text-xs font-medium text-amber-500 animate-pulse">
+                    Generating thumbnail...
+                  </p>
+                </div>
+              ) : rawImageUrl ? (
+                <div className="relative w-full h-full flex items-center justify-center p-2">
+                  <canvas ref={canvasRef} className="hidden" />
+                  {compositeUrl ? (
+                    <img
+                      src={compositeUrl}
+                      alt="Thumbnail"
+                      className="max-h-[440px] w-auto object-contain rounded-lg"
+                    />
+                  ) : (
+                    <img
+                      src={rawImageUrl}
+                      alt="Background"
+                      className="max-h-[440px] w-auto object-contain rounded-lg"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="p-8 text-center space-y-1 text-slate-400 dark:text-zinc-600">
+                  <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs font-semibold">Thumbnail Canvas</p>
+                </div>
+              )}
+            </div>
+
+            {/* MINIMAL TEXT ADJUSTER (When image is present) */}
+            {rawImageUrl && (
+              <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 space-y-3">
+                {/* Row 1: Font & Color */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">Font:</span>
+                    <select
+                      value={burmeseFont}
+                      onChange={(e) => setBurmeseFont(e.target.value as BurmeseFontOption)}
+                      className="bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-semibold text-slate-900 dark:text-white outline-none"
+                    >
+                      {FONTS.map((f) => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 mr-1">Color:</span>
+                    {COLOR_THEMES.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setTextColorPreset(c.id)}
+                        className={`w-5 h-5 rounded-full border transition-transform ${
+                          textColorPreset === c.id ? 'scale-125 ring-2 ring-amber-500' : 'opacity-70 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: c.color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Row 2: Position Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-slate-600 dark:text-zinc-400 font-medium">
+                    <span>စာသားနေရာ (Vertical Position)</span>
+                    <span>{textY}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="92"
+                    value={textY}
+                    onChange={(e) => setTextY(Number(e.target.value))}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* Row 3: Size & Backdrop */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-zinc-400">
+                      <span>Size</span>
+                      <span>{textSize}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="12"
+                      max="32"
+                      value={textSize}
+                      onChange={(e) => setTextSize(Number(e.target.value))}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10">
+                    <span className="text-xs text-slate-600 dark:text-zinc-400">Backdrop</span>
+                    <input
+                      type="checkbox"
+                      checked={backdropEnabled}
+                      onChange={(e) => setBackdropEnabled(e.target.checked)}
+                      className="accent-amber-500 cursor-pointer w-4 h-4"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="aspect-video rounded-3xl border border-dashed border-gray-300 dark:border-white/10 flex flex-col items-center justify-center text-center p-10 bg-gray-50 dark:bg-white/5">
-              <div className="w-12 h-12 bg-gray-100 dark:bg-white/10 rounded-2xl flex items-center justify-center mb-6 text-slate-400 dark:text-zinc-600">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <p className="text-lg font-semibold text-slate-600 dark:text-zinc-500 uppercase tracking-wide !mb-2">Matrix Canvas</p>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-700 uppercase tracking-wide !mb-0">Neural Layout Engine Offline</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-
-      {error && (
-        <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-500 text-xs font-bold uppercase tracking-wide text-center rounded-xl animate-in fade-in transition-all !mb-0">
-          <svg className="w-4 h-4 inline-block mr-2 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {error}
-        </div>
-      )}
     </div>
   );
 };

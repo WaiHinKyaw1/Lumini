@@ -17,12 +17,16 @@ const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 1024 * 1024 * 10
 const JOB_TTL_MS = Number(process.env.JOB_TTL_MS || 2 * 60 * 60 * 1000);
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const MAX_CLONE_TEXT_CHARS = Number(process.env.MAX_CLONE_TEXT_CHARS || 15000);
 const jobs = new Map();
 const allowedVideo = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska']);
 const allowedAudio = new Set(['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/webm', 'audio/ogg']);
+const allowedImage = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/svg+xml']);
 const videoExtensions = /\.(mp4|webm|mov|mkv)$/i;
 const audioExtensions = /\.(mp3|wav|m4a|webm|ogg)$/i;
+const imageExtensions = /\.(png|jpe?g|webp|gif|svg)$/i;
 
 const app = Fastify({ logger: true, bodyLimit: MAX_UPLOAD_BYTES });
 await app.register(cors, { origin: process.env.CORS_ORIGIN || true });
@@ -139,12 +143,92 @@ async function providerError(reply, response, fallback) {
   return jsonError(reply, response.status >= 400 && response.status < 600 ? response.status : 502, String(message));
 }
 
+function formatWhisperSecondsToSrt(totalSec) {
+  const safe = Math.max(0, Number(totalSec) || 0);
+  const hrs = Math.floor(safe / 3600);
+  const mins = Math.floor((safe % 3600) / 60);
+  const secs = Math.floor(safe % 60);
+  const ms = Math.floor((safe % 1) * 1000);
+  return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+}
+
+function whisperSegmentsToSrt(segments) {
+  if (!Array.isArray(segments) || segments.length === 0) return '';
+  return segments
+    .map((seg, idx) => {
+      const text = String(seg.text || '').replace(/<[^>]*>/g, '').trim();
+      if (!text) return null;
+      const startSec = Math.max(0, Number(seg.start) || 0);
+      const endSec = Math.max(startSec + 0.3, Number(seg.end) || startSec + 1);
+      return `${idx + 1}\n${formatWhisperSecondsToSrt(startSec)} --> ${formatWhisperSecondsToSrt(endSec)}\n${text}`;
+    })
+    .filter(Boolean)
+    .join('\n\n') + '\n';
+}
+
+app.post('/api/transcribe', async (request, reply) => {
+  try {
+    const part = await request.file();
+    if (!part) return jsonError(reply, 400, 'An audio file is required for transcription.');
+    const buffer = await part.toBuffer();
+    const language = String(part.fields?.language?.value || 'my').trim();
+    const customGroqKey = String(request.headers['x-groq-api-key'] || '').trim();
+    const activeGroqKey = customGroqKey || GROQ_API_KEY;
+
+    if (activeGroqKey) {
+      const form = new FormData();
+      form.append('file', new Blob([buffer], { type: part.mimetype || 'audio/wav' }), part.filename || 'audio.wav');
+      form.append('model', 'whisper-large-v3-turbo');
+      form.append('response_format', 'verbose_json');
+      form.append('temperature', '0.0');
+      if (language) form.append('language', language);
+
+      const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${activeGroqKey}` },
+        body: form,
+      });
+
+      if (groqRes.ok) {
+        const groqData = await groqRes.json();
+        const srt = groqData.segments ? whisperSegmentsToSrt(groqData.segments) : (groqData.text ? `1\n00:00:00,000 --> 00:00:05,000\n${groqData.text.trim()}\n` : '');
+        return reply.send({ ok: true, engine: 'groq-whisper-large-v3-turbo', srt, duration: groqData.duration, segments: groqData.segments });
+      }
+    }
+
+    if (OPENAI_API_KEY) {
+      const form = new FormData();
+      form.append('file', new Blob([buffer], { type: part.mimetype || 'audio/wav' }), part.filename || 'audio.wav');
+      form.append('model', 'whisper-1');
+      form.append('response_format', 'verbose_json');
+      if (language) form.append('language', language);
+
+      const oaiRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+        body: form,
+      });
+
+      if (oaiRes.ok) {
+        const oaiData = await oaiRes.json();
+        const srt = oaiData.segments ? whisperSegmentsToSrt(oaiData.segments) : '';
+        return reply.send({ ok: true, engine: 'openai-whisper-1', srt, duration: oaiData.duration, segments: oaiData.segments });
+      }
+    }
+
+    return jsonError(reply, 503, 'Whisper transcription provider is not configured. Please set GROQ_API_KEY on the server or in client settings.');
+  } catch (err) {
+    return jsonError(reply, 500, `Transcription failed: ${err.message}`);
+  }
+});
+
 app.post('/api/media/upload', async (request, reply) => {
   const part = await request.file();
   if (!part) return jsonError(reply, 400, 'A media file is required.');
   const isVideo = allowedVideo.has(part.mimetype) || (part.mimetype === 'application/octet-stream' && videoExtensions.test(part.filename || ''));
   const isAudio = allowedAudio.has(part.mimetype) || (part.mimetype === 'application/octet-stream' && audioExtensions.test(part.filename || ''));
-  if (!isVideo && !isAudio) return jsonError(reply, 415, 'Unsupported media type.');
+  const isImage = allowedImage.has(part.mimetype) || (part.mimetype === 'application/octet-stream' && imageExtensions.test(part.filename || ''));
+  if (!isVideo && !isAudio && !isImage) return jsonError(reply, 415, 'Unsupported media type.');
   const fileId = randomUUID();
   const filename = `${fileId}-${safeName(part.filename || 'media')}`;
   const destination = path.join(INPUT_DIR, filename);
@@ -164,7 +248,8 @@ app.post('/api/media/upload', async (request, reply) => {
     return jsonError(reply, 413, 'File exceeds the configured upload limit.');
   }
   const stat = await fs.stat(destination);
-  return { fileId, filename, size: stat.size, mimeType: part.mimetype, kind: isVideo ? 'video' : 'audio' };
+  const kind = isVideo ? 'video' : (isAudio ? 'audio' : 'image');
+  return { fileId, filename, size: stat.size, mimeType: part.mimetype, kind };
 });
 
 app.post('/api/media/:fileId/extract-audio', async (request, reply) => {
@@ -225,19 +310,29 @@ function validateSettings(raw = {}) {
     blurIntensity: number(raw.blurIntensity, 25, 0, 50),
     subtitleEnabled: Boolean(raw.subtitleEnabled),
     subtitleText: typeof raw.subtitleText === 'string' ? raw.subtitleText.trim() : '',
-    subtitleStyle: typeof raw.subtitleStyle === 'string' ? raw.subtitleStyle : 'akkhayar-outline',
+    subtitleStyle: typeof raw.subtitleStyle === 'string' ? raw.subtitleStyle : 'font-akkhayar',
+    subtitleOffset: number(raw.subtitleOffset, 0, -30, 30),
+    logoFileId: typeof raw.logoFileId === 'string' ? raw.logoFileId.trim() : '',
+    logoY: number(raw.logoY, 8, 0, 100),
+    logoAlign: ['left', 'center', 'right'].includes(raw.logoAlign) ? raw.logoAlign : 'right',
+    logoScale: number(raw.logoScale, 14, 4, 40),
+    logoOpacity: number(raw.logoOpacity, 1.0, 0.1, 1.0),
   };
 }
 
 app.post('/api/sync/jobs', async (request, reply) => {
-  const { fileId, audioFileId, settings } = request.body || {};
+  const { fileId, audioFileId, logoFileId, settings } = request.body || {};
   if (!fileId) return jsonError(reply, 400, 'fileId is required.');
   const input = await findInput(fileId);
   if (!input) return jsonError(reply, 404, 'Input video was not found.');
   if (audioFileId && !(await findInput(audioFileId))) return jsonError(reply, 404, 'Audio file was not found.');
+
+  const validatedSettings = validateSettings(settings);
+  const effectiveLogoId = logoFileId || validatedSettings.logoFileId;
+
   const jobId = randomUUID();
   jobs.set(jobId, { jobId, status: 'queued', progress: 0, createdAt: Date.now() });
-  processJob(jobId, fileId, audioFileId, validateSettings(settings)).catch((error) => {
+  processJob(jobId, fileId, audioFileId, validatedSettings, effectiveLogoId).catch((error) => {
     const job = jobs.get(jobId);
     if (job) Object.assign(job, { status: 'failed', error: error.message, finishedAt: Date.now() });
   });
@@ -288,15 +383,18 @@ function runFfmpeg(args, onProgress) {
   });
 }
 
-async function processJob(jobId, fileId, audioFileId, settings) {
+async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
   const job = jobs.get(jobId);
   const input = await findInput(fileId);
   const audio = audioFileId ? await findInput(audioFileId) : null;
+  const targetLogoId = logoFileId || settings.logoFileId;
+  const logo = targetLogoId ? await findInput(targetLogoId) : null;
   const outputFileId = randomUUID();
   const output = path.join(OUTPUT_DIR, `${outputFileId}.mp4`);
   Object.assign(job, { status: 'processing', progress: 5 });
 
-  // Generate ASS subtitle file only if subtitleEnabled is true and subtitleText is present
+  const subSpeedMultiplier = audio ? settings.audioSpeed : settings.videoSpeed;
+
   let subFilePath = null;
   if (settings.subtitleEnabled && settings.subtitleText && settings.subtitleText.trim()) {
     const canvas = settings.aspectRatio === '9:16'
@@ -306,16 +404,36 @@ async function processJob(jobId, fileId, audioFileId, settings) {
         : settings.aspectRatio === '4:5'
           ? { width: 1080, height: 1350 }
           : { width: 1920, height: 1080 };
-    const assContent = generateAssSubtitle(canvas, settings);
+    const assContent = generateAssSubtitle(canvas, settings, subSpeedMultiplier);
     if (assContent) {
       subFilePath = path.join(INPUT_DIR, `${jobId}-sub.ass`);
       await fs.writeFile(subFilePath, assContent, 'utf8');
     }
   }
 
-  const filterComplex = buildFilterComplex(settings, subFilePath, !!audio, settings.audioSpeed);
   const args = ['-i', input];
-  if (audio) args.push('-i', audio);
+  let audioInputIdx = -1;
+  let logoInputIdx = -1;
+  let currentIdx = 1;
+
+  if (audio) {
+    args.push('-i', audio);
+    audioInputIdx = currentIdx++;
+  }
+  if (logo) {
+    args.push('-i', logo);
+    logoInputIdx = currentIdx++;
+  }
+
+  const filterComplex = buildFilterComplex(
+    settings,
+    subFilePath,
+    Boolean(audio),
+    settings.audioSpeed,
+    settings.videoSpeed,
+    Boolean(logo),
+    logoInputIdx
+  );
 
   args.push(
     '-filter_complex',
@@ -326,6 +444,8 @@ async function processJob(jobId, fileId, audioFileId, settings) {
 
   if (audio) {
     args.push('-map', '[aout]', '-shortest');
+  } else if (settings.videoSpeed && settings.videoSpeed !== 1) {
+    args.push('-map', '[aout]?');
   } else {
     args.push('-map', '0:a?');
   }
@@ -333,6 +453,8 @@ async function processJob(jobId, fileId, audioFileId, settings) {
   args.push(
     '-c:v',
     'libx264',
+    '-pix_fmt',
+    'yuv420p',
     '-preset',
     'veryfast',
     '-crf',
@@ -475,10 +597,11 @@ function wrapSubtitleText(text, maxCharsPerLine = 34) {
   return `${line1}\\N${line2}`;
 }
 
-function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, canvas = { width: 1080, height: 1920 }) {
+function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, offsetSec = 0, canvas = { width: 1080, height: 1920 }) {
   const clean = srtText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   const rawCues = [];
   const speed = Number.isFinite(speedMultiplier) && speedMultiplier > 0 ? speedMultiplier : 1;
+  const offset = Number.isFinite(offsetSec) ? offsetSec : 0;
 
   const blocks = clean.split(/\n\s*\n/);
   for (const block of blocks) {
@@ -491,8 +614,11 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, canvas = { w
     const timeParts = lines[timeLineIdx].split('-->');
     if (timeParts.length !== 2) continue;
 
-    const startSec = srtTimeToSeconds(timeParts[0]) / speed;
-    let endSec = srtTimeToSeconds(timeParts[1]) / speed;
+    const rawStart = srtTimeToSeconds(timeParts[0]);
+    const rawEnd = srtTimeToSeconds(timeParts[1]);
+
+    const startSec = Math.max(0, (rawStart / speed) + offset);
+    let endSec = Math.max(startSec + 0.25, (rawEnd / speed) + offset);
 
     const cueLines = lines.slice(timeLineIdx + 1);
     const cueText = cueLines
@@ -523,8 +649,8 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, canvas = { w
 
   const isPortrait = canvas.height > canvas.width;
   const baseFontSize = isPortrait
-    ? Math.max(26, Math.round(canvas.height * 0.024))
-    : Math.max(24, Math.round(canvas.height * 0.034));
+    ? Math.max(28, Math.round(canvas.height * 0.025))
+    : Math.max(26, Math.round(canvas.height * 0.035));
   const availableWidth = canvas.width * 0.88;
 
   const events = [];
@@ -550,67 +676,50 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, canvas = { w
   return events;
 }
 
-function generateAssSubtitle(canvas, settings) {
+function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
   const text = (settings.subtitleText || '').trim();
   if (!text) return null;
 
-  const fontName = 'Akkhayar21';
   const isPortrait = canvas.height > canvas.width;
   const fontSize = isPortrait
-    ? Math.max(26, Math.round(canvas.height * 0.024))
-    : Math.max(24, Math.round(canvas.height * 0.034));
+    ? Math.max(28, Math.round(canvas.height * 0.025))
+    : Math.max(26, Math.round(canvas.height * 0.035));
 
-  // Precise vertical alignment matching canvas preview exactly
-  let marginV = Math.max(20, Math.round(canvas.height * 0.08));
-  if (settings.blurEnabled) {
-    const blurCenterY = canvas.height * ((settings.blurPosition ?? 82) / 100);
-    const centerFromBottom = canvas.height - blurCenterY;
-    // Account for 1.35x line-height of 2-line subtitle text to place center exactly at blurCenterY
-    marginV = Math.max(10, Math.round(centerFromBottom - (fontSize * 1.35 * 0.5)));
+  const blurPos = Number.isFinite(settings.blurPosition) ? settings.blurPosition : 82;
+  const stripCenterFromBottom = ((100 - blurPos) / 100) * canvas.height;
+
+  // In ASS Alignment: 2 (Bottom-Center), MarginV is distance from bottom edge to bottom of text.
+  // To center a 2-line text block (approx 2.4 * fontSize high) perfectly in the strip:
+  // Subtract 0.72 * fontSize from the strip center.
+  const marginV = settings.blurEnabled
+    ? Math.max(10, Math.round(stripCenterFromBottom - (fontSize * 0.72)))
+    : Math.round(isPortrait ? canvas.height * 0.08 : canvas.height * 0.10);
+
+  const marginLR = isPortrait ? 25 : 60;
+
+  let fontName = 'Akkhayar21';
+  if (settings.subtitleStyle === 'font-kunheing' || settings.subtitleStyle === 'kunheing') {
+    fontName = 'A J Kunheing E-T-M 01';
+  } else if (settings.subtitleStyle === 'font-jojar' || settings.subtitleStyle === 'jojar') {
+    fontName = 'Myanmar Jojar';
+  } else if (settings.subtitleStyle === 'font-myanmaros' || settings.subtitleStyle === 'myanmaros') {
+    fontName = 'Myanmar OS';
+  } else {
+    fontName = 'Akkhayar21';
   }
 
-  // Style configurations in ASS format (&HAABBGGRR in hex)
-  let primaryColor = '&H00FFFFFF'; // White
+  // Style configurations in ASS format (&HAABBGGRR in hex) - Signature Yellow Highlight Recap Style
+  let primaryColor = '&H0015CCFA'; // Yellow (#FACC15) in ASS &HAABBGGRR
   let outlineColor = '&H00000000'; // Black
   let backColor = '&H80000000';
-  let borderStyle = 1; // 1 = outline + shadow, 3 = opaque box
+  let borderStyle = 1; // 1 = outline + shadow
   let outlineWidth = 4.5;
   let shadowWidth = 0;
   let bold = 1;
 
-  if (settings.subtitleStyle === 'akkhayar-yellow') {
-    primaryColor = '&H0015CCFA'; // Yellow (#FACC15) in ASS &HAABBGGRR
-    outlineColor = '&H00000000';
-    outlineWidth = 4.5;
-    shadowWidth = 0;
-    bold = 1;
-  } else if (settings.subtitleStyle === 'akkhayar-box') {
-    primaryColor = '&H00FFFFFF';
-    outlineColor = '&H00000000';
-    backColor = '&H40000000'; // Dark opaque box
-    borderStyle = 3;
-    outlineWidth = 8;
-    shadowWidth = 0;
-    bold = 1;
-  } else if (settings.subtitleStyle === 'akkhayar-clean') {
-    primaryColor = '&H00FFFFFF';
-    outlineColor = '&H00000000';
-    borderStyle = 1;
-    outlineWidth = 1.5;
-    shadowWidth = 2.5;
-    bold = 0;
-  } else {
-    // akkhayar-outline (default)
-    primaryColor = '&H00FFFFFF';
-    outlineColor = '&H00000000';
-    outlineWidth = 4.5;
-    shadowWidth = 0;
-    bold = 1;
-  }
-
   let dialogueEvents = [];
   if (text.includes('-->')) {
-    dialogueEvents = parseSrtToAssEvents(text, marginV, settings.audioSpeed || 1, canvas);
+    dialogueEvents = parseSrtToAssEvents(text, marginV, speedMultiplier, settings.subtitleOffset || 0, canvas);
   }
 
   if (dialogueEvents.length === 0) {
@@ -627,8 +736,6 @@ function generateAssSubtitle(canvas, settings) {
 
     dialogueEvents.push(`Dialogue: 0,0:00:00.00,5:00:00.00,Default,,0,0,${marginV},,${formattedText}`);
   }
-
-  const marginLR = isPortrait ? 25 : 60;
 
   return `[Script Info]
 Title: Burmese Recap Subtitle
@@ -648,7 +755,7 @@ ${dialogueEvents.join('\n')}
 `;
 }
 
-function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed) {
+function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed, videoSpeed, hasLogo = false, logoInputIdx = -1) {
   const canvas = settings.aspectRatio === '9:16'
     ? { width: 1080, height: 1920 }
     : settings.aspectRatio === '1:1'
@@ -694,12 +801,35 @@ function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed) {
     vChain = `${vChain},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
   }
 
+  // 3. Logo Watermark Overlay Filter (with vertical Y slider, alignment, scaling and opacity)
+  if (hasLogo && logoInputIdx > 0) {
+    const scalePct = (Number(settings.logoScale) || 14) / 100;
+    const targetW = Math.max(48, Math.round(canvas.width * scalePct));
+    const opacity = Number(settings.logoOpacity) || 1.0;
+    const align = settings.logoAlign || 'right';
+    const yPct = (Number(settings.logoY) || 8) / 100;
+    const pad = Math.round(canvas.width * 0.02);
+
+    let xExpr = `main_w-overlay_w-${pad}`;
+    if (align === 'left') xExpr = `${pad}`;
+    if (align === 'center') xExpr = `(main_w-overlay_w)/2`;
+
+    const yExpr = `${pad}+((main_h-overlay_h-${pad * 2})*${yPct.toFixed(4)})`;
+
+    vChain = `${vChain}[vsubbed];` +
+      `[${logoInputIdx}:v]scale=${targetW}:-2,format=rgba,colorchannelmixer=aa=${opacity.toFixed(2)}[vlogo];` +
+      `[vsubbed][vlogo]overlay=x='${xExpr}':y='${yExpr}'`;
+  }
+
   vChain = `${vChain}[vout]`;
 
   const filterParts = [vChain];
   if (hasAudio) {
     const aFilter = buildAudioFilter(audioSpeed || 1);
     filterParts.push(`[1:a]${aFilter}[aout]`);
+  } else if (videoSpeed && videoSpeed !== 1) {
+    const aFilter = buildAudioFilter(videoSpeed || 1);
+    filterParts.push(`[0:a]${aFilter}[aout]`);
   }
 
   return filterParts.join(';');
