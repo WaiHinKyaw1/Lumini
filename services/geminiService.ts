@@ -594,7 +594,9 @@ const getVoiceDirectionPrompt = (voice: string, tone?: string): string => {
   
   // Custom tone overlay instructions matching movie recap style or user selections
   let tonePrompt = "";
-  if (normTone === 'thrilling') {
+  if (normTone === 'sample_match') {
+    tonePrompt = " CRITICAL STYLE & CADENCE MATCH: Strictly emulate and replicate the exact speaking mannerisms, expressive rhythm, colloquial cadence, energy modulation, natural Burmese pauses, and storytelling vocal dynamics from the reference sample audio. Speak with genuine native Myanmar conversational rhythm, natural emotional inflections, and vibrant recapper delivery. စကားပြောဆိုပုံ၊ အသံနေအသံထား၊ လေယူလေသိမ်း၊ ခံစားချက်နှင့် စကားအနှေးအမြန်ကို နမူနာအသံစတိုင်အတိုင်း အတိအကျ ကူးယူ၍ သဘာဝကျကျ ဖတ်ပေးပါ။";
+  } else if (normTone === 'thrilling') {
     tonePrompt = " Speeches must sound incredibly thrilling, fast-paced, dramatic, and extremely exciting like a professional movie recap voiceover.";
   } else if (normTone === 'sarcastic') {
     tonePrompt = " Speeches must sound playfully sarcastic, witty, slightly cynical, and highly engaging with mocking expressions.";
@@ -647,9 +649,11 @@ const synthesizeSingleChunk = async (
 ): Promise<string> => {
   const cleanText = text.trim();
   const directionPrompt = getVoiceDirectionPrompt(voice, tone);
-  const qualityInstruction = "CRITICAL HIGH-FIDELITY REQUIREMENT: Speak with perfect clarity, standard loud vocal volume, and crystal-clear professional voice quality. There must be absolutely ZERO background noise, ZERO echo, ZERO static hiss, and NO robot-like digital artifacts. Do NOT whisper, do NOT muffle, do NOT fade out, and do NOT voice-block. Maintain equal strong projection and a natural, highly-articulated speaking pace from the first word to the very last word. အဓိကသတိပြုရန် - အသံဖန်တီးရာတွင် ဆူညံ့သံများ၊ နောက်ခံလေသံများ (static / background noise) လုံးဝမပါဝင်ဘဲ စတူဒီယိုထဲ၌ သွင်းထားသကဲ့သို့ အလွန်ကြည်လင်ပြတ်သား ကျယ်လောင်သော အသံဖြင့်သာ ဖတ်ပေးပါ။ အစမှအဆုံးအထိ အသံဝါးသွားခြင်း၊ တိုးသွားခြင်း သို့မဟုတ် တီးတိုးပြောခြင်း လုံးဝမရှိစေရ။";
-  const cloneStylePrompt = voiceStylePrompt ? ` Apply this saved voice profile's style characteristics while keeping the words unchanged: ${voiceStylePrompt}` : '';
-  const storytellingPrompt = `${directionPrompt} ${qualityInstruction}${cloneStylePrompt} Do NOT read any instructions, metadata, or speaker tags; read ONLY the actual Burmese or English script text. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
+  const qualityInstruction = "NATURAL HUMAN PERFORMANCE REQUIREMENT: Speak in a completely natural, human, authentic, and expressive conversational tone. Do NOT sound like a synthetic robot, monotone reader, or artificial voice. Inject genuine human emotions, natural vocal inflections, pitch modulation, subtle breathing, and realistic pauses at punctuation marks. Pronounce Burmese words with native clarity, natural colloquial flow, and rich personality. အဓိကညွှန်ကြားချက် - စက်ရုပ်ဆန်ဆန် ညီညာတောင့်တင်းသောအသံမျိုး လုံးဝမဖြစ်စေဘဲ လူစစ်စစ် စကားပြောနေသကဲ့သို့ အသံအနိမ့်အမြင့်၊ လေယူလေသိမ်း၊ အဖြတ်အတောက်နှင့် ခံစားချက်အပြည့်ဖြင့် အလွန်သဘာဝကျကျ ဖတ်ပေးပါ။";
+  const cloneStylePrompt = voiceStylePrompt 
+    ? ` [HUMAN VOICE STYLE & CADENCE]: ${voiceStylePrompt}. Mimic this natural speaking rhythm and emotive vocal personality.` 
+    : '';
+  const storytellingPrompt = `${directionPrompt} ${qualityInstruction}${cloneStylePrompt} Read ONLY the actual script text naturally. Do not read metadata. ${speedPrompt}${pitchPrompt} Text: ${cleanText}`;
 
   const MAX_RETRIES = 3;
   let attempt = 0;

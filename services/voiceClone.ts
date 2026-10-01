@@ -36,6 +36,8 @@ export interface VoiceProfile {
   durationSeconds: number;
   dataUrl?: string; // stored audio (short, stored in localStorage)
   voiceId?: string; // Optional remote clone id when the user has a compatible provider account
+  recommendedVoice?: string;
+  recommendedCharId?: string;
   traits: {
     gender: 'male' | 'female' | 'unknown';
     pitchHz: number;        // estimated fundamental frequency
@@ -176,33 +178,76 @@ export const analyzeVoice = async (
 
   await ctx.close();
 
-  // ---- Derive traits ----
+  // ---- Derive acoustic traits ----
   const gender = medianPitch > 165 ? 'female' : medianPitch < 130 ? 'male' : 'unknown';
   const tone = spectralCentroid > 2200 ? 'bright' : spectralCentroid > 1500 ? 'warm' : 'neutral';
   const overallRms = Math.sqrt(channelData.reduce((a, s) => a + s * s, 0) / channelData.length);
   const energy = overallRms > 0.06 ? 'energetic' : overallRms > 0.025 ? 'moderate' : 'calm';
-  const pace: VoiceProfile['traits']['pace'] = 'steady';
 
-  // ---- Build a Burmese-aware vocal style prompt ----
-  const genderDesc = gender === 'female' ? 'natural female voice' : gender === 'male' ? 'natural male voice' : 'neutral voice';
-  const toneDesc = tone === 'bright' ? 'clear, bright and youthful' : tone === 'warm' ? 'warm, smooth and gentle' : 'balanced and neutral';
-  const energyDesc = energy === 'energetic' ? 'lively, upbeat delivery' : energy === 'calm' ? 'calm, relaxed delivery' : 'natural conversational delivery';
+  // ---- Estimate pace by detecting syllable-like energy bursts ----
+  const window100ms = Math.floor(sampleRate * 0.1);
+  let peakCount = 0;
+  let lastRms = 0;
+  for (let i = 0; i < channelData.length; i += window100ms) {
+    const slice = channelData.subarray(i, i + window100ms);
+    const rms = Math.sqrt(slice.reduce((acc, s) => acc + s * s, 0) / (slice.length || 1));
+    if (rms > 0.03 && rms > lastRms * 1.3) {
+      peakCount++;
+    }
+    lastRms = rms;
+  }
+  const peakRatePerSec = duration > 0 ? peakCount / duration : 3.0;
+  const pace: VoiceProfile['traits']['pace'] = peakRatePerSec > 3.8 ? 'fast' : peakRatePerSec < 2.0 ? 'slow' : 'steady';
+
+  // ---- Derive best base character voice matching sample traits ----
+  let recommendedVoice = 'Kore';
+  let recommendedCharId = 'mya_mm';
+
+  if (gender === 'male') {
+    if (medianPitch < 120) {
+      recommendedVoice = 'Alnilam'; // Deep male (Nyein)
+      recommendedCharId = 'nyeins_mm';
+    } else if (energy === 'energetic' || pace === 'fast') {
+      recommendedVoice = 'Puck'; // Lively youth male (Min Khant)
+      recommendedCharId = 'minkhant_mm';
+    } else {
+      recommendedVoice = 'Fenrir'; // Commanding male (Thiha)
+      recommendedCharId = 'thiha_mm';
+    }
+  } else {
+    // Female
+    if (tone === 'warm' || energy === 'calm') {
+      recommendedVoice = 'Zephyr'; // Soft/poetic female (May Thu)
+      recommendedCharId = 'maythu_mm';
+    } else if (energy === 'energetic') {
+      recommendedVoice = 'Kore'; // Expressive/native female (Mya)
+      recommendedCharId = 'mya_mm';
+    } else {
+      recommendedVoice = 'Kore'; // Sweet natural female (Nilar)
+      recommendedCharId = 'nilar_mm';
+    }
+  }
+
+  // ---- Build a human-like, non-robotic Burmese vocal style prompt ----
+  const genderDesc = gender === 'female' ? 'natural Burmese female narrator' : gender === 'male' ? 'natural Burmese male narrator' : 'natural Burmese narrator';
+  const toneDesc = tone === 'bright' ? 'crisp, lively, and vibrant' : tone === 'warm' ? 'warm, rich, and natural' : 'expressive and organic';
+  const energyDesc = energy === 'energetic' ? 'engaging movie recap delivery with dynamic emotional fluctuations' : energy === 'calm' ? 'calm, authentic storytelling' : 'natural conversational flow';
+  const paceDesc = pace === 'fast' ? 'fast-paced, fluent tempo with organic micro-pauses' : pace === 'slow' ? 'measured, dramatic pace' : 'steady conversational rhythm';
   const pitchDeviation = Math.round(((medianPitch - 155) / 155) * 100);
 
   const prompt =
-    `Speak in Burmese (Myanmar language) with a ${genderDesc}. ` +
-    `Your vocal character is ${toneDesc} with ${energyDesc}. ` +
-    `Natural Burmese pronunciation with correct tones; pronounce Myanmar script characters natively, not romanized. ` +
-    `Use a clean, dry studio narration style with stable microphone distance, consistent loudness, natural breaths, ` +
-    `and smooth pauses at punctuation. Recite the exact text only; do not add an introduction, outro, or extra words. ` +
-    `Pitch reference: approximately ${Math.round(medianPitch)} Hz.` +
-    (pitchDeviation !== 0 ? ` Keep the perceived pitch ${pitchDeviation > 0 ? 'slightly higher' : 'slightly lower'} than neutral.` : '');
+    `NATURAL HUMAN VOICE STYLE: Speak as a real human ${genderDesc} with ${toneDesc} character, ${energyDesc}, and ${paceDesc}. ` +
+    `DO NOT sound synthetic, monotone, or robotic. Infuse genuine human personality, lively Burmese vocal intonations, ` +
+    `subtle breaths, and natural pauses at sentence junctions. Emulate the pitch and rhythm of the reference sample (~${Math.round(medianPitch)} Hz).` +
+    (pitchDeviation !== 0 ? ` Pitch adjustment: ${pitchDeviation > 0 ? 'slightly higher' : 'slightly lower'}.` : '');
 
   const profile: VoiceProfile = {
     id: `clone_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     name,
     createdAt: Date.now(),
     durationSeconds: Math.round(duration * 10) / 10,
+    recommendedVoice,
+    recommendedCharId,
     traits: { gender, pitchHz: Math.round(medianPitch), tone, energy, pace },
     prompt,
   };

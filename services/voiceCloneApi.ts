@@ -50,6 +50,17 @@ export const setCustomVoxCPMUrl = (url: string) => {
   }
 };
 
+export const clearSavedVoxCPMUrl = (): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('LUMINI_VOXCPM_URL');
+  }
+};
+
+export const resetVoxCPMUrlToEnv = (): string => {
+  clearSavedVoxCPMUrl();
+  return (import.meta.env.VITE_VOXCPM_URL || import.meta.env.VITE_MEDIA_WORKER_URL || '').replace(/\/$/, '');
+};
+
 const voxcpmBaseUrl = () => getActiveVoxCPMUrl();
 const requireVoxcpmBaseUrl = () => {
   const url = voxcpmBaseUrl();
@@ -65,50 +76,118 @@ export interface VoxCPMStatus {
   sample_rate: number;
   supports_zero_shot: boolean;
   supports_style_prompting: boolean;
+  latencyMs?: number;
 }
 
-export async function getVoxCPMStatus(): Promise<VoxCPMStatus | null> {
-  const envUrl = (import.meta.env.VITE_VOXCPM_URL || '').replace(/\/$/, '');
-  const currentUrl = voxcpmBaseUrl();
+export interface VoxCPMTestResult {
+  online: boolean;
+  status: VoxCPMStatus | null;
+  error?: string;
+  url: string;
+  latencyMs?: number;
+  isNgrokExpired?: boolean;
+}
 
-  if (currentUrl) {
-    try {
-      const res = await fetch(`${currentUrl}/api/voxcpm/status`, { 
-        signal: AbortSignal.timeout(15000),
-        headers: { 'ngrok-skip-browser-warning': 'true' }
-      });
-      if (res.ok) return await res.json();
-    } catch {
-      // If current active URL fails and envUrl is available and different, test and auto-switch to envUrl!
-      if (envUrl && envUrl !== currentUrl) {
-        try {
-          const resEnv = await fetch(`${envUrl}/api/voxcpm/status`, { 
-            signal: AbortSignal.timeout(15000),
-            headers: { 'ngrok-skip-browser-warning': 'true' }
-          });
-          if (resEnv.ok) {
-            setCustomVoxCPMUrl(envUrl);
-            return await resEnv.json();
-          }
-        } catch {
-          // ignore
-        }
+export async function pingVoxCPMUrl(url: string, timeoutMs = 8000): Promise<VoxCPMTestResult> {
+  const cleanUrl = (url || '').trim().replace(/\/$/, '');
+  if (!cleanUrl) {
+    return { online: false, status: null, error: 'URL ထည့်သွင်းထားခြင်း မရှိပါ', url: cleanUrl };
+  }
+
+  const startTime = Date.now();
+  try {
+    const res = await fetch(`${cleanUrl}/api/voxcpm/status`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'bypass-tunnel-reminder': 'true'
       }
+    });
+
+    const latencyMs = Date.now() - startTime;
+    const ngrokErrorCode = res.headers.get('ngrok-error-code');
+
+    if (!res.ok) {
+      if (ngrokErrorCode === 'ERR_NGROK_3200' || res.status === 404) {
+        return {
+          online: false,
+          status: null,
+          error: 'ngrok Tunnel သက်တမ်းကုန်သွားပါသည် (ERR_NGROK_3200)။ Colab တွင် Tunnel အသစ် ပြန် Run ပေးပါ။',
+          url: cleanUrl,
+          latencyMs,
+          isNgrokExpired: true
+        };
+      }
+      return {
+        online: false,
+        status: null,
+        error: `Server responded with HTTP ${res.status}`,
+        url: cleanUrl,
+        latencyMs
+      };
     }
-  } else if (envUrl) {
-    try {
-      const resEnv = await fetch(`${envUrl}/api/voxcpm/status`, { 
-        signal: AbortSignal.timeout(15000),
-        headers: { 'ngrok-skip-browser-warning': 'true' }
-      });
-      if (resEnv.ok) {
-        setCustomVoxCPMUrl(envUrl);
-        return await resEnv.json();
-      }
-    } catch {
-      // ignore
+
+    const data = await res.json().catch(() => null);
+    if (data && (data.online || data.ok)) {
+      return {
+        online: true,
+        status: {
+          online: true,
+          engine: data.engine || 'VoxCPM2 (OpenBMB 48kHz)',
+          cuda: !!data.cuda,
+          device: data.device || 'GPU',
+          sample_rate: data.sample_rate || 48000,
+          supports_zero_shot: data.supports_zero_shot ?? true,
+          supports_style_prompting: data.supports_style_prompting ?? true,
+          latencyMs
+        },
+        url: cleanUrl,
+        latencyMs
+      };
+    } else {
+      return {
+        online: false,
+        status: null,
+        error: data?.message || data?.error || 'VoxCPM model စတင်လည်ပတ်နေဆဲဖြစ်ပါသည် (Initializing...)',
+        url: cleanUrl,
+        latencyMs
+      };
+    }
+  } catch (err: any) {
+    const latencyMs = Date.now() - startTime;
+    const isTimeout = err?.name === 'TimeoutError' || String(err).includes('timeout');
+    return {
+      online: false,
+      status: null,
+      error: isTimeout ? 'ချိတ်ဆက်မှု ကြာမြင့်နေပါသည် (Timeout 8s)' : 'Server နှင့် ချိတ်ဆက်မရပါ (Offline)',
+      url: cleanUrl,
+      latencyMs
+    };
+  }
+}
+
+export async function getVoxCPMStatus(preferUrl?: string): Promise<VoxCPMStatus | null> {
+  const currentUrl = preferUrl ? preferUrl.trim().replace(/\/$/, '') : voxcpmBaseUrl();
+  const envUrl = (import.meta.env.VITE_VOXCPM_URL || '').replace(/\/$/, '');
+
+  // 1. Test currentUrl first
+  if (currentUrl) {
+    const testResult = await pingVoxCPMUrl(currentUrl, 7000);
+    if (testResult.online && testResult.status) {
+      return testResult.status;
     }
   }
+
+  // 2. If currentUrl failed (e.g. dead ngrok 3200 in localStorage), test envUrl if available and different!
+  if (envUrl && envUrl !== currentUrl) {
+    const testEnvResult = await pingVoxCPMUrl(envUrl, 7000);
+    if (testEnvResult.online && testEnvResult.status) {
+      // Auto-update to working envUrl!
+      setCustomVoxCPMUrl(envUrl);
+      return testEnvResult.status;
+    }
+  }
+
   return null;
 }
 
@@ -149,8 +228,24 @@ export async function createVoxCPMVoiceClone(
   }
 
   if (!response.ok) {
+    if (response.status === 404 && envUrl && envUrl !== baseUrl) {
+      baseUrl = envUrl;
+      setCustomVoxCPMUrl(envUrl);
+      response = await fetch(`${baseUrl}/api/voxcpm/clone`, { 
+        method: 'POST', 
+        body,
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+    }
+  }
+
+  if (!response.ok) {
+    const isNgrok3200 = response.headers.get('ngrok-error-code') === 'ERR_NGROK_3200' || response.status === 404;
+    if (isNgrok3200) {
+      throw new Error('ngrok Tunnel သက်တမ်းကုန်ဆုံးသွားပါသည် (ERR_NGROK_3200)။ ကျေးဇူးပြု၍ Colab တွင် Tunnel အသစ်ဖွင့်ပြီး URL အသစ် ထည့်သွင်းပေးပါ။');
+    }
     const err = await response.json().catch(() => null);
-    throw new Error(err?.detail || err?.error || 'VoxCPM Voice registration failed.');
+    throw new Error(err?.detail || err?.error || `VoxCPM Voice registration failed (HTTP ${response.status})`);
   }
   return response.json();
 }
@@ -201,7 +296,23 @@ export async function synthesizeVoxCPMSpeech(
           }
         }
 
+        if (!response.ok && (response.status === 404 || response.headers.get('ngrok-error-code') === 'ERR_NGROK_3200')) {
+          if (envUrl && envUrl !== baseUrl) {
+            baseUrl = envUrl;
+            setCustomVoxCPMUrl(envUrl);
+            response = await fetch(`${baseUrl}/api/voxcpm/synthesize`, {
+              method: 'POST',
+              body,
+              headers: { 'ngrok-skip-browser-warning': 'true' }
+            });
+          }
+        }
+
         if (!response.ok) {
+          const isNgrok3200 = response.headers.get('ngrok-error-code') === 'ERR_NGROK_3200' || response.status === 404;
+          if (isNgrok3200) {
+            throw new Error('ngrok Tunnel သက်တမ်းကုန်ဆုံးသွားပါသည် (ERR_NGROK_3200)။ Colab တွင် Tunnel အသစ်ဖွင့်ပြီး URL အသစ် ထည့်သွင်းပေးပါ။');
+          }
           const err = await response.json().catch(() => null);
           throw new Error(err?.detail || err?.error || `VoxCPM speech synthesis failed (HTTP ${response.status})`);
         }

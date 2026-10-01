@@ -148,7 +148,7 @@ def split_burmese_text(text: str, max_chunk_len: int = 140) -> list[str]:
     return chunks if chunks else [text]
 
 @app.post("/api/voxcpm/synthesize")
-async def synthesize_speech(
+def synthesize_speech(
     voice_id: Optional[str] = Form(None),
     text: str = Form(...),
     instruction: Optional[str] = Form(None),
