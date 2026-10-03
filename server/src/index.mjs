@@ -24,8 +24,8 @@ const jobs = new Map();
 const allowedVideo = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska']);
 const allowedAudio = new Set(['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/webm', 'audio/ogg']);
 const allowedImage = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/svg+xml']);
-const videoExtensions = /\.(mp4|webm|mov|mkv)$/i;
-const audioExtensions = /\.(mp3|wav|m4a|webm|ogg)$/i;
+const videoExtensions = /\.(mp4|m4v|webm|mov|mkv|avi|wmv|flv|3gp|3g2|ts|mts|mpeg|mpg)$/i;
+const audioExtensions = /\.(mp3|wav|wave|m4a|m4b|aac|flac|ogg|oga|opus|wma|amr|aif|aiff|aifc|caf|ac3|eac3|mka|weba|webm)$/i;
 const imageExtensions = /\.(png|jpe?g|webp|gif|svg)$/i;
 
 const app = Fastify({ logger: true, bodyLimit: MAX_UPLOAD_BYTES });
@@ -225,9 +225,12 @@ app.post('/api/transcribe', async (request, reply) => {
 app.post('/api/media/upload', async (request, reply) => {
   const part = await request.file();
   if (!part) return jsonError(reply, 400, 'A media file is required.');
-  const isVideo = allowedVideo.has(part.mimetype) || (part.mimetype === 'application/octet-stream' && videoExtensions.test(part.filename || ''));
-  const isAudio = allowedAudio.has(part.mimetype) || (part.mimetype === 'application/octet-stream' && audioExtensions.test(part.filename || ''));
-  const isImage = allowedImage.has(part.mimetype) || (part.mimetype === 'application/octet-stream' && imageExtensions.test(part.filename || ''));
+  const mime = String(part.mimetype || '').toLowerCase();
+  const fname = part.filename || '';
+  const genericMime = !mime || mime === 'application/octet-stream' || mime === 'application/ogg';
+  const isVideo = allowedVideo.has(mime) || mime.startsWith('video/') || (genericMime && videoExtensions.test(fname));
+  const isAudio = allowedAudio.has(mime) || mime.startsWith('audio/') || (genericMime && audioExtensions.test(fname));
+  const isImage = allowedImage.has(mime) || (genericMime && imageExtensions.test(fname));
   if (!isVideo && !isAudio && !isImage) return jsonError(reply, 415, 'Unsupported media type.');
   const fileId = randomUUID();
   const filename = `${fileId}-${safeName(part.filename || 'media')}`;

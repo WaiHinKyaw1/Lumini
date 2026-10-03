@@ -45,6 +45,17 @@ interface MovieRecapProps {
   onSpendCredits: (amount: number) => boolean;
 }
 
+// All voiceover formats we accept (audio + video containers whose audio track is used)
+const VOICEOVER_EXTENSIONS = /\.(mp3|wav|wave|m4a|m4b|aac|flac|ogg|oga|opus|wma|amr|aif|aiff|aifc|caf|ac3|eac3|mka|weba|webm|3gp|3g2|mp4|m4v|mov|mkv|avi|wmv|flv|ts|mts|mpeg|mpg)$/i;
+const VOICEOVER_ACCEPT = 'audio/*,video/*,.mp3,.wav,.wave,.m4a,.m4b,.aac,.flac,.ogg,.oga,.opus,.wma,.amr,.aif,.aiff,.aifc,.caf,.ac3,.eac3,.mka,.weba,.webm,.3gp,.3g2,.mp4,.m4v,.mov,.mkv,.avi,.wmv,.flv,.ts,.mts,.mpeg,.mpg';
+// MIME types the media worker whitelists; anything else is re-labelled so upload isn't rejected (FFmpeg probes real content)
+const WORKER_SAFE_AUDIO_MIME = new Set(['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/webm', 'audio/ogg']);
+const normalizeVoiceoverFile = (file: File): File => {
+  const type = (file.type || '').toLowerCase();
+  if (WORKER_SAFE_AUDIO_MIME.has(type)) return file;
+  return new File([file], file.name || 'voiceover.mp3', { type: 'audio/mpeg', lastModified: file.lastModified });
+};
+
 const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   // --- State: Media ---
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -461,12 +472,21 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('audio/')) {
-        setError('ကျေးဇူးပြု၍ အသံဖိုင် (.mp3, .wav, .m4a) ရွေးပေးပါ။');
+      // Accept every audio format + video containers (audio track is used) + files with empty/unknown MIME
+      const type = (file.type || '').toLowerCase();
+      const looksLikeMedia =
+        type.startsWith('audio/') ||
+        type.startsWith('video/') ||
+        type === '' ||
+        type === 'application/octet-stream' ||
+        type === 'application/ogg' ||
+        VOICEOVER_EXTENSIONS.test(file.name);
+      if (!looksLikeMedia) {
+        setError('ကျေးဇူးပြု၍ အသံ သို့မဟုတ် ဗီဒီယို ဖိုင် ရွေးပေးပါ။');
         return;
       }
-      if (file.size > 50 * 1024 * 1024) {
-        setError('အသံ ဖိုင်ဆိုဒ် ကြီးလွန်းပါသည် (အများဆုံး 50MB)။');
+      if (file.size > 1024 * 1024 * 1024) {
+        setError('အသံ ဖိုင်ဆိုဒ် ကြီးလွန်းပါသည် (အများဆုံး 1GB)။');
         return;
       }
       if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -484,6 +504,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         if (Number.isFinite(tempAudio.duration) && tempAudio.duration > 0) {
           setAudioDuration(tempAudio.duration);
         }
+      };
+      tempAudio.onerror = () => {
+        // Browser can't preview this codec (e.g. WMA/AMR) — server FFmpeg will still process it
+        toast('ဤအသံဖိုင်ကို Browser တွင် Preview မရပါ၊ သို့သော် Server တွင် ပုံမှန် ပေါင်းစပ်ပေးပါမည်။', { icon: 'ℹ️' });
       };
       if (audioInputRef.current) audioInputRef.current.value = '';
     }
@@ -983,7 +1007,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       if (audioFile) {
         setStatusMessage('အသံ ဖိုင်ကို AWS ဆာဗာသို့ တင်နေပါသည်... (Uploading voiceover)');
         uploadedAudio = await uploadMedia(
-          audioFile,
+          normalizeVoiceoverFile(audioFile),
           (val) => {
             const current = Math.min(35 + Math.round(val * 0.12), 48);
             setProgress(current);
@@ -1611,7 +1635,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
               >
                 <Music className="w-5 h-5 text-purple-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
                 <div className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                  Voiceover အသံဖိုင် တင်သွင်းပါ (.mp3, .wav, .m4a)
+                  Voiceover အသံဖိုင် တင်သွင်းပါ (အသံ/ဗီဒီယို ဖိုင် အမျိုးအစားအားလုံး)
                 </div>
                 <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
                   မထည့်သွင်းပါက မူရင်းဗီဒီယိုအသံကို သုံးပါမည်
@@ -1643,7 +1667,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 </button>
               </div>
             )}
-            <input type="file" ref={audioInputRef} accept="audio/*" onChange={handleAudioUpload} className="hidden" />
+            <input id="voiceover-file-input" type="file" ref={audioInputRef} accept={VOICEOVER_ACCEPT} onChange={handleAudioUpload} className="hidden" />
           </section>
 
           {/* SECTION 5: SPEED & TIMELINE SYNCHRONIZATION */}
