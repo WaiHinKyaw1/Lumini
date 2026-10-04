@@ -812,9 +812,10 @@ function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed, videoSp
     const align = settings.logoAlign || 'right';
     const yPct = (Number(settings.logoY) || 8) / 100;
     const pad = Math.round(canvas.width * 0.02);
+    const edgeX = Math.round(canvas.width * 0.05); // horizontal margin for left/right logos (5% in from edge)
 
-    let xExpr = `main_w-overlay_w-${pad}`;
-    if (align === 'left') xExpr = `${pad}`;
+    let xExpr = `main_w-overlay_w-${edgeX}`;
+    if (align === 'left') xExpr = `${edgeX}`;
     if (align === 'center') xExpr = `(main_w-overlay_w)/2`;
 
     const yExpr = `${pad}+((main_h-overlay_h-${pad * 2})*${yPct.toFixed(4)})`;

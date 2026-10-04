@@ -14,19 +14,13 @@ export const getAIClient = () => {
   if (!key) {
     throw new Error("Gemini API Key is missing. Please ensure GEMINI_API_KEY is set in your environment or app settings.");
   }
-  // Keys starting with "AQ." are Vertex AI Express Mode keys. The Gemini Developer API
-  // (generativelanguage.googleapis.com) rejects them with 401 UNAUTHENTICATED, so route via Vertex AI.
-  if (key.startsWith('AQ.')) {
-    return new GoogleGenAI({ vertexai: true, apiKey: key });
-  }
   return new GoogleGenAI({ apiKey: key });
 };
 
 export const CANDIDATE_FLASH_MODELS = [
-  'gemini-3.8-flash',
   'gemini-3.5-flash',
-  'gemini-3-flash-preview',
-  'gemini-2.5-flash'
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash'
 ];
 
 export const generateText = async (prompt: string, systemInstruction: string) => {
@@ -866,11 +860,4 @@ export const playAudio = async (url: string, onEnded?: () => void) => {
     throw err;
   }
 };
-
-export {
-  runMyanmarSrtFlow,
-  downloadMyanmarSrtFile,
-  splitMyanmarTextIntoTwoLines,
-  detectSpeechSegments,
-  extractMonoAudioInBrowser
-} from './myanmarSrtService';
+

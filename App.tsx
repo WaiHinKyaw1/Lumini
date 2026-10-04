@@ -25,13 +25,11 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'fir
 // Performance: Lazy loading pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transcription = lazy(() => import('./pages/Transcription'));
-const Translation = lazy(() => import('./pages/Translation'));
 const Voiceover = lazy(() => import('./pages/Voiceover'));
 const MovieRecap = lazy(() => import('./pages/MovieRecap'));
 const VideoInsights = lazy(() => import('./pages/VideoInsights'));
 const ThumbnailGen = lazy(() => import('./pages/ThumbnailGen'));
 const SubtitleStudio = lazy(() => import('./pages/SubtitleStudio'));
-const VideoStudio = lazy(() => import('./pages/VideoStudio'));
 const Profile = lazy(() => import('./pages/Profile'));
 
 const INITIAL_STATS: UserStats = {
@@ -153,7 +151,7 @@ const App: React.FC = () => {
 
     const syncUserData = async () => {
       const userDocRef = doc(db, 'users', user.uid);
-      
+
       try {
         const docSnap = await getDoc(userDocRef);
         if (!docSnap.exists() && isMounted) {
@@ -261,58 +259,30 @@ const App: React.FC = () => {
     setStats((prev) => ({ ...prev, ...result }));
   };
 
-  const renderPage = () => {
-    // If auth is still loading and user had a prior session, show spinner (avoid login page flash)
-    if (isAuthLoading && hadPriorSession) {
-      return (
-        <div className="flex min-h-[calc(100vh-56px)] items-center justify-center">
-          <LoadingSpinner size="lg" showLabel label="Session ပြန်ဝင်နေပါသည်..." />
-        </div>
-      );
-    }
-
-    // If not authenticated, require registering or logging in first
-    if (!user) {
-      return <AuthScreen onLoginGoogle={handleLoginGoogle} />;
-    }
-
-    return (
-      <ErrorBoundary moduleName="Lumini">
-      <Suspense fallback={<div className="flex min-h-[calc(100vh-56px)] items-center justify-center"><LoadingSpinner size="lg" showLabel={false} /></div>}>
-        {(() => {
-          switch (currentPath) {
-            case 'dashboard': return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
-            case 'subtitle': return <SubtitleStudio onSpendCredits={spendCredits} onNavigate={setCurrentPath} />;
-            case 'insights': return <VideoInsights onSpendCredits={spendCredits} />;
-            case 'transcription': return <Transcription onSpendCredits={spendCredits} />;
-            case 'translation': return <Translation onSpendCredits={spendCredits} />;
-            case 'thumbnail': return <ThumbnailGen onSpendCredits={spendCredits} />;
-            case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
-            case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
-            case 'video': return <VideoStudio onSpendCredits={spendCredits} />;
-            case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onLogout={handleLogout} />;
-            default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
-          }
-        })()}
-      </Suspense>
-      </ErrorBoundary>
-    );
-  };
-
   if (isAuthLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#09090b] text-white">
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 dark:bg-[#09090b] text-slate-800 dark:text-white">
         <LoadingSpinner size="lg" showLabel label="Loading session..." />
       </div>
+    );
+  }
+
+  // Login ဝင်ပြီးမှ Dashboard နှင့် Layout ကို ပြသမည်။ မဝင်ရသေးပါက သီးသန့် Clean Login Screen ကိုသာ တိုက်ရိုက်ပြမည်။
+  if (!user) {
+    return (
+      <>
+        <Toaster position="top-right" />
+        <AuthScreen onLoginGoogle={handleLoginGoogle} />
+      </>
     );
   }
 
   return (
     <>
       <Toaster position="top-right" />
-      <Layout 
-        credits={stats.credits} 
-        currentPath={currentPath} 
+      <Layout
+        credits={stats.credits}
+        currentPath={currentPath}
         setPath={setCurrentPath}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
@@ -322,12 +292,30 @@ const App: React.FC = () => {
         onLoginGoogle={handleLoginGoogle}
         onLogout={handleLogout}
       >
-        <main role="main" className="app-main min-h-[calc(100vh-56px)]">{renderPage()}</main>
+        <main role="main" className="app-main min-h-[calc(100vh-56px)]">
+          <ErrorBoundary moduleName="Lumini">
+            <Suspense fallback={<div className="flex min-h-[calc(100vh-56px)] items-center justify-center"><LoadingSpinner size="lg" showLabel={false} /></div>}>
+              {(() => {
+                switch (currentPath) {
+                  case 'dashboard': return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
+                  case 'subtitle': return <SubtitleStudio onSpendCredits={spendCredits} onNavigate={setCurrentPath} />;
+                  case 'insights': return <VideoInsights onSpendCredits={spendCredits} />;
+                  case 'transcription': return <Transcription onSpendCredits={spendCredits} />;
+                  case 'thumbnail': return <ThumbnailGen onSpendCredits={spendCredits} />;
+                  case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
+                  case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
+                  case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onLogout={handleLogout} />;
+                  default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
+                }
+              })()}
+            </Suspense>
+          </ErrorBoundary>
+        </main>
       </Layout>
-      <CreditModal 
-        isOpen={isCreditModalOpen} 
-        onClose={() => setIsCreditModalOpen(false)} 
-        onAddCredits={addCredits} 
+      <CreditModal
+        isOpen={isCreditModalOpen}
+        onClose={() => setIsCreditModalOpen(false)}
+        onAddCredits={addCredits}
       />
       <RefuelEngine
         isOpen={isRefuelOpen}

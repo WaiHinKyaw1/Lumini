@@ -1,29 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { generateSubtitles } from '../services/geminiService';
-import {
-  transcribeWithGroq,
-  transcribeWithServerWorker,
-  getGroqApiKey
-} from '../services/whisperService';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Upload, Download, Trash2, Play, Pause, Copy, Check, Send, Plus, X, Captions, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
-import {
-  Upload, Download, Trash2, Play, Pause,
-  Copy, Check,
-  Clock, Send, Plus, Zap, ChevronDown
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import {
-  isMediaWorkerConfigured,
-  isMediaWorkerAvailable,
-  uploadMedia,
-  extractAudioFromMedia
-} from '../services/mediaWorkerApi';
-import {
-  runMyanmarSrtFlow,
-  downloadMyanmarSrtFile
-} from '../services/myanmarSrtService';
+import { generateSrt, downloadSrt, formatSrtTime, MAX_FILE_BYTES, SRT_LANGUAGES, SrtLanguage } from '../services/srtService';
 
 interface SubtitleStudioProps {
   onSpendCredits: (amount: number) => boolean;
@@ -34,841 +15,487 @@ interface FileItem {
   id: string;
   file: File;
   status: 'pending' | 'processing' | 'completed' | 'failed';
-  statusText?: string;
-  progress?: number;
-  result?: string;
-  error?: string;
+  message?: string;
+  progress: number;
+  srt: string;
 }
 
-interface SrtCue {
-  index: number;
+interface Cue {
   start: string;
   end: string;
   text: string;
 }
 
-function parseSrtCues(srt: string): SrtCue[] {
-  if (!srt) return [];
-  const blocks = srt.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split(/\n\s*\n/);
-  const cues: SrtCue[] = [];
-  for (const block of blocks) {
-    const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length < 2) continue;
-    const timeIdx = lines.findIndex(l => l.includes('-->'));
-    if (timeIdx === -1) continue;
-    const idxNum = parseInt(lines[0], 10);
-    const timeParts = lines[timeIdx].split('-->');
-    if (timeParts.length !== 2) continue;
-    const text = lines.slice(timeIdx + 1).join('\n').replace(/<[^>]*>/g, '').trim();
-    if (!text) continue;
-    cues.push({ index: isNaN(idxNum) ? cues.length + 1 : idxNum, start: timeParts[0].trim(), end: timeParts[1].trim(), text });
-  }
-  return cues;
+const MYANMAR_FONT = { fontFamily: 'Akkhayar21, sans-serif' };
+
+function parseSrt(srt: string): Cue[] {
+  return srt
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .split(/\n\s*\n/)
+    .map(block => {
+      const lines = block.split('\n');
+      const t = lines.findIndex(l => l.includes('-->'));
+      if (t === -1) return null;
+      const [start, end] = lines[t].split('-->').map(s => s.trim());
+      const text = lines.slice(t + 1).join('\n').trim();
+      return text ? { start, end, text } : null;
+    })
+    .filter((c): c is Cue => c !== null);
 }
 
-function cuesToSrt(cues: SrtCue[]): string {
-  return cues.map((c, i) => `${i + 1}\n${c.start} --> ${c.end}\n${c.text}`).join('\n\n') + '\n';
-}
+const cuesToSrt = (cues: Cue[]) =>
+  cues.map((c, i) => `${i + 1}\n${c.start} --> ${c.end}\n${c.text}`).join('\n\n') + (cues.length ? '\n' : '');
 
-function srtToSeconds(t: string): number {
-  if (!t) return 0;
-  const [h, m, s] = t.replace(',', '.').split(':');
-  return (parseFloat(h) || 0) * 3600 + (parseFloat(m) || 0) * 60 + (parseFloat(s) || 0);
+function toSeconds(t: string): number {
+  const [h, m, s] = t.replace(',', '.').split(':').map(Number);
+  return (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
 }
-
-const LANGUAGES = [
-  { value: 'BURMESE', label: 'မြန်မာ (Burmese)', code: 'MM' },
-  { value: 'ENGLISH', label: 'English', code: 'EN' },
-  { value: 'THAI', label: 'ไทย (Thai)', code: 'TH' },
-  { value: 'CHINESE', label: '中文 (Chinese)', code: 'ZH' },
-  { value: 'JAPANESE', label: '日本語', code: 'JA' },
-  { value: 'KOREAN', label: '한국어', code: 'KO' },
-];
 
 const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavigate }) => {
   const [queue, setQueue] = useState<FileItem[]>([]);
-  const [language, setLanguage] = useState('BURMESE');
-  const [isProcessingAll, setIsProcessingAll] = useState(false);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [cues, setCues] = useState<SrtCue[]>([]);
-  const [editingCueIdx, setEditingCueIdx] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'cards' | 'raw'>('cards');
-  const [rawSrtText, setRawSrtText] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<SrtLanguage>('BURMESE');
+  const [isRunning, setIsRunning] = useState(false);
+  const [tab, setTab] = useState<'cues' | 'raw'>('cues');
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [audioTime, setAudioTime] = useState(0);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [isLangOpen, setIsLangOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playing, setPlaying] = useState(false);
 
-  const isMounted = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const audioUrlRef = useRef<string | null>(null);
-  const langDropdownRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
+  const selected = queue.find(i => i.id === selectedId) ?? null;
+  const cues = useMemo(() => parseSrt(selected?.srt ?? ''), [selected?.srt]);
+  const pendingCount = queue.filter(i => i.status === 'pending').length;
+
+  // Load the selected file into the player only when the file itself changes
+  const selectedFile = selected?.file;
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target as Node)) {
-        setIsLangOpen(false);
+    const audio = audioRef.current;
+    if (!audio || !selectedFile) return;
+    const url = URL.createObjectURL(selectedFile);
+    audio.src = url;
+    setPlaying(false);
+    setTime(0);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const patchItem = (id: string, patch: Partial<FileItem>) =>
+    setQueue(prev => prev.map(i => (i.id === id ? { ...i, ...patch } : i)));
+
+  const addFiles = (files: FileList | File[]) => {
+    const items: FileItem[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_FILE_BYTES) {
+        toast.error(`${file.name} — 100MB ထက် ကြီးနေပါသည်`);
+        continue;
       }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    const item = queue.find(i => i.id === selectedItemId);
-    if (item?.result) {
-      setCues(parseSrtCues(item.result));
-      setRawSrtText(item.result);
-    } else {
-      setCues([]);
-      setRawSrtText('');
+      items.push({ id: crypto.randomUUID(), file, status: 'pending', progress: 0, srt: '' });
     }
-    setEditingCueIdx(null);
-    if (item?.file) {
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = URL.createObjectURL(item.file);
-      if (audioRef.current) {
-        audioRef.current.src = audioUrlRef.current;
-        audioRef.current.load();
-        setIsAudioPlaying(false);
-        setAudioTime(0);
-      }
-    }
-  }, [selectedItemId, queue]);
-
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const newItems: FileItem[] = Array.from(files).map(file => ({
-      id: Math.random().toString(36).slice(2, 11),
-      file,
-      status: 'pending' as const,
-    }));
-    setQueue(prev => {
-      const updated = [...prev, ...newItems];
-      if (!selectedItemId && newItems.length > 0) setSelectedItemId(newItems[0].id);
-      return updated;
-    });
-  }, [selectedItemId]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) addFiles(e.target.files);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!items.length) return;
+    setQueue(prev => [...prev, ...items]);
+    setSelectedId(id => id ?? items[0].id);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
-  };
-
-  const removeFile = (id: string) => {
+  const removeItem = (id: string) => {
     setQueue(prev => prev.filter(i => i.id !== id));
-    if (selectedItemId === id) setSelectedItemId(null);
+    if (selectedId === id) setSelectedId(null);
   };
 
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve((r.result as string).split(',')[1]);
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-
-  const compressAudioFile = async (mediaFile: File): Promise<{ blob: Blob; base64: string; mimeType: string }> => {
-    return new Promise((resolve, reject) => {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || AudioContext;
-      const audioCtx = new AudioCtx();
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const ab = e.target?.result as ArrayBuffer;
-          const audioBuffer = await audioCtx.decodeAudioData(ab);
-          const sampleRate = 16000;
-          const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuffer.duration * sampleRate), sampleRate);
-          const source = offlineCtx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(offlineCtx.destination);
-          source.start();
-          const rendered = await offlineCtx.startRendering();
-
-          const length = rendered.length * 2 + 44;
-          const buf = new ArrayBuffer(length);
-          const view = new DataView(buf);
-          let pos = 0;
-          const setU16 = (d: number) => { view.setUint16(pos, d, true); pos += 2; };
-          const setU32 = (d: number) => { view.setUint32(pos, d, true); pos += 4; };
-          const writeStr = (s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(pos++, s.charCodeAt(i)); };
-          writeStr('RIFF'); setU32(length - 8); writeStr('WAVE'); writeStr('fmt ');
-          setU32(16); setU16(1); setU16(1);
-          setU32(sampleRate); setU32(sampleRate * 2);
-          setU16(2); setU16(16); writeStr('data'); setU32(length - pos - 4);
-          const channel = rendered.getChannelData(0);
-          for (let i = 0; i < channel.length; i++) {
-            let s = Math.max(-1, Math.min(1, channel[i]));
-            s = (s < 0 ? s * 32768 : s * 32767) | 0;
-            view.setInt16(pos, s, true); pos += 2;
-          }
-          const blob = new Blob([buf], { type: 'audio/wav' });
-          const r2 = new FileReader();
-          r2.onload = () => resolve({ blob, base64: (r2.result as string).split(',')[1], mimeType: 'audio/wav' });
-          r2.onerror = reject;
-          r2.readAsDataURL(blob);
-        } catch (err) { reject(err); }
-        finally { if (audioCtx.state !== 'closed') audioCtx.close(); }
-      };
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(mediaFile);
-    });
-  };
-
-  const processFile = async (item: FileItem) => {
-    if (language === 'BURMESE' && item.file.size > 12 * 1024 * 1024) {
-      throw new Error('ဖိုင်ဆိုဒ် ၁၀MB ထက် မကျော်လွန်ရပါ (ဖိုင်အကြီးအငယ် ၁၀MB အထိ သုံးလို့ရပါ)');
-    } else if (item.file.size > 250 * 1024 * 1024) {
-      throw new Error('ဖိုင်ဆိုဒ် ကြီးလွန်းပါသည် (အများဆုံး 250MB)');
-    }
+  const processItem = async (item: FileItem, signal: AbortSignal) => {
     if (!onSpendCredits(CREDIT_COSTS[ContentType.SUBTITLE])) throw new Error('Credit မလုံလောက်ပါ');
-
-    setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' as const, statusText: 'စတင်နေပါသည်...', progress: 10 } : i));
+    patchItem(item.id, { status: 'processing', progress: 0, message: 'စတင်နေပါသည်...', srt: '' });
 
     try {
-      let result = '';
+      const result = await generateSrt(item.file, language, {
+        signal,
+        onProgress: p => patchItem(item.id, { progress: p.percent, message: p.message, srt: p.srt }),
+      });
 
-      if (language === 'BURMESE') {
-        // Run specialized 6-step Myanmar SRT flow (In-Browser VAD + Gemini Segment AI)
-        const flowRes = await runMyanmarSrtFlow(item.file, {
-          onProgress: (p) => {
-            if (!isMounted.current) return;
-            setQueue(prev => prev.map(i => i.id === item.id ? {
-              ...i,
-              statusText: p.message,
-              progress: p.percent,
-              result: p.rawSrtText
-            } : i));
-
-            if (selectedItemId === item.id) {
-              setCues(p.currentCues);
-              setRawSrtText(p.rawSrtText);
-            }
-          }
-        });
-        result = flowRes.srt;
-      } else {
-        let audioBlob: Blob = item.file;
-        let base64 = '';
-        let mimeType = item.file.type || 'audio/mp3';
-        const isVideo = item.file.type.startsWith('video/') || /\.(mp4|webm|mov|mkv)$/i.test(item.file.name);
-
-        if (isVideo) {
-          let isWorkerOnline = false;
-          if (isMediaWorkerConfigured()) {
-            try { isWorkerOnline = await isMediaWorkerAvailable(); } catch { }
-          }
-
-          let extracted = false;
-          if (isWorkerOnline) {
-            try {
-              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'ဆာဗာသို့ တင်သွင်းနေပါသည်...', progress: 30 } : i));
-              const uploaded = await uploadMedia(item.file);
-              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'အသံဖိုင် သီးသန့် ခွဲထုတ်နေပါသည်...', progress: 50 } : i));
-              const res = await extractAudioFromMedia(uploaded.fileId);
-              base64 = res.audioBase64;
-              mimeType = res.mimeType || 'audio/mp3';
-              const byteChars = atob(base64);
-              const byteNumbers = new Array(byteChars.length);
-              for (let k = 0; k < byteChars.length; k++) byteNumbers[k] = byteChars.charCodeAt(k);
-              audioBlob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
-              extracted = true;
-            } catch { }
-          }
-
-          if (!extracted) {
-            try {
-              const comp = await compressAudioFile(item.file);
-              audioBlob = comp.blob;
-              base64 = comp.base64;
-              mimeType = comp.mimeType;
-            } catch {
-              base64 = await fileToBase64(item.file);
-              mimeType = item.file.type || 'video/mp4';
-            }
-          }
-        } else {
-          try {
-            const comp = await compressAudioFile(item.file);
-            audioBlob = comp.blob;
-            base64 = comp.base64;
-            mimeType = comp.mimeType;
-          } catch {
-            base64 = await fileToBase64(item.file);
-          }
-        }
-
-        setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: '⚡ Fast Whisper ဖြင့် ၁ စက္ကန့်အတွင်း စာတန်းပြောင်းနေပါသည်...', progress: 65 } : i));
-
-        const groqKey = getGroqApiKey();
-
-        if (groqKey) {
-          result = await transcribeWithGroq(audioBlob, {
-            language,
-            apiKey: groqKey,
-            onProgress: (msg, pct) => {
-              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: msg, progress: pct } : i));
-            }
-          });
-        } else if (isMediaWorkerConfigured()) {
-          try {
-            result = await transcribeWithServerWorker(audioBlob, { language });
-          } catch {
-            result = await generateSubtitles(base64, mimeType, language);
-          }
-        } else {
-          result = await generateSubtitles(base64, mimeType, language);
-        }
-      }
-
-      if (!isMounted.current) return;
-      const finalCues = parseSrtCues(result);
-      if (finalCues.length === 0 && !result.includes('-->')) {
-        throw new Error('အသံဖိုင်တွင် စကားပြောသံ ရှင်းလင်းစွာ မပါရှိပါ');
-      }
-
-      const u = auth.currentUser;
-      if (u) {
-        logGeneration(u.uid, u.email || '', 'subtitles', { fileName: item.file.name, language }, { resultLength: result?.length || 0 }).catch(() => { });
-      }
-
-      setQueue(prev => prev.map(i => i.id === item.id ? {
-        ...i,
-        status: 'completed' as const,
-        statusText: `အောင်မြင်ပါသည် (${finalCues.length} Cues)`,
+      patchItem(item.id, {
+        status: 'completed',
         progress: 100,
-        result
-      } : i));
+        message: `စာတန်း ${result.cueCount} ခု`,
+        srt: result.srt,
+      });
 
-      if (selectedItemId === item.id) {
-        setCues(finalCues);
-        setRawSrtText(result);
-      }
-      toast.success(`${item.file.name} — .my.srt ထွက်ရှိပါပြီ!`);
-    } catch (err: unknown) {
-      if (isMounted.current) {
-        const errorMsg = (err as { message?: string })?.message || 'ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်';
-        setQueue(prev => prev.map(i => i.id === item.id ? {
-          ...i,
-          status: 'failed' as const,
-          statusText: 'မအောင်မြင်ပါ',
-          progress: 0,
-          error: errorMsg
-        } : i));
-        throw err;
-      }
-    }
-  };
-
-  const handleProcess = async (item?: FileItem) => {
-    const targets = item ? [item] : queue.filter(i => i.status === 'pending');
-    if (targets.length === 0) { toast.error('Transcription ပြုလုပ်ရန် ဖိုင်မရှိပါ'); return; }
-    setIsProcessingAll(true);
-    await Promise.all(targets.map(async t => {
-      try { await processFile(t); }
-      catch (e: unknown) { toast.error((e as { message?: string })?.message || 'ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်'); }
-    }));
-    if (isMounted.current) setIsProcessingAll(false);
-  };
-
-  const downloadSRT = (item: FileItem) => {
-    if (!item.result && !rawSrtText && cues.length === 0) return;
-    const content = activeTab === 'raw' ? rawSrtText : (cues.length > 0 && selectedItemId === item.id ? cuesToSrt(cues) : item.result || rawSrtText);
-    downloadMyanmarSrtFile(content, item.file.name);
-    toast.success('.my.srt ဖိုင် ဒေါင်းလုဒ်လုပ်ပြီးပါပြီ!');
-  };
-
-  const copySrt = async (item: FileItem) => {
-    const content = activeTab === 'raw' ? rawSrtText : (cues.length > 0 && selectedItemId === item.id ? cuesToSrt(cues) : (item.result || rawSrtText));
-    if (!content.trim()) return;
-    await navigator.clipboard.writeText(content);
-    setCopiedId(item.id);
-    setTimeout(() => setCopiedId(null), 2000);
-    toast.success('SRT စာတန်းများကို Copy ကူးပြီးပါပြီ!');
-  };
-
-  const sendToMovieRecap = (item: FileItem) => {
-    const content = activeTab === 'raw' ? rawSrtText : (cues.length > 0 && selectedItemId === item.id ? cuesToSrt(cues) : (item.result || rawSrtText));
-    if (!content.trim()) {
-      toast.error('ပေးပို့ရန် SRT စာတန်း မရှိသေးပါ');
-      return;
-    }
-    try {
-      localStorage.setItem('lumini_active_srt', content);
-      localStorage.setItem('lumini_active_srt_name', `${item.file.name.replace(/\.[^.]+$/, '')}.srt`);
-      toast.success('Movie Recap သို့ SRT စာတန်း ပို့ပြီးပါပြီ!');
-      if (onNavigate) {
-        onNavigate('recap');
+      if (result.failedChunks > 0) {
+        toast(`${item.file.name} — အပိုင်း ${result.failedChunks} ခု မအောင်မြင်ပါ၊ ပြန်စစ်ပါ`, { icon: '⚠️' });
       } else {
-        window.dispatchEvent(new CustomEvent('lumini:navigate', { detail: 'recap' }));
+        toast.success(`${item.file.name} — ပြီးပါပြီ`);
       }
-    } catch {
-      toast.error('ပေးပို့ခြင်း မအောင်မြင်ပါ');
+
+      const user = auth.currentUser;
+      if (user) {
+        logGeneration(user.uid, user.email || '', 'subtitles', { fileName: item.file.name, language }, { resultLength: result.srt.length }).catch(() => {});
+      }
+    } catch (err) {
+      const aborted = (err as Error)?.name === 'AbortError';
+      patchItem(item.id, {
+        status: aborted ? 'pending' : 'failed',
+        progress: 0,
+        message: aborted ? 'ရပ်လိုက်ပါသည်' : (err as Error)?.message || 'မအောင်မြင်ပါ',
+      });
+      if (!aborted) toast.error((err as Error)?.message || 'မအောင်မြင်ပါ');
     }
   };
 
-  const updateCue = (idx: number, field: 'start' | 'end' | 'text', value: string) => {
-    const updated = cues.map((c, i) => i === idx ? { ...c, [field]: value } : c);
-    setCues(updated);
-    const newSrt = cuesToSrt(updated);
-    setRawSrtText(newSrt);
-    setQueue(prev => prev.map(item => item.id === selectedItemId ? { ...item, result: newSrt } : item));
+  const run = async (only?: FileItem) => {
+    const targets = only ? [only] : queue.filter(i => i.status === 'pending' || i.status === 'failed');
+    if (!targets.length) return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsRunning(true);
+    // Files run one after another; chunks inside each file run in parallel.
+    for (const item of targets) {
+      if (controller.signal.aborted) break;
+      setSelectedId(item.id);
+      try {
+        await processItem(item, controller.signal);
+      } catch (err) {
+        toast.error((err as Error)?.message);
+        break;
+      }
+    }
+    setIsRunning(false);
+    abortRef.current = null;
   };
 
-  const deleteCue = (idx: number) => {
-    const updated = cues.filter((_, i) => i !== idx);
-    setCues(updated);
-    const newSrt = cuesToSrt(updated);
-    setRawSrtText(newSrt);
-    setQueue(prev => prev.map(item => item.id === selectedItemId ? { ...item, result: newSrt } : item));
-  };
+  const updateSrt = (srt: string) => selected && patchItem(selected.id, { srt });
+  const updateCues = (next: Cue[]) => updateSrt(cuesToSrt(next));
+
+  const updateCue = (idx: number, field: keyof Cue, value: string) =>
+    updateCues(cues.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
 
   const addCue = () => {
-    const last = cues[cues.length - 1];
-    const newCue: SrtCue = {
-      index: cues.length + 1,
-      start: last ? last.end : '00:00:00,000',
-      end: '00:00:04,000',
-      text: 'စာတန်းထိုး အသစ်'
-    };
-    const updated = [...cues, newCue];
-    setCues(updated);
-    const newSrt = cuesToSrt(updated);
-    setRawSrtText(newSrt);
-    setQueue(prev => prev.map(item => item.id === selectedItemId ? { ...item, result: newSrt } : item));
-    setEditingCueIdx(updated.length - 1);
+    const lastEnd = cues.length ? toSeconds(cues[cues.length - 1].end) : 0;
+    updateCues([...cues, { start: formatSrtTime(lastEnd + 0.1), end: formatSrtTime(lastEnd + 3), text: '...' }]);
+    setEditingIdx(cues.length);
   };
 
-  const toggleAudio = () => {
-    if (!audioRef.current) return;
-    if (isAudioPlaying) {
-      audioRef.current.pause();
-      setIsAudioPlaying(false);
-    } else {
-      audioRef.current.play().then(() => setIsAudioPlaying(true)).catch(() => { });
-    }
+  const copySrt = async () => {
+    if (!selected?.srt) return;
+    await navigator.clipboard.writeText(selected.srt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
-  const seekToCue = (cue: SrtCue) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = srtToSeconds(cue.start);
-    audioRef.current.play().then(() => setIsAudioPlaying(true)).catch(() => { });
+  const sendToRecap = () => {
+    if (!selected?.srt) return;
+    localStorage.setItem('lumini_active_srt', selected.srt);
+    localStorage.setItem('lumini_active_srt_name', `${selected.file.name.replace(/\.[^.]+$/, '')}.srt`);
+    toast.success('Movie Recap သို့ ပို့ပြီးပါပြီ');
+    if (onNavigate) onNavigate('recap');
+    else window.dispatchEvent(new CustomEvent('lumini:navigate', { detail: 'recap' }));
   };
 
-  const selectedItem = queue.find(i => i.id === selectedItemId);
-  const activeCue = audioTime > 0 ? cues.find(c => srtToSeconds(c.start) <= audioTime && srtToSeconds(c.end) >= audioTime) : null;
-  const formatDuration = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) audio.pause();
+    else audio.play().catch(() => {});
+  };
+
+  const seek = (sec: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = sec;
+    audio.play().catch(() => {});
+  };
+
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const hasSrt = Boolean(selected?.srt.trim());
 
   return (
     <div className="max-w-5xl mx-auto pb-10 px-2 sm:px-4">
       <audio
         ref={audioRef}
-        onTimeUpdate={() => audioRef.current && setAudioTime(audioRef.current.currentTime)}
-        onEnded={() => setIsAudioPlaying(false)}
+        onTimeUpdate={e => setTime(e.currentTarget.currentTime)}
+        onLoadedMetadata={e => setDuration(e.currentTarget.duration || 0)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
         className="hidden"
       />
 
-      {/* HEADER */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white shadow-sm">
-            <Zap className="w-4 h-4 fill-white" />
+      <header className="mb-4 flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white">
+          <Captions className="w-4 h-4" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white !mb-0">Subtitle Studio</h1>
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500">Audio / Video → SRT · Gemini AI</p>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
+        {/* ── Left: input ── */}
+        <aside className="rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 p-3.5 space-y-3">
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`rounded-xl border-2 border-dashed cursor-pointer p-5 text-center transition-colors ${
+              isDragging ? 'border-amber-500 bg-amber-500/10' : 'border-gray-300 dark:border-white/10 hover:border-amber-400'
+            }`}
+          >
+            <Upload className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
+            <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">ဖိုင် ဆွဲထည့် / နှိပ်၍ ရွေးပါ</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">MP3 · WAV · M4A · MP4 · 100MB အထိ</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*,video/*"
+              multiple
+              className="hidden"
+              onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
+            />
           </div>
+
           <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white !mb-0">Subtitle Studio</h1>
-            <p className="text-[11px] text-slate-400 dark:text-zinc-500">
-              ⚡ Fast Whisper (1s Instant Burma SRT)
-            </p>
-          </div>
-        </div>
-
-        {isProcessingAll && (
-          <span className="flex items-center gap-1.5 text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            Transcribing...
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[290px_1fr] gap-4 items-start">
-
-        {/* LEFT COLUMN: Clean Upload & Queue */}
-        <div className="space-y-3">
-          <div className="rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 p-3.5 space-y-3 shadow-sm">
-            
-            {/* Upload Area */}
-            <div
-              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`w-full rounded-xl border-2 border-dashed cursor-pointer p-4 text-center transition-all ${isDragging
-                ? 'border-amber-500 bg-amber-500/10'
-                : 'border-gray-300 dark:border-white/10 hover:border-amber-400 hover:bg-amber-500/5'
-                }`}
+            <label htmlFor="srt-language" className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+              စာတန်း ဘာသာ
+            </label>
+            <select
+              id="srt-language"
+              value={language}
+              disabled={isRunning}
+              onChange={e => setLanguage(e.target.value as SrtLanguage)}
+              className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-zinc-100 outline-none focus:border-amber-400"
             >
-              <Upload className="w-6 h-6 text-amber-400 mx-auto mb-1" />
-              <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                Audio / Video ဖိုင် ဆွဲထည့် သို့မဟုတ် နှိပ်၍ရွေးပါ
-              </p>
-              <p className="text-[10px] text-amber-500 dark:text-amber-400 font-medium mt-0.5">
-                ဖိုင်အကြီးအငယ် ၁၀MB အထိ (.mp3, .wav, .m4a, .mp4)
-              </p>
-              <input ref={fileInputRef} type="file" accept="video/*,audio/*,.mp4,.mov,.mp3,.wav,.m4a" multiple onChange={handleFileChange} className="hidden" />
-            </div>
+              {SRT_LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+            </select>
+          </div>
 
-            {/* 6-Step Myanmar SRT Workflow Indicator */}
-            {language === 'BURMESE' && (
-              <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/15 text-[10px] text-slate-600 dark:text-zinc-400 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-amber-500 dark:text-amber-400 text-[11px]">
-                  <Zap className="w-3 h-3 fill-current" />
-                  <span>Myanmar 6-Step SRT Engine</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1 text-[9px] text-slate-500 dark:text-zinc-400 pt-1 border-t border-amber-500/10">
-                  <div>၁။ ဖိုင်တင် (≤10MB)</div>
-                  <div>၂။ 16kHz Mono (Browser)</div>
-                  <div>၃။ 0.25s စကားရပ် & ≤4s ခွဲ</div>
-                  <div>၄။ 3-AI Workers (Retry x3)</div>
-                  <div>၅။ ၂ ကြောင်း အလယ်ခွဲစနစ်</div>
-                  <div>၆။ .my.srt BOM ဒေါင်းလုဒ်</div>
-                </div>
-              </div>
-            )}
-
-            {/* Language Custom Dropdown */}
-            <div ref={langDropdownRef} className="relative">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                ဘာသာစကား
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsLangOpen(!isLangOpen)}
-                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-zinc-100 flex items-center justify-between outline-none hover:border-amber-400 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-4 rounded bg-amber-500/15 text-amber-500 dark:text-amber-400 text-[9px] font-bold flex items-center justify-center font-mono">
-                    {LANGUAGES.find(l => l.value === language)?.code || 'MM'}
-                  </span>
-                  <span className="font-semibold text-slate-800 dark:text-zinc-100">
-                    {LANGUAGES.find(l => l.value === language)?.label || 'မြန်မာ (Burmese)'}
-                  </span>
-                </div>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isLangOpen ? 'rotate-180 text-amber-400' : ''}`} />
-              </button>
-
-              {isLangOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white dark:bg-[#18181c] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden py-1">
-                  {LANGUAGES.map(l => (
-                    <button
-                      key={l.value}
-                      type="button"
-                      onClick={() => {
-                        setLanguage(l.value);
-                        setIsLangOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-xs flex items-center justify-between transition-colors ${
-                        language === l.value
-                          ? 'bg-amber-500/10 text-amber-500 dark:text-amber-400 font-bold'
-                          : 'text-slate-800 dark:text-zinc-200 hover:bg-gray-100 dark:hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-4 rounded bg-gray-100 dark:bg-white/10 text-slate-700 dark:text-zinc-300 text-[9px] font-bold flex items-center justify-center font-mono">
-                          {l.code}
-                        </span>
-                        <span className="text-slate-800 dark:text-zinc-100">{l.label}</span>
-                      </div>
-                      {language === l.value && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Transcribe Button */}
+          {isRunning ? (
             <button
-              onClick={() => handleProcess()}
-              disabled={isProcessingAll || queue.filter(i => i.status === 'pending').length === 0}
-              className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-md shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 active:scale-98"
+              id="srt-stop"
+              onClick={() => abortRef.current?.abort()}
+              className="w-full py-2.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-xs font-bold flex items-center justify-center gap-1.5"
             >
-              <Zap className="w-3.5 h-3.5 fill-white" />
-              <span>{isProcessingAll ? 'Transcribing (~1s)...' : `Start Transcribe (${queue.filter(i => i.status === 'pending').length})`}</span>
+              <X className="w-3.5 h-3.5" /> ရပ်မည်
             </button>
-          </div>
-
-          {/* Queue List */}
-          {queue.length > 0 && (
-            <div className="rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 p-3 space-y-2 shadow-sm">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                <span>Queue ({queue.length})</span>
-                <button onClick={() => { setQueue([]); setSelectedItemId(null); }} className="text-rose-400 hover:underline">
-                  Clear
-                </button>
-              </div>
-
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {queue.map(item => (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedItemId(item.id)}
-                    className={`p-2 rounded-lg border text-xs cursor-pointer flex items-center justify-between gap-2 transition-all ${selectedItemId === item.id
-                      ? 'border-amber-500 bg-amber-500/10'
-                      : 'border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]'
-                      }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-slate-800 dark:text-zinc-200 truncate">{item.file.name}</p>
-                      <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.statusText || item.status}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {item.status === 'pending' && (
-                        <button
-                          onClick={e => { e.stopPropagation(); handleProcess(item); }}
-                          className="p-1 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
-                        >
-                          <Zap className="w-3 h-3 fill-current" />
-                        </button>
-                      )}
-                      <button
-                        onClick={e => { e.stopPropagation(); removeFile(item.id); }}
-                        className="p-1 text-slate-400 hover:text-rose-400"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          ) : (
+            <button
+              id="srt-start"
+              onClick={() => run()}
+              disabled={!queue.some(i => i.status === 'pending' || i.status === 'failed')}
+              className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              SRT ထုတ်မည် {pendingCount > 0 && `(${pendingCount})`}
+            </button>
           )}
-        </div>
 
-        {/* RIGHT COLUMN: Player & Editor */}
-        <div className="min-h-[480px] flex flex-col gap-3">
-          {!selectedItem ? (
-            <div className="flex-1 rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 flex flex-col items-center justify-center p-10 text-center shadow-sm">
-              <Zap className="w-8 h-8 text-amber-400/40 mb-2" />
-              <p className="text-xs font-bold text-slate-600 dark:text-zinc-400">Audio ဖိုင် ရွေးချယ်ပါ</p>
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">၁ စက္ကန့်အတွင်း SRT ထွက်ရှိပါမည်</p>
+          {queue.length > 0 && (
+            <ul className="space-y-1.5 max-h-64 overflow-y-auto pt-1 border-t border-gray-100 dark:border-white/5">
+              {queue.map(item => (
+                <li
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  className={`group p-2 rounded-lg border cursor-pointer transition-colors ${
+                    selectedId === item.id ? 'border-amber-500 bg-amber-500/5' : 'border-transparent hover:bg-gray-50 dark:hover:bg-white/[0.03]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 min-w-0 text-xs font-medium text-slate-800 dark:text-zinc-200 truncate">{item.file.name}</p>
+                    {item.status !== 'processing' && (
+                      <button
+                        onClick={e => { e.stopPropagation(); removeItem(item.id); }}
+                        className="p-0.5 text-slate-400 hover:text-rose-400 opacity-0 group-hover:opacity-100"
+                        aria-label="Remove"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <p className={`text-[10px] mt-0.5 truncate ${item.status === 'failed' ? 'text-rose-400' : 'text-slate-400'}`}>
+                    {item.message || 'စောင့်ဆိုင်းနေသည်'}
+                  </p>
+                  {item.status === 'processing' && (
+                    <div className="mt-1.5 h-1 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${item.progress}%` }} />
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+
+        {/* ── Right: player + editor ── */}
+        <section className="min-h-[480px] rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden">
+          {!selected ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-10 text-slate-400">
+              <Captions className="w-8 h-8 opacity-40 mb-2" />
+              <p className="text-xs">ဖိုင်တစ်ခု ထည့်ပါ</p>
             </div>
           ) : (
             <>
-              {/* Player Bar */}
-              <div className="rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 p-2.5 flex items-center gap-3 shadow-sm">
+              {/* Player */}
+              <div className="flex items-center gap-3 p-3 border-b border-gray-100 dark:border-white/5">
                 <button
-                  onClick={toggleAudio}
-                  className="w-8 h-8 rounded-lg bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm"
+                  onClick={togglePlay}
+                  className="w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0"
+                  aria-label={playing ? 'Pause' : 'Play'}
                 >
-                  {isAudioPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                  {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
                 </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="font-bold text-slate-800 dark:text-zinc-200 truncate">{selectedItem.file.name}</span>
-                    <span className="font-mono text-slate-400">{formatDuration(audioTime)} / {formatDuration(audioRef.current?.duration || 0)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={audioRef.current?.duration || 100}
-                    step="0.05"
-                    value={audioTime}
-                    onChange={e => {
-                      const t = Number(e.target.value);
-                      setAudioTime(t);
-                      if (audioRef.current) audioRef.current.currentTime = t;
-                    }}
-                    className="w-full h-1.5 accent-amber-500 cursor-pointer"
-                  />
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 1}
+                  step={0.05}
+                  value={time}
+                  onChange={e => { const t = Number(e.target.value); setTime(t); if (audioRef.current) audioRef.current.currentTime = t; }}
+                  className="flex-1 h-1 accent-amber-500 cursor-pointer"
+                />
+                <span className="text-[10px] font-mono text-slate-400 shrink-0">{mmss(time)} / {mmss(duration)}</span>
+              </div>
+
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-white/5">
+                <div className="flex gap-1 text-[11px] font-semibold">
+                  {(['cues', 'raw'] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setTab(t)}
+                      className={`px-2.5 py-1 rounded-md ${tab === t ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      {t === 'cues' ? `Cues (${cues.length})` : 'SRT'}
+                    </button>
+                  ))}
                 </div>
-                {activeCue && (
-                  <span className="hidden sm:inline-block px-2 py-1 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold truncate max-w-[180px]" style={{ fontFamily: 'Akkhayar21, sans-serif' }}>
-                    {activeCue.text}
-                  </span>
+                {hasSrt && selected.status !== 'processing' && (
+                  <div className="flex gap-1.5">
+                    <button onClick={sendToRecap} title="Movie Recap သို့ ပို့မည်" className="p-1.5 rounded-md text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10">
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={copySrt} title="Copy" className="p-1.5 rounded-md text-slate-500 hover:text-amber-500 hover:bg-amber-500/10">
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      id="srt-download"
+                      onClick={() => downloadSrt(selected.srt, selected.file.name)}
+                      className="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" /> .srt
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {/* Editor Card */}
-              <div className="flex-1 rounded-xl bg-white dark:bg-[#0e0e11] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
-                
-                {/* Header Actions */}
-                <div className="flex items-center justify-between px-3.5 py-2 border-b border-gray-100 dark:border-white/5">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setActiveTab('cards')}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${activeTab === 'cards' ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}
-                    >
-                      Cues ({cues.length})
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('raw')}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${activeTab === 'raw' ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}
-                    >
-                      Raw SRT
-                    </button>
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-3">
+                {selected.status === 'processing' && (
+                  <div className="mb-3 flex items-center gap-2 text-[11px] text-amber-500 font-medium">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="flex-1">{selected.message}</span>
+                    <span className="font-mono">{selected.progress}%</span>
                   </div>
+                )}
 
-                  {(selectedItem.status === 'completed' || cues.length > 0 || rawSrtText.trim().length > 0) && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => sendToMovieRecap(selectedItem)}
-                        className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1"
-                      >
-                        <Send className="w-3 h-3" /> Movie Recap
-                      </button>
-                      <button
-                        onClick={() => copySrt(selectedItem)}
-                        className="px-2 py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center gap-1"
-                      >
-                        {copiedId === selectedItem.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                        {copiedId === selectedItem.id ? 'Copied' : 'Copy'}
-                      </button>
-                      <button
-                        onClick={() => downloadSRT(selectedItem)}
-                        className="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm"
-                      >
-                        <Download className="w-3 h-3" /> Download .my.srt
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 p-3 overflow-y-auto">
-                  {selectedItem.status === 'processing' && cues.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full py-16 text-center space-y-3">
-                      <Zap className="w-8 h-8 text-amber-400 animate-pulse fill-amber-400" />
-                      <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">{selectedItem.statusText || 'Transcribing...'}</p>
-                      {typeof selectedItem.progress === 'number' && (
-                        <div className="w-48 bg-gray-200 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-                            style={{ width: `${selectedItem.progress}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : activeTab === 'raw' ? (
-                    <textarea
-                      value={rawSrtText}
-                      onChange={e => {
-                        setRawSrtText(e.target.value);
-                        setCues(parseSrtCues(e.target.value));
-                        setQueue(prev => prev.map(item => item.id === selectedItemId ? { ...item, result: e.target.value } : item));
-                      }}
-                      className="w-full h-full min-h-[360px] bg-transparent border-none text-xs font-mono text-slate-900 dark:text-zinc-100 outline-none resize-none leading-relaxed"
-                      placeholder="SRT text..."
-                    />
-                  ) : cues.length > 0 ? (
-                    <div className="space-y-1.5">
-                      {selectedItem.status === 'processing' && (
-                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                            <span className="font-bold text-amber-500 dark:text-amber-400">{selectedItem.statusText}</span>
+                {tab === 'raw' ? (
+                  <textarea
+                    value={selected.srt}
+                    onChange={e => updateSrt(e.target.value)}
+                    readOnly={selected.status === 'processing'}
+                    placeholder="SRT..."
+                    className="w-full h-full min-h-[380px] bg-transparent text-xs font-mono text-slate-800 dark:text-zinc-200 outline-none resize-none leading-relaxed"
+                    style={MYANMAR_FONT}
+                  />
+                ) : cues.length > 0 ? (
+                  <div className="space-y-1">
+                    {cues.map((cue, idx) => {
+                      const active = time >= toSeconds(cue.start) && time <= toSeconds(cue.end);
+                      const editing = editingIdx === idx;
+                      return (
+                        <div
+                          key={idx}
+                          className={`group rounded-lg px-2.5 py-2 text-xs transition-colors ${
+                            active ? 'bg-amber-500/10' : 'hover:bg-gray-50 dark:hover:bg-white/[0.03]'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <button
+                              onClick={() => seek(toSeconds(cue.start))}
+                              className="font-mono text-[10px] text-amber-500 hover:underline shrink-0 mt-0.5"
+                            >
+                              {cue.start.slice(3, 8)}
+                            </button>
+                            <p
+                              onClick={() => setEditingIdx(editing ? null : idx)}
+                              className="flex-1 text-slate-800 dark:text-zinc-200 leading-relaxed whitespace-pre-line cursor-text"
+                              style={MYANMAR_FONT}
+                            >
+                              {cue.text}
+                            </p>
+                            <button
+                              onClick={() => updateCues(cues.filter((_, i) => i !== idx))}
+                              className="p-0.5 text-slate-400 hover:text-rose-400 opacity-0 group-hover:opacity-100"
+                              aria-label="Delete cue"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
-                          <span className="font-mono text-[11px] text-amber-500 font-bold">{selectedItem.progress || 0}%</span>
-                        </div>
-                      )}
-                      {cues.map((cue, idx) => {
-                        const isActive = audioTime > 0 && srtToSeconds(cue.start) <= audioTime && srtToSeconds(cue.end) >= audioTime;
-                        const isEditing = editingCueIdx === idx;
-                        return (
-                          <div
-                            key={idx}
-                            className={`p-2.5 rounded-lg border text-xs transition-all ${isActive
-                              ? 'border-amber-500 bg-amber-500/10'
-                              : 'border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]'
-                              }`}
-                          >
-                            <div className="flex items-start gap-2 cursor-pointer" onClick={() => setEditingCueIdx(isEditing ? null : idx)}>
-                              <span className="font-mono text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0 mt-0.5">
-                                {cue.start}
-                              </span>
-                              <p className="flex-1 text-slate-800 dark:text-zinc-200 text-xs leading-relaxed" style={{ fontFamily: 'Akkhayar21, sans-serif', whiteSpace: 'pre-line' }}>
-                                {cue.text}
-                              </p>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  onClick={e => { e.stopPropagation(); seekToCue(cue); }}
-                                  className="p-1 text-slate-400 hover:text-amber-400"
-                                >
-                                  <Clock className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={e => { e.stopPropagation(); deleteCue(idx); }}
-                                  className="p-1 text-slate-400 hover:text-rose-400"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
+
+                          {editing && (
+                            <div className="mt-2 space-y-1.5 pl-10">
+                              <div className="flex gap-2">
+                                {(['start', 'end'] as const).map(f => (
+                                  <input
+                                    key={f}
+                                    value={cue[f]}
+                                    onChange={e => updateCue(idx, f, e.target.value)}
+                                    className="w-1/2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-[10px] font-mono text-slate-800 dark:text-zinc-200"
+                                  />
+                                ))}
                               </div>
+                              <textarea
+                                value={cue.text}
+                                onChange={e => updateCue(idx, 'text', e.target.value)}
+                                rows={2}
+                                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-xs text-slate-800 dark:text-zinc-200 resize-none"
+                                style={MYANMAR_FONT}
+                              />
                             </div>
+                          )}
+                        </div>
+                      );
+                    })}
 
-                            {isEditing && (
-                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-white/10 space-y-1.5">
-                                <div className="flex gap-2">
-                                  <input
-                                    value={cue.start}
-                                    onChange={e => updateCue(idx, 'start', e.target.value)}
-                                    className="w-1/2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-[10px] font-mono text-slate-800 dark:text-zinc-200"
-                                  />
-                                  <input
-                                    value={cue.end}
-                                    onChange={e => updateCue(idx, 'end', e.target.value)}
-                                    className="w-1/2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-[10px] font-mono text-slate-800 dark:text-zinc-200"
-                                  />
-                                </div>
-                                <textarea
-                                  value={cue.text}
-                                  onChange={e => updateCue(idx, 'text', e.target.value)}
-                                  rows={2}
-                                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-xs text-slate-800 dark:text-zinc-200 resize-none leading-relaxed"
-                                  style={{ fontFamily: 'Akkhayar21, sans-serif' }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
+                    {selected.status !== 'processing' && (
                       <button
                         onClick={addCue}
-                        className="w-full py-2 rounded-lg border border-dashed border-gray-300 dark:border-white/10 text-slate-400 hover:text-amber-400 text-[11px] font-bold flex items-center justify-center gap-1"
+                        className="w-full mt-2 py-2 rounded-lg border border-dashed border-gray-300 dark:border-white/10 text-slate-400 hover:text-amber-500 text-[11px] flex items-center justify-center gap-1"
                       >
-                        <Plus className="w-3 h-3" /> Add Cue
+                        <Plus className="w-3 h-3" /> Cue ထည့်မည်
                       </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full py-16 text-center">
-                      <p className="text-xs text-slate-400 mb-2">စာတန်း မထွက်ရှိသေးပါ</p>
-                      <button
-                        onClick={() => handleProcess(selectedItem)}
-                        className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold"
-                      >
-                        Transcribe Now
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                ) : selected.status !== 'processing' ? (
+                  <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center gap-2">
+                    {selected.status === 'failed' && <p className="text-xs text-rose-400 max-w-sm">{selected.message}</p>}
+                    <button
+                      onClick={() => run(selected)}
+                      disabled={isRunning}
+                      className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold disabled:opacity-40"
+                    >
+                      {selected.status === 'failed' ? 'ပြန်စမ်းမည်' : 'SRT ထုတ်မည်'}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

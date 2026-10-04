@@ -73,7 +73,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
   const [logoY, setLogoY] = useState<number>(8); // Vertical Position (0% = Top, 100% = Bottom)
   const [logoAlign, setLogoAlign] = useState<'left' | 'center' | 'right'>('right');
-  const [logoScale, setLogoScale] = useState<number>(14); // 4% to 35% width
+  const [logoScale, setLogoScale] = useState<number>(10); // 4% to 35% width
   const [logoOpacity, setLogoOpacity] = useState<number>(100); // 20% to 100%
 
   // --- State: AI Generation (Optional Veo prompt fallback) ---
@@ -734,7 +734,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           ctx.clip();
           // Draw the true blurred video frame
           ctx.drawImage(helper, 0, 0, smallW, smallH, 0, 0, width, height);
-          
+
           // Subtle soft glass tint so underlying movie colors remain vibrant and visible while text is thoroughly obscured
           ctx.fillStyle = 'rgba(0,0,0,0.12)';
           ctx.fillRect(0, bY - bH / 2, width, bH);
@@ -886,12 +886,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         : 1;
       const lHeight = lWidth * aspect;
       const pad = Math.max(8, width * 0.02);
+      const edgeX = width * 0.05; // horizontal margin for left/right logos (5% in from edge)
 
-      let lx = pad;
+      let lx = edgeX;
       if (logoAlign === 'center') {
         lx = (width - lWidth) / 2;
       } else if (logoAlign === 'right') {
-        lx = width - lWidth - pad;
+        lx = width - lWidth - edgeX;
       }
 
       const availableH = Math.max(0, height - lHeight - (pad * 2));
@@ -1485,13 +1486,12 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                           <Sliders className="w-3.5 h-3.5 text-indigo-400" />
                           <span>Timing Nudge (စာတန်း အသံနှင့် ညှိရန်)</span>
                         </label>
-                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-                          subtitleOffset === 0
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${subtitleOffset === 0
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                             : subtitleOffset > 0
                               ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
                               : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        }`}>
+                          }`}>
                           {subtitleOffset === 0
                             ? '0.00s (Exact)'
                             : subtitleOffset > 0
@@ -1561,11 +1561,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                               key={chip.label}
                               type="button"
                               onClick={() => setSubtitleOffset(chip.val)}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${
-                                Math.abs(subtitleOffset - chip.val) < 0.01
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${Math.abs(subtitleOffset - chip.val) < 0.01
                                   ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400'
                                   : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400'
-                              }`}
+                                }`}
                             >
                               {chip.label}
                             </button>
@@ -1681,9 +1680,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 </h2>
               </div>
               {audioFile && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                  isTimelineSynced ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                }`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${isTimelineSynced ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                  }`}>
                   {isTimelineSynced ? (
                     <>
                       <CheckCircle2 className="w-3 h-3" /> In-Sync
@@ -1758,11 +1756,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                       key={s}
                       type="button"
                       onClick={() => setVideoSpeed(s)}
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${
-                        Math.abs(videoSpeed - s) < 0.02
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${Math.abs(videoSpeed - s) < 0.02
                           ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400'
                           : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400'
-                      }`}
+                        }`}
                     >
                       {s}x
                     </button>
@@ -1793,11 +1790,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                         key={s}
                         type="button"
                         onClick={() => setAudioSpeed(s)}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${
-                          Math.abs(audioSpeed - s) < 0.02
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border transition-all ${Math.abs(audioSpeed - s) < 0.02
                             ? 'border-purple-500 bg-purple-500/15 text-purple-400'
                             : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-slate-600 dark:text-zinc-400'
-                        }`}
+                          }`}
                       >
                         {s}x
                       </button>
@@ -1894,11 +1890,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                         key={preset.label}
                         type="button"
                         onClick={() => setLogoY(preset.val)}
-                        className={`rounded-lg py-1 text-[10px] font-semibold border transition-all ${
-                          logoY === preset.val
+                        className={`rounded-lg py-1 text-[10px] font-semibold border transition-all ${logoY === preset.val
                             ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400 font-bold'
                             : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
+                          }`}
                       >
                         {preset.label}
                       </button>
@@ -1921,11 +1916,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                         key={align.key}
                         type="button"
                         onClick={() => setLogoAlign(align.key as 'left' | 'center' | 'right')}
-                        className={`rounded-lg py-1.5 text-[10px] font-semibold border transition-all ${
-                          logoAlign === align.key
+                        className={`rounded-lg py-1.5 text-[10px] font-semibold border transition-all ${logoAlign === align.key
                             ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400 font-bold'
                             : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
+                          }`}
                       >
                         {align.label}
                       </button>

@@ -54,18 +54,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 21h16a1 1 0 001-1V4a1 1 0 00-1-1H4a1 1 0 00-1 1v16a1 1 0 001 1z" />
             </svg>
           )
-        },
-        { 
-          title: 'Video Studio', 
-          desc: 'Subtitles, voiceover and video outputs in one place.', 
-          cost: CREDIT_COSTS[ContentType.VIDEO] || 15, 
-          path: 'video', 
-          color: 'text-indigo-500', 
-          icon: (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-            </svg>
-          )
         }
       ]
     },
@@ -113,7 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
     },
     {
       id: 'design',
-      name: 'Design & Translate',
+      name: 'Design',
       items: [
         { 
           title: 'Thumbnail Generator', 
@@ -124,18 +112,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
           icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          )
-        },
-        { 
-          title: 'Translation', 
-          desc: 'Translate between English and Burmese accurately.', 
-          cost: CREDIT_COSTS[ContentType.TRANSLATION], 
-          path: 'translation', 
-          color: 'text-emerald-500', 
-          icon: (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 5h12M9 3v2m1.048 9.516a3.303 3.303 0 01-3.352-3.352c0-1.85 1.502-3.352 3.352-3.352s3.352 1.502 3.352 3.352-1.502 3.352-3.352 3.352z" />
             </svg>
           )
         }
@@ -194,7 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
             { id: 'all', label: 'All' },
             { id: 'video', label: 'Video' },
             { id: 'voice', label: 'Voice & Audio' },
-            { id: 'design', label: 'Design & Translate' }
+            { id: 'design', label: 'Design' }
           ].map((tab) => (
             <button
               key={tab.id}
