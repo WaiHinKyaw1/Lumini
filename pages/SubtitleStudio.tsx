@@ -20,6 +20,10 @@ import {
   uploadMedia,
   extractAudioFromMedia
 } from '../services/mediaWorkerApi';
+import {
+  runMyanmarSrtFlow,
+  downloadMyanmarSrtFile
+} from '../services/myanmarSrtService';
 
 interface SubtitleStudioProps {
   onSpendCredits: (amount: number) => boolean;
@@ -228,41 +232,78 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
   };
 
   const processFile = async (item: FileItem) => {
-    if (item.file.size > 250 * 1024 * 1024) throw new Error('ဖိုင်ဆိုဒ် ကြီးလွန်းပါသည် (အများဆုံး 250MB)');
+    if (language === 'BURMESE' && item.file.size > 12 * 1024 * 1024) {
+      throw new Error('ဖိုင်ဆိုဒ် ၁၀MB ထက် မကျော်လွန်ရပါ (ဖိုင်အကြီးအငယ် ၁၀MB အထိ သုံးလို့ရပါ)');
+    } else if (item.file.size > 250 * 1024 * 1024) {
+      throw new Error('ဖိုင်ဆိုဒ် ကြီးလွန်းပါသည် (အများဆုံး 250MB)');
+    }
     if (!onSpendCredits(CREDIT_COSTS[ContentType.SUBTITLE])) throw new Error('Credit မလုံလောက်ပါ');
 
-    setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' as const, statusText: 'စတင်နေပါသည်...', progress: 15 } : i));
+    setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' as const, statusText: 'စတင်နေပါသည်...', progress: 10 } : i));
 
     try {
-      let audioBlob: Blob = item.file;
-      let base64 = '';
-      let mimeType = item.file.type || 'audio/mp3';
-      const isVideo = item.file.type.startsWith('video/') || /\.(mp4|webm|mov|mkv)$/i.test(item.file.name);
+      let result = '';
 
-      if (isVideo) {
-        let isWorkerOnline = false;
-        if (isMediaWorkerConfigured()) {
-          try { isWorkerOnline = await isMediaWorkerAvailable(); } catch { }
-        }
+      if (language === 'BURMESE') {
+        // Run specialized 6-step Myanmar SRT flow (In-Browser VAD + Gemini Segment AI)
+        const flowRes = await runMyanmarSrtFlow(item.file, {
+          onProgress: (p) => {
+            if (!isMounted.current) return;
+            setQueue(prev => prev.map(i => i.id === item.id ? {
+              ...i,
+              statusText: p.message,
+              progress: p.percent,
+              result: p.rawSrtText
+            } : i));
 
-        let extracted = false;
-        if (isWorkerOnline) {
-          try {
-            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'ဆာဗာသို့ တင်သွင်းနေပါသည်...', progress: 30 } : i));
-            const uploaded = await uploadMedia(item.file);
-            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'အသံဖိုင် သီးသန့် ခွဲထုတ်နေပါသည်...', progress: 50 } : i));
-            const res = await extractAudioFromMedia(uploaded.fileId);
-            base64 = res.audioBase64;
-            mimeType = res.mimeType || 'audio/mp3';
-            const byteChars = atob(base64);
-            const byteNumbers = new Array(byteChars.length);
-            for (let k = 0; k < byteChars.length; k++) byteNumbers[k] = byteChars.charCodeAt(k);
-            audioBlob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
-            extracted = true;
-          } catch { }
-        }
+            if (selectedItemId === item.id) {
+              setCues(p.currentCues);
+              setRawSrtText(p.rawSrtText);
+            }
+          }
+        });
+        result = flowRes.srt;
+      } else {
+        let audioBlob: Blob = item.file;
+        let base64 = '';
+        let mimeType = item.file.type || 'audio/mp3';
+        const isVideo = item.file.type.startsWith('video/') || /\.(mp4|webm|mov|mkv)$/i.test(item.file.name);
 
-        if (!extracted) {
+        if (isVideo) {
+          let isWorkerOnline = false;
+          if (isMediaWorkerConfigured()) {
+            try { isWorkerOnline = await isMediaWorkerAvailable(); } catch { }
+          }
+
+          let extracted = false;
+          if (isWorkerOnline) {
+            try {
+              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'ဆာဗာသို့ တင်သွင်းနေပါသည်...', progress: 30 } : i));
+              const uploaded = await uploadMedia(item.file);
+              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: 'အသံဖိုင် သီးသန့် ခွဲထုတ်နေပါသည်...', progress: 50 } : i));
+              const res = await extractAudioFromMedia(uploaded.fileId);
+              base64 = res.audioBase64;
+              mimeType = res.mimeType || 'audio/mp3';
+              const byteChars = atob(base64);
+              const byteNumbers = new Array(byteChars.length);
+              for (let k = 0; k < byteChars.length; k++) byteNumbers[k] = byteChars.charCodeAt(k);
+              audioBlob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+              extracted = true;
+            } catch { }
+          }
+
+          if (!extracted) {
+            try {
+              const comp = await compressAudioFile(item.file);
+              audioBlob = comp.blob;
+              base64 = comp.base64;
+              mimeType = comp.mimeType;
+            } catch {
+              base64 = await fileToBase64(item.file);
+              mimeType = item.file.type || 'video/mp4';
+            }
+          }
+        } else {
           try {
             const comp = await compressAudioFile(item.file);
             audioBlob = comp.blob;
@@ -270,41 +311,30 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
             mimeType = comp.mimeType;
           } catch {
             base64 = await fileToBase64(item.file);
-            mimeType = item.file.type || 'video/mp4';
           }
         }
-      } else {
-        try {
-          const comp = await compressAudioFile(item.file);
-          audioBlob = comp.blob;
-          base64 = comp.base64;
-          mimeType = comp.mimeType;
-        } catch {
-          base64 = await fileToBase64(item.file);
-        }
-      }
 
-      setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: '⚡ Fast Whisper ဖြင့် ၁ စက္ကန့်အတွင်း စာတန်းပြောင်းနေပါသည်...', progress: 65 } : i));
+        setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: '⚡ Fast Whisper ဖြင့် ၁ စက္ကန့်အတွင်း စာတန်းပြောင်းနေပါသည်...', progress: 65 } : i));
 
-      let result = '';
-      const groqKey = getGroqApiKey();
+        const groqKey = getGroqApiKey();
 
-      if (groqKey) {
-        result = await transcribeWithGroq(audioBlob, {
-          language,
-          apiKey: groqKey,
-          onProgress: (msg, pct) => {
-            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: msg, progress: pct } : i));
+        if (groqKey) {
+          result = await transcribeWithGroq(audioBlob, {
+            language,
+            apiKey: groqKey,
+            onProgress: (msg, pct) => {
+              setQueue(prev => prev.map(i => i.id === item.id ? { ...i, statusText: msg, progress: pct } : i));
+            }
+          });
+        } else if (isMediaWorkerConfigured()) {
+          try {
+            result = await transcribeWithServerWorker(audioBlob, { language });
+          } catch {
+            result = await generateSubtitles(base64, mimeType, language);
           }
-        });
-      } else if (isMediaWorkerConfigured()) {
-        try {
-          result = await transcribeWithServerWorker(audioBlob, { language });
-        } catch {
+        } else {
           result = await generateSubtitles(base64, mimeType, language);
         }
-      } else {
-        result = await generateSubtitles(base64, mimeType, language);
       }
 
       if (!isMounted.current) return;
@@ -330,7 +360,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
         setCues(finalCues);
         setRawSrtText(result);
       }
-      toast.success(`${item.file.name} — SRT ထွက်ရှိပါပြီ!`);
+      toast.success(`${item.file.name} — .my.srt ထွက်ရှိပါပြီ!`);
     } catch (err: unknown) {
       if (isMounted.current) {
         const errorMsg = (err as { message?: string })?.message || 'ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်';
@@ -358,22 +388,15 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
   };
 
   const downloadSRT = (item: FileItem) => {
-    if (!item.result && !rawSrtText) return;
+    if (!item.result && !rawSrtText && cues.length === 0) return;
     const content = activeTab === 'raw' ? rawSrtText : (cues.length > 0 && selectedItemId === item.id ? cuesToSrt(cues) : item.result || rawSrtText);
-    const blob = new Blob(['\uFEFF' + content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${item.file.name.replace(/\.[^.]+$/, '')}.srt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success('SRT ဖိုင် ဒေါင်းလုဒ်လုပ်ပြီးပါပြီ!');
+    downloadMyanmarSrtFile(content, item.file.name);
+    toast.success('.my.srt ဖိုင် ဒေါင်းလုဒ်လုပ်ပြီးပါပြီ!');
   };
 
   const copySrt = async (item: FileItem) => {
     const content = activeTab === 'raw' ? rawSrtText : (cues.length > 0 && selectedItemId === item.id ? cuesToSrt(cues) : (item.result || rawSrtText));
+    if (!content.trim()) return;
     await navigator.clipboard.writeText(content);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -502,13 +525,31 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
             >
               <Upload className="w-6 h-6 text-amber-400 mx-auto mb-1" />
               <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                Audio / Video ဖိုင် တင်ပါ
+                Audio / Video ဖိုင် ဆွဲထည့် သို့မဟုတ် နှိပ်၍ရွေးပါ
               </p>
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
-                .mp3, .wav, .m4a, .mp4
+              <p className="text-[10px] text-amber-500 dark:text-amber-400 font-medium mt-0.5">
+                ဖိုင်အကြီးအငယ် ၁၀MB အထိ (.mp3, .wav, .m4a, .mp4)
               </p>
               <input ref={fileInputRef} type="file" accept="video/*,audio/*,.mp4,.mov,.mp3,.wav,.m4a" multiple onChange={handleFileChange} className="hidden" />
             </div>
+
+            {/* 6-Step Myanmar SRT Workflow Indicator */}
+            {language === 'BURMESE' && (
+              <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/15 text-[10px] text-slate-600 dark:text-zinc-400 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-500 dark:text-amber-400 text-[11px]">
+                  <Zap className="w-3 h-3 fill-current" />
+                  <span>Myanmar 6-Step SRT Engine</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1 text-[9px] text-slate-500 dark:text-zinc-400 pt-1 border-t border-amber-500/10">
+                  <div>၁။ ဖိုင်တင် (≤10MB)</div>
+                  <div>၂။ 16kHz Mono (Browser)</div>
+                  <div>၃။ 0.25s စကားရပ် & ≤4s ခွဲ</div>
+                  <div>၄။ 3-AI Workers (Retry x3)</div>
+                  <div>၅။ ၂ ကြောင်း အလယ်ခွဲစနစ်</div>
+                  <div>၆။ .my.srt BOM ဒေါင်းလုဒ်</div>
+                </div>
+              </div>
+            )}
 
             {/* Language Custom Dropdown */}
             <div ref={langDropdownRef} className="relative">
@@ -682,7 +723,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                     </button>
                   </div>
 
-                  {selectedItem.status === 'completed' && (
+                  {(selectedItem.status === 'completed' || cues.length > 0 || rawSrtText.trim().length > 0) && (
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => sendToMovieRecap(selectedItem)}
@@ -699,9 +740,9 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                       </button>
                       <button
                         onClick={() => downloadSRT(selectedItem)}
-                        className="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm"
                       >
-                        <Download className="w-3 h-3" /> Download .SRT
+                        <Download className="w-3 h-3" /> Download .my.srt
                       </button>
                     </div>
                   )}
@@ -709,10 +750,18 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
 
                 {/* Content */}
                 <div className="flex-1 p-3 overflow-y-auto">
-                  {selectedItem.status === 'processing' ? (
-                    <div className="flex flex-col items-center justify-center h-full py-16 text-center space-y-2">
+                  {selectedItem.status === 'processing' && cues.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-16 text-center space-y-3">
                       <Zap className="w-8 h-8 text-amber-400 animate-pulse fill-amber-400" />
                       <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">{selectedItem.statusText || 'Transcribing...'}</p>
+                      {typeof selectedItem.progress === 'number' && (
+                        <div className="w-48 bg-gray-200 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-amber-500 h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${selectedItem.progress}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : activeTab === 'raw' ? (
                     <textarea
@@ -727,25 +776,34 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                     />
                   ) : cues.length > 0 ? (
                     <div className="space-y-1.5">
+                      {selectedItem.status === 'processing' && (
+                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                            <span className="font-bold text-amber-500 dark:text-amber-400">{selectedItem.statusText}</span>
+                          </div>
+                          <span className="font-mono text-[11px] text-amber-500 font-bold">{selectedItem.progress || 0}%</span>
+                        </div>
+                      )}
                       {cues.map((cue, idx) => {
                         const isActive = audioTime > 0 && srtToSeconds(cue.start) <= audioTime && srtToSeconds(cue.end) >= audioTime;
                         const isEditing = editingCueIdx === idx;
                         return (
                           <div
                             key={idx}
-                            className={`p-2 rounded-lg border text-xs transition-all ${isActive
+                            className={`p-2.5 rounded-lg border text-xs transition-all ${isActive
                               ? 'border-amber-500 bg-amber-500/10'
                               : 'border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]'
                               }`}
                           >
-                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setEditingCueIdx(isEditing ? null : idx)}>
-                              <span className="font-mono text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                            <div className="flex items-start gap-2 cursor-pointer" onClick={() => setEditingCueIdx(isEditing ? null : idx)}>
+                              <span className="font-mono text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0 mt-0.5">
                                 {cue.start}
                               </span>
-                              <p className="flex-1 truncate text-slate-800 dark:text-zinc-200" style={{ fontFamily: 'Akkhayar21, sans-serif' }}>
+                              <p className="flex-1 text-slate-800 dark:text-zinc-200 text-xs leading-relaxed" style={{ fontFamily: 'Akkhayar21, sans-serif', whiteSpace: 'pre-line' }}>
                                 {cue.text}
                               </p>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={e => { e.stopPropagation(); seekToCue(cue); }}
                                   className="p-1 text-slate-400 hover:text-amber-400"
@@ -775,10 +833,11 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                                     className="w-1/2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-[10px] font-mono text-slate-800 dark:text-zinc-200"
                                   />
                                 </div>
-                                <input
+                                <textarea
                                   value={cue.text}
                                   onChange={e => updateCue(idx, 'text', e.target.value)}
-                                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-xs text-slate-800 dark:text-zinc-200"
+                                  rows={2}
+                                  className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-xs text-slate-800 dark:text-zinc-200 resize-none leading-relaxed"
                                   style={{ fontFamily: 'Akkhayar21, sans-serif' }}
                                 />
                               </div>

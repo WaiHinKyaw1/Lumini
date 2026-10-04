@@ -2,22 +2,27 @@
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } from "@google/genai";
 
 // Standard client getter with fallback for build safety and provided user key
-const getAIClient = () => {
+export const getAIClient = () => {
   let key = '';
   try {
     key = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
   } catch (e) {
     // Ignore
   }
-  key = (key || "").trim();
+  key = (key || "").trim().replace(/^['"]|['"]$/g, '');
   
   if (!key) {
     throw new Error("Gemini API Key is missing. Please ensure GEMINI_API_KEY is set in your environment or app settings.");
   }
+  // Keys starting with "AQ." are Vertex AI Express Mode keys. The Gemini Developer API
+  // (generativelanguage.googleapis.com) rejects them with 401 UNAUTHENTICATED, so route via Vertex AI.
+  if (key.startsWith('AQ.')) {
+    return new GoogleGenAI({ vertexai: true, apiKey: key });
+  }
   return new GoogleGenAI({ apiKey: key });
 };
 
-const CANDIDATE_FLASH_MODELS = [
+export const CANDIDATE_FLASH_MODELS = [
   'gemini-3.8-flash',
   'gemini-3.5-flash',
   'gemini-3-flash-preview',
@@ -861,3 +866,11 @@ export const playAudio = async (url: string, onEnded?: () => void) => {
     throw err;
   }
 };
+
+export {
+  runMyanmarSrtFlow,
+  downloadMyanmarSrtFile,
+  splitMyanmarTextIntoTwoLines,
+  detectSpeechSegments,
+  extractMonoAudioInBrowser
+} from './myanmarSrtService';

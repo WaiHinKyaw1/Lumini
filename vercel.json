@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/worker/:path*",
+      "destination": "http://16.170.108.153:8080/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
