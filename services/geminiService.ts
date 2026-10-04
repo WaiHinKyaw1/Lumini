@@ -5,7 +5,7 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } f
 export const getAIClient = () => {
   let key = '';
   try {
-    key = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+    key = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY) || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
   } catch (e) {
     // Ignore
   }
@@ -109,7 +109,7 @@ export const generateVideo = async (prompt: string) => {
 
   let key = '';
   try {
-    key = (import.meta.env.VITE_GEMINI_API_KEY) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY || "") : "");
+    key = localStorage.getItem('VITE_GEMINI_API_KEY') || (import.meta.env.VITE_GEMINI_API_KEY) || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
   } catch (e) {
     // Ignore
   }
