@@ -36,8 +36,11 @@ import {
   AlertCircle,
   Clipboard,
   Check,
-  Zap
+  Zap,
+  History
 } from 'lucide-react';
+import { saveModuleHistory } from '../services/moduleHistory';
+import { ModuleHistoryModal } from '../components/ModuleHistoryModal';
 
 interface VoiceoverProps {
   onSpendCredits: (amount: number) => boolean;
@@ -63,6 +66,7 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   // --- Simplified Sample Voice & Narration Style State ---
   const [sampleFile, setSampleFile] = useState<File | null>(null);
@@ -615,6 +619,15 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
         setLastUsedEngine(usedEngine);
       }
 
+      await saveModuleHistory({
+        module: 'voiceover',
+        title: text.slice(0, 40) || 'Voiceover Audio',
+        outputType: 'audio',
+        outputData: blobUrl,
+        input: { text, character: char?.name || characterId, tone, voiceSpeed, voicePitch, engine: usedEngine, withSampleVoice: !!analyzedProfile },
+        extra: { characterId, tone, voiceSpeed, voicePitch }
+      });
+
       const currentUser = auth.currentUser;
       if (currentUser) {
         void logGeneration(
@@ -690,24 +703,35 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </h1>
         </div>
 
-        {/* Colab GPU Settings Pill */}
-        <button
-          type="button"
-          onClick={() => {
-            setInputVoxcpmUrl(getActiveVoxCPMUrl());
-            setVoxcpmCheckMsg(null);
-            setIsVoxcpmModalOpen(true);
-          }}
-          className={`text-xs font-medium px-3 py-1.5 rounded-full border flex items-center gap-1.5 transition-all ${voxcpmOnline
-            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-            : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-white/10 hover:border-indigo-400'
-            }`}
-          title="VoxCPM Colab GPU Server Settings"
-        >
-          <span className={`w-2 h-2 rounded-full ${voxcpmOnline ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-          <span>{voxcpmOnline ? 'VoxCPM (Online)' : 'VoxCPM GPU'}</span>
-          <Settings2 className="w-3 h-3 opacity-60" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>History</span>
+          </button>
+
+          {/* Colab GPU Settings Pill */}
+          <button
+            type="button"
+            onClick={() => {
+              setInputVoxcpmUrl(getActiveVoxCPMUrl());
+              setVoxcpmCheckMsg(null);
+              setIsVoxcpmModalOpen(true);
+            }}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full border flex items-center gap-1.5 transition-all ${voxcpmOnline
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+              : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-white/10 hover:border-indigo-400'
+              }`}
+            title="VoxCPM Colab GPU Server Settings"
+          >
+            <span className={`w-2 h-2 rounded-full ${voxcpmOnline ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+            <span>{voxcpmOnline ? 'VoxCPM (Online)' : 'VoxCPM GPU'}</span>
+            <Settings2 className="w-3 h-3 opacity-60" />
+          </button>
+        </div>
       </div>
 
       <div className="glass p-5 rounded-2xl border border-slate-200 dark:border-white/10 space-y-4 shadow-xl">
@@ -1314,6 +1338,22 @@ const Voiceover: React.FC<VoiceoverProps> = ({ onSpendCredits }) => {
           </div>
         </div>
       )}
+
+      <ModuleHistoryModal
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        module="voiceover"
+        moduleTitle="Voiceover Studio"
+        onRestore={(rec) => {
+          setAudioUrl(rec.outputData);
+          if (rec.input && typeof rec.input === 'object') {
+            const inp = rec.input as Record<string, unknown>;
+            if (inp.text) setText(String(inp.text));
+            if (inp.characterId) setCharacterId(String(inp.characterId));
+            if (inp.tone) setTone(String(inp.tone));
+          }
+        }}
+      />
     </div>
   );
 };

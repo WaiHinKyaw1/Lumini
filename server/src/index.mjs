@@ -580,8 +580,8 @@ function findBestBurmeseSplitPoint(text) {
   return Math.floor(mid);
 }
 
-// Strictly format into at most 2 lines (never 3 lines)
-function wrapSubtitleText(text, maxCharsPerLine = 34) {
+// Strictly format into at most 2 lines (never 3 lines, wider margins)
+function wrapSubtitleText(text, maxCharsPerLine = 42) {
   if (!text) return '';
   const clean = text
     .replace(/\\N/gi, ' ')
@@ -652,9 +652,9 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, offsetSec = 
 
   const isPortrait = canvas.height > canvas.width;
   const baseFontSize = isPortrait
-    ? Math.max(28, Math.round(canvas.height * 0.025))
-    : Math.max(26, Math.round(canvas.height * 0.035));
-  const availableWidth = canvas.width * 0.88;
+    ? Math.max(48, Math.round(canvas.height * 0.028))
+    : Math.max(54, Math.round(canvas.height * 0.052));
+  const availableWidth = canvas.width * 0.95;
 
   const events = [];
   for (const cue of rawCues) {
@@ -667,7 +667,7 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, offsetSec = 
 
     // Burmese letters average ~0.72 of font size in width
     const maxFitFontSize = Math.floor(availableWidth / Math.max(1, maxLineLen * 0.72));
-    const cueFontSize = Math.max(22, Math.min(baseFontSize, maxFitFontSize));
+    const cueFontSize = Math.max(42, Math.min(baseFontSize, maxFitFontSize));
 
     const formattedText = cueFontSize < baseFontSize
       ? `{\\fs${cueFontSize}}${cue.cueText}`
@@ -685,8 +685,8 @@ function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
 
   const isPortrait = canvas.height > canvas.width;
   const fontSize = isPortrait
-    ? Math.max(28, Math.round(canvas.height * 0.025))
-    : Math.max(26, Math.round(canvas.height * 0.035));
+    ? Math.max(48, Math.round(canvas.height * 0.028))
+    : Math.max(54, Math.round(canvas.height * 0.052));
 
   const blurPos = Number.isFinite(settings.blurPosition) ? settings.blurPosition : 82;
   const stripCenterFromBottom = ((100 - blurPos) / 100) * canvas.height;
@@ -698,7 +698,7 @@ function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
     ? Math.max(10, Math.round(stripCenterFromBottom - (fontSize * 0.72)))
     : Math.round(isPortrait ? canvas.height * 0.08 : canvas.height * 0.10);
 
-  const marginLR = isPortrait ? 25 : 60;
+  const marginLR = isPortrait ? 18 : 24;
 
   let fontName = 'Akkhayar21';
   if (settings.subtitleStyle === 'font-kunheing' || settings.subtitleStyle === 'kunheing') {

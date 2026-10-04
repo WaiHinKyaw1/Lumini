@@ -1,10 +1,13 @@
 
 import React, { useState } from 'react';
+import { History } from 'lucide-react';
 import { analyzeDocumentStream } from '../services/geminiService';
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { saveModuleHistory } from '../services/moduleHistory';
+import { ModuleHistoryModal } from '../components/ModuleHistoryModal';
 
 
 interface TranscriptionProps {
@@ -19,6 +22,7 @@ const Transcription: React.FC<TranscriptionProps> = ({ onSpendCredits }) => {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [messageIndex, setMessageIndex] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
   const isMounted = React.useRef(true);
 
   const MESSAGES = [
@@ -200,6 +204,14 @@ Rules:
       });
       setProgress(100);
 
+      await saveModuleHistory({
+        module: 'transcription',
+        title: file.name,
+        outputType: 'text',
+        outputData: fullTranscription,
+        input: { fileName: file.name, fileSize: file.size, fileType: file.type }
+      });
+
       const currentUser = auth.currentUser;
       if (currentUser) {
         await logGeneration(
@@ -225,16 +237,26 @@ Rules:
 
   return (
     <div className="module-page max-w-xl mx-auto pb-6">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2.5 rounded-xl bg-accent/10 flex items-center justify-center">
-          <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-accent/10 flex items-center justify-center">
+            <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Transcript Master</h1>
+            <p className="text-xs text-slate-500 dark:text-zinc-300 mt-1">Media to Text • {CREDIT_COSTS[ContentType.TRANSCRIPTION]} Credits</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white !mb-0">Transcript Master</h1>
-          <p className="text-xs text-slate-500 dark:text-zinc-300 mt-1">Media to Text • {CREDIT_COSTS[ContentType.TRANSCRIPTION]} Credits</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowHistory(true)}
+          className="px-3 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+        >
+          <History className="w-3.5 h-3.5" />
+          <span>History</span>
+        </button>
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5 space-y-4">
@@ -297,6 +319,14 @@ Rules:
         )}
       </div>
       {error && <div className="mt-2 p-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-center text-[10px] font-semibold text-rose-500 uppercase tracking-wide">{error}</div>}
+
+      <ModuleHistoryModal
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        module="transcription"
+        moduleTitle="Transcript Master"
+        onRestore={(rec) => setResult(rec.outputData)}
+      />
     </div>
   );
 };

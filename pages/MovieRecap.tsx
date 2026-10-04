@@ -38,8 +38,11 @@ import {
   Zap,
   RotateCcw,
   Clock,
+  History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { saveModuleHistory } from '../services/moduleHistory';
+import { ModuleHistoryModal } from '../components/ModuleHistoryModal';
 
 interface MovieRecapProps {
   onSpendCredits: (amount: number) => boolean;
@@ -81,6 +84,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [hasKey, setHasKey] = useState(false);
   const [showAIPrompt, setShowAIPrompt] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // --- State: Settings ---
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1' | '4:5'>('16:9');
@@ -258,9 +262,10 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       toast.error('SRT ဖိုင် timestamp ကို ရှာမတွေ့ပါ');
       return;
     }
+    // Fit SRT to natural media duration (speed scaling is automatically applied by player & worker)
     const targetAudioDur = audioFile && audioDuration > 0
-      ? (audioDuration / audioSpeed)
-      : (videoDuration > 0 ? (videoDuration / videoSpeed) : 0);
+      ? audioDuration
+      : videoDuration;
     if (targetAudioDur <= 0) {
       toast.error('ကြာချိန်ကို တွက်ချက်၍ မရသေးပါ');
       return;
@@ -758,7 +763,9 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       ctx.save();
       let subText = '';
       if (subtitleText.includes('-->')) {
-        const currentAudioTime = audioFile ? (video.currentTime / videoSpeed) * audioSpeed : video.currentTime;
+        const currentAudioTime = audioRef.current && isPlaying
+          ? audioRef.current.currentTime
+          : (audioFile ? (video.currentTime / videoSpeed) * audioSpeed : video.currentTime);
         const active = getActiveSubtitleCue(subtitleText, currentAudioTime || 0, subtitleOffset);
         subText = active || (video.paused ? getFirstSubtitleCue(subtitleText) : '');
       } else {
@@ -766,8 +773,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       }
 
       if (subText) {
-        // Base font size: 5.5% of height, then auto-scale down to fit 90% of strip width
-        let fontSize = Math.max(14, Math.floor(height * 0.055));
+        // High prominent recap font size (never tiny)
+        const isPortrait = height > width;
+        let fontSize = isPortrait
+          ? Math.max(16, Math.floor(height * 0.042))
+          : Math.max(18, Math.floor(height * 0.065));
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
@@ -777,8 +787,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         else if (subtitleStyle === 'font-myanmaros') fontName = 'MyanmarOS';
         else fontName = 'Akkhayar21';
 
-        // Strictly wrap into at most 2 lines (never 3 lines)
-        const maxLineWidth = width * 0.88;
+        // Expand horizontally to 95% of width (users requested "ဘေးဘက်တေ တိုးလိုက်")
+        const maxLineWidth = width * 0.95;
         const wrapTextToMax2Lines = (text: string, maxW: number): string[] => {
           const clean = text.replace(/\\N/gi, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
           ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
@@ -849,12 +859,12 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           return [clean.slice(0, Math.floor(mid)).trim(), clean.slice(Math.floor(mid)).trim()];
         };
 
-        // Auto-scale font so both lines fit cleanly within maxLineWidth
+        // Auto-scale font so both lines fit cleanly within maxLineWidth (never shrink below minimum)
         let lines = wrapTextToMax2Lines(subText, maxLineWidth);
         ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
         const maxMeasured = Math.max(...lines.map(l => ctx.measureText(l).width));
         if (maxMeasured > maxLineWidth) {
-          fontSize = Math.max(10, Math.floor(fontSize * maxLineWidth / maxMeasured));
+          fontSize = Math.max(15, Math.floor(fontSize * maxLineWidth / maxMeasured));
           ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
           lines = wrapTextToMax2Lines(subText, maxLineWidth);
         }
@@ -1096,6 +1106,14 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         ).catch(() => { });
       }
 
+      saveModuleHistory({
+        module: 'recap',
+        title: videoFile?.name || 'Movie Recap Video',
+        outputType: 'recap',
+        outputData: subtitleText || completed.outputFileId || 'Movie Recap Video Generated',
+        extra: { outputFileId: completed.outputFileId, aspectRatio, subtitleStyle }
+      });
+
       setTimeout(() => {
         setIsProcessing(false);
         toast.success('Burmese Recap ဗီဒီယို အောင်မြင်စွာ ရရှိပါပြီ!');
@@ -1113,6 +1131,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   };
 
   return (
+    <>
     <div className="module-page max-w-6xl mx-auto pb-12">
       {/* PROCESSING HUD / ACCURATE PERCENTAGE MODAL */}
       <AnimatePresence>
@@ -1232,8 +1251,16 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           </p>
         </div>
 
-        {/* Server Status Badge */}
+        {/* Server Status Badge & History */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-white/10 hover:border-amber-400 bg-white dark:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-200 transition-colors shadow-sm"
+          >
+            <History className="w-3.5 h-3.5 text-amber-500" />
+            <span>History</span>
+          </button>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-semibold ${workerOnline
             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
             : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400'
@@ -1811,6 +1838,14 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 />
               </div>
             )}
+
+            {/* Auto-Sync Reassurance Banner */}
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-500 dark:text-amber-400 flex items-start gap-2 leading-relaxed">
+              <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                <strong>Auto SRT Sync:</strong> Voiceover Speed ကို ညှိပါက စာတန်းထိုး (SRT) ကို Worker နှင့် Live Preview တွင် အလိုအလျောက် အသံနှင့်ထပ်တူ အချိန်ကိုက် ညှိပေးပါသည် (SRT ဖိုင်ကို manual speed လိုက်တိုးရန် မလိုပါ)။
+              </span>
+            </div>
           </section>
 
           {/* SECTION 6: LOGO WATERMARK */}
@@ -2183,6 +2218,23 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         </div>
       </div>
     </div>
+
+    <ModuleHistoryModal
+      isOpen={showHistory}
+      onClose={() => setShowHistory(false)}
+      module="recap"
+      moduleTitle="Movie Recap"
+      onRestore={(rec) => {
+        if (rec.outputData && rec.outputData !== 'Movie Recap Video Generated') {
+          setSubtitleText(rec.outputData);
+        }
+        if (rec.extra?.aspectRatio) {
+          setAspectRatio(rec.extra.aspectRatio as '16:9' | '9:16' | '1:1');
+        }
+        toast.success('Recap data ပြန်လည်ထည့်သွင်းပြီးပါပြီ');
+      }}
+    />
+    </>
   );
 };
 

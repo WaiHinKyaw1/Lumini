@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Upload, Download, Trash2, Play, Pause, Copy, Check, Send, Plus, X, Captions, Loader2 } from 'lucide-react';
+import { Upload, Download, Trash2, Play, Pause, Copy, Check, Send, Plus, X, Captions, Loader2, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CREDIT_COSTS, ContentType } from '../types';
 import { auth } from '../services/firebase';
 import { logGeneration } from '../services/supabase';
 import { generateSrt, downloadSrt, formatSrtTime, MAX_FILE_BYTES, SRT_LANGUAGES, SrtLanguage } from '../services/srtService';
+import { saveModuleHistory } from '../services/moduleHistory';
+import { ModuleHistoryModal } from '../components/ModuleHistoryModal';
 
 interface SubtitleStudioProps {
   onSpendCredits: (amount: number) => boolean;
@@ -61,6 +63,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -134,8 +137,16 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
 
       const user = auth.currentUser;
       if (user) {
-        logGeneration(user.uid, user.email || '', 'subtitles', { fileName: item.file.name, language }, { resultLength: result.srt.length }).catch(() => {});
+        logGeneration(user.uid, user.email || '', 'subtitles', { fileName: item.file.name, language }, { resultLength: result.srt.length }).catch(() => { });
       }
+
+      saveModuleHistory({
+        module: 'subtitle',
+        title: item.file.name,
+        outputType: 'srt',
+        outputData: result.srt,
+        input: { fileName: item.file.name, language }
+      });
     } catch (err) {
       const aborted = (err as Error)?.name === 'AbortError';
       patchItem(item.id, {
@@ -201,14 +212,14 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
     const audio = audioRef.current;
     if (!audio) return;
     if (playing) audio.pause();
-    else audio.play().catch(() => {});
+    else audio.play().catch(() => { });
   };
 
   const seek = (sec: number) => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.currentTime = sec;
-    audio.play().catch(() => {});
+    audio.play().catch(() => { });
   };
 
   const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -225,14 +236,25 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
         className="hidden"
       />
 
-      <header className="mb-4 flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white">
-          <Captions className="w-4 h-4" />
+      <header className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white">
+            <Captions className="w-4 h-4" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white !mb-0">Subtitle Studio</h1>
+            <p className="text-[11px] text-slate-400 dark:text-zinc-500">Audio / Video → SRT · Gemini AI</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white !mb-0">Subtitle Studio</h1>
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500">Audio / Video → SRT · Gemini AI</p>
-        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowHistory(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 hover:border-amber-400 bg-white dark:bg-white/5 text-xs font-semibold text-slate-700 dark:text-zinc-200 transition-colors shadow-sm"
+        >
+          <History className="w-3.5 h-3.5 text-amber-500" />
+          <span>History</span>
+        </button>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
@@ -243,9 +265,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
             onDragLeave={() => setIsDragging(false)}
             onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
             onClick={() => fileInputRef.current?.click()}
-            className={`rounded-xl border-2 border-dashed cursor-pointer p-5 text-center transition-colors ${
-              isDragging ? 'border-amber-500 bg-amber-500/10' : 'border-gray-300 dark:border-white/10 hover:border-amber-400'
-            }`}
+            className={`rounded-xl border-2 border-dashed cursor-pointer p-5 text-center transition-colors ${isDragging ? 'border-amber-500 bg-amber-500/10' : 'border-gray-300 dark:border-white/10 hover:border-amber-400'
+              }`}
           >
             <Upload className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
             <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">ဖိုင် ဆွဲထည့် / နှိပ်၍ ရွေးပါ</p>
@@ -253,7 +274,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
             <input
               ref={fileInputRef}
               type="file"
-              accept="audio/*,video/*"
+              accept="audio/*,video/*,.mp3,.wav,.m4a,.m4b,.aac,.flac,.ogg,.oga,.opus,.wma,.amr,.aif,.aiff,.aifc,.caf,.ac3,.eac3,.mka,.weba,.webm,.3gp,.3g2,.mp4,.m4v,.mov,.mkv,.avi,.wmv,.flv,.ts,.mts,.mpeg,.mpg"
               multiple
               className="hidden"
               onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
@@ -300,9 +321,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                 <li
                   key={item.id}
                   onClick={() => setSelectedId(item.id)}
-                  className={`group p-2 rounded-lg border cursor-pointer transition-colors ${
-                    selectedId === item.id ? 'border-amber-500 bg-amber-500/5' : 'border-transparent hover:bg-gray-50 dark:hover:bg-white/[0.03]'
-                  }`}
+                  className={`group p-2 rounded-lg border cursor-pointer transition-colors ${selectedId === item.id ? 'border-amber-500 bg-amber-500/5' : 'border-transparent hover:bg-gray-50 dark:hover:bg-white/[0.03]'
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <p className="flex-1 min-w-0 text-xs font-medium text-slate-800 dark:text-zinc-200 truncate">{item.file.name}</p>
@@ -419,9 +439,8 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
                       return (
                         <div
                           key={idx}
-                          className={`group rounded-lg px-2.5 py-2 text-xs transition-colors ${
-                            active ? 'bg-amber-500/10' : 'hover:bg-gray-50 dark:hover:bg-white/[0.03]'
-                          }`}
+                          className={`group rounded-lg px-2.5 py-2 text-xs transition-colors ${active ? 'bg-amber-500/10' : 'hover:bg-gray-50 dark:hover:bg-white/[0.03]'
+                            }`}
                         >
                           <div className="flex items-start gap-2.5">
                             <button
@@ -497,6 +516,26 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
           )}
         </section>
       </div>
+
+      <ModuleHistoryModal
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        module="subtitle"
+        moduleTitle="Subtitle"
+        onRestore={(rec) => {
+          const dummyFile = new File([rec.outputData], rec.title || 'restored.srt', { type: 'text/plain' });
+          const restoredItem: FileItem = {
+            id: crypto.randomUUID(),
+            file: dummyFile,
+            status: 'completed',
+            progress: 100,
+            srt: rec.outputData,
+            message: 'Restored from history'
+          };
+          setQueue(prev => [restoredItem, ...prev]);
+          setSelectedId(restoredItem.id);
+        }}
+      />
     </div>
   );
 };

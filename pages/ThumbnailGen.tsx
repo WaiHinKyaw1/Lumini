@@ -14,9 +14,12 @@ import {
   RefreshCw,
   ImageIcon,
   Sliders,
-  X
+  X,
+  History
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { saveModuleHistory } from '../services/moduleHistory';
+import { ModuleHistoryModal } from '../components/ModuleHistoryModal';
 
 interface ThumbnailGenProps {
   onSpendCredits: (amount: number) => boolean;
@@ -79,6 +82,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [compositeUrl, setCompositeUrl] = useState<string | null>(null);
   const [suggestedHooks, setSuggestedHooks] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const isMounted = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -337,6 +341,15 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
         toast.success('Thumbnail ထွက်ရှိပါပြီ');
       }
 
+      await saveModuleHistory({
+        module: 'thumbnail',
+        title: topic || activeBurmeseText || 'Thumbnail Image',
+        outputType: 'image',
+        outputData: generatedImageUrl,
+        input: { topic, titleText: activeBurmeseText, style, aspectRatio },
+        extra: { style, aspectRatio, burmeseFont, textColorPreset }
+      });
+
       const currentUser = auth.currentUser;
       if (currentUser) {
         await logGeneration(
@@ -401,6 +414,14 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
             {CREDIT_COSTS[ContentType.THUMBNAIL]} Credits
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowHistory(true)}
+          className="px-3 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+        >
+          <History className="w-3.5 h-3.5" />
+          <span>History</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -707,6 +728,23 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
           </div>
         </div>
       </div>
+
+      <ModuleHistoryModal
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        module="thumbnail"
+        moduleTitle="Thumbnail Studio"
+        onRestore={(rec) => {
+          setRawImageUrl(rec.outputData);
+          if (rec.input && typeof rec.input === 'object') {
+            const inp = rec.input as Record<string, unknown>;
+            if (inp.topic) setTopic(String(inp.topic));
+            if (inp.titleText) setTitleText(String(inp.titleText));
+            if (inp.style) setStyle(String(inp.style));
+            if (inp.aspectRatio) setAspectRatio(inp.aspectRatio as ImageAspectRatio);
+          }
+        }}
+      />
     </div>
   );
 };
