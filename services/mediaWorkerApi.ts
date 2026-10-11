@@ -7,6 +7,10 @@ export interface MediaUploadResult {
 }
 
 export interface SyncSettings {
+  syncMode?: 'standard' | 'smart';
+  maxVideoSpeed?: number;
+  videoDuration?: number;
+  audioDuration?: number;
   videoSpeed?: number;
   audioSpeed?: number;
   aspectRatio?: '16:9' | '9:16' | '1:1' | '4:5';

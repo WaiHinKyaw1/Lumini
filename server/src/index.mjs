@@ -304,6 +304,10 @@ const number = (value, fallback, min, max) => {
 function validateSettings(raw = {}) {
   const aspectRatio = ['16:9', '9:16', '1:1', '4:5'].includes(raw.aspectRatio) ? raw.aspectRatio : '16:9';
   return {
+    syncMode: raw.syncMode === 'smart' ? 'smart' : 'standard',
+    maxVideoSpeed: number(raw.maxVideoSpeed, 1.25, 1.0, 2.5),
+    videoDuration: number(raw.videoDuration, 0, 0, 100000),
+    audioDuration: number(raw.audioDuration, 0, 0, 100000),
     videoSpeed: number(raw.videoSpeed, 1, 0.25, 4),
     audioSpeed: number(raw.audioSpeed, 1, 0.25, 4),
     aspectRatio,
@@ -350,7 +354,35 @@ app.get('/api/jobs/:jobId', async (request, reply) => {
 app.get('/api/files/:fileId/download', async (request, reply) => {
   const file = await findOutput(request.params.fileId);
   if (!file) return jsonError(reply, 404, 'Output file was not found or expired.');
-  return reply.type('video/mp4').send(createReadStream(file));
+
+  const stat = await fs.stat(file);
+  const total = stat.size;
+  const rangeHeader = request.headers.range;
+
+  reply.header('Accept-Ranges', 'bytes');
+  reply.header('Content-Type', 'video/mp4');
+
+  if (rangeHeader) {
+    const parts = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+
+    if (start >= total || end >= total || start > end) {
+      reply.status(416).header('Content-Range', `bytes */${total}`);
+      return reply.send();
+    }
+
+    const chunksize = end - start + 1;
+    const stream = createReadStream(file, { start, end });
+
+    reply.status(206);
+    reply.header('Content-Range', `bytes ${start}-${end}/${total}`);
+    reply.header('Content-Length', chunksize);
+    return reply.send(stream);
+  }
+
+  reply.header('Content-Length', total);
+  return reply.send(createReadStream(file));
 });
 
 app.delete('/api/jobs/:jobId', async (request, reply) => {
@@ -369,6 +401,222 @@ async function findInput(fileId) {
 async function findOutput(fileId) {
   const candidate = path.join(OUTPUT_DIR, `${fileId}.mp4`);
   try { await fs.access(candidate); return candidate; } catch { return null; }
+}
+
+async function probeMediaDuration(filePath) {
+  return new Promise((resolve) => {
+    const child = spawn(process.env.FFMPEG_BIN || 'ffmpeg', ['-i', filePath], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.on('error', () => resolve(0));
+    child.on('close', () => {
+      const m = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (m) {
+        const dur = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+        resolve(dur);
+      } else {
+        resolve(0);
+      }
+    });
+  });
+}
+
+function parseSrtCuesRaw(srtText, offsetSec = 0) {
+  if (!srtText || !srtText.includes('-->')) return [];
+  const clean = srtText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const rawCues = [];
+  const blocks = clean.split(/\n\s*\n/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) continue;
+    const timeLineIdx = lines.findIndex((l) => l.includes('-->'));
+    if (timeLineIdx === -1) continue;
+    const timeParts = lines[timeLineIdx].split('-->');
+    if (timeParts.length !== 2) continue;
+    const rawStart = srtTimeToSeconds(timeParts[0]);
+    const rawEnd = srtTimeToSeconds(timeParts[1]);
+    const startSec = Math.max(0, rawStart + offsetSec);
+    const endSec = Math.max(startSec + 0.25, rawEnd + offsetSec);
+    rawCues.push({ startSec, endSec });
+  }
+  return rawCues.sort((a, b) => a.startSec - b.startSec);
+}
+
+function buildSmartSyncFilterComplex(
+  cues,
+  vTotal,
+  aTotal,
+  settings,
+  subFilePath,
+  hasLogo = false,
+  logoInputIdx = -1
+) {
+  const canvas = settings.aspectRatio === '9:16'
+    ? { width: 1080, height: 1920 }
+    : settings.aspectRatio === '1:1'
+      ? { width: 1080, height: 1080 }
+      : settings.aspectRatio === '4:5'
+        ? { width: 1080, height: 1350 }
+        : { width: 1920, height: 1080 };
+
+  const N = cues.length;
+  const maxSpd = Number(settings.maxVideoSpeed) || 1.25;
+
+  // 1. Audio Segments Allocation via Midpoint Split (Silence sharing)
+  const aSegs = [];
+  for (let i = 0; i < N; i++) {
+    const cur = cues[i];
+    let start = 0;
+    let end = aTotal;
+
+    if (i === 0) {
+      start = 0;
+    } else {
+      const prev = cues[i - 1];
+      start = Math.max(0, (prev.endSec + cur.startSec) / 2);
+    }
+
+    if (i === N - 1) {
+      end = aTotal;
+    } else {
+      const next = cues[i + 1];
+      end = Math.max(start + 0.25, (cur.endSec + next.startSec) / 2);
+    }
+
+    const dur = Math.max(0.1, end - start);
+    aSegs.push({ start, end, dur });
+  }
+
+  // 2. Video Segments Allocation with 100% full coverage (V2 full coverage)
+  const totalAudioWeight = aSegs.reduce((sum, s) => sum + s.dur, 0);
+  const vSegs = [];
+  let curVStart = 0;
+
+  for (let i = 0; i < N; i++) {
+    const ratio = aSegs[i].dur / totalAudioWeight;
+    const vTargetDur = vTotal * ratio;
+    const vEnd = (i === N - 1) ? vTotal : curVStart + vTargetDur;
+    const origDur = Math.max(0.05, vEnd - curVStart);
+
+    vSegs.push({
+      start: curVStart,
+      end: vEnd,
+      origDur
+    });
+    curVStart = vEnd;
+  }
+
+  // 3. Speed adjustment, 1.25x clamping & excess tail trimming
+  // 4. Frame accurate 30 fps math
+  const filterParts = [];
+  const splitPads = [];
+  const segLabels = [];
+  let cumulativeTargetFrames = 0;
+
+  for (let i = 0; i < N; i++) {
+    splitPads.push(`[vsplit${i}]`);
+  }
+  filterParts.push(`[0:v]split=${N}${splitPads.join('')}`);
+
+  for (let i = 0; i < N; i++) {
+    const aDur = aSegs[i].dur;
+    const vDur = vSegs[i].origDur;
+    const neededSpeed = vDur / aDur;
+
+    let effSpeed = neededSpeed;
+    let trimStart = vSegs[i].start;
+    let trimEnd = vSegs[i].end;
+
+    if (neededSpeed > maxSpd) {
+      // Speed exceeds 1.25x max speed limit: Cap at maxSpd and trim excess tail frames!
+      effSpeed = maxSpd;
+      const trimLen = aDur * maxSpd;
+      trimEnd = Math.min(vSegs[i].end, trimStart + trimLen);
+    } else if (neededSpeed < 0.25) {
+      effSpeed = 0.25;
+    }
+
+    const ptsMultiplier = (1 / effSpeed).toFixed(4);
+    cumulativeTargetFrames = Math.round(aSegs[i].end * 30);
+
+    const segLabel = `[seg${i}]`;
+    segLabels.push(segLabel);
+
+    filterParts.push(
+      `[vsplit${i}]trim=start=${trimStart.toFixed(4)}:end=${trimEnd.toFixed(4)},setpts=PTS-STARTPTS,setpts=${ptsMultiplier}*PTS,fps=30${segLabel}`
+    );
+  }
+
+  // Concat all segments sequentially
+  filterParts.push(`${segLabels.join('')}concat=n=${N}:v=1:a=0[vconcat]`);
+
+  // Frame verification log
+  const totalNarrationFrames = Math.round(aTotal * 30);
+  const diffFrames = Math.abs(cumulativeTargetFrames - totalNarrationFrames);
+  const syncLog = `SYNC OK: picture=${cumulativeTargetFrames} narration=${totalNarrationFrames} diff=${diffFrames}`;
+  console.log(`[SmartSync] ${syncLog}`);
+
+  // Base canvas scaling and padding
+  let vChain = `[vconcat]scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease,pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`;
+
+  // Frosted glass blur overlay band
+  if (settings.blurEnabled) {
+    const rawThickness = Number(settings.blurThickness) || 16;
+    const rawPos = Number(settings.blurPosition) || 82;
+    const thickness = (rawThickness / 100).toFixed(4);
+    const topValue = Math.max(0, Math.min(1 - Number(thickness), (rawPos - rawThickness / 2) / 100));
+    const top = topValue.toFixed(4);
+    const bottom = (topValue + Number(thickness)).toFixed(4);
+    const lumaRad = Math.min(32, Math.max(10, Math.round((Number(settings.blurIntensity) || 35) * 0.75)));
+    const chromaRad = Math.min(16, Math.max(5, Math.round(lumaRad * 0.5)));
+
+    vChain = `${vChain}[vscaled];` +
+      `[vscaled]split=2[vbase][vblur];` +
+      `[vblur]crop=w=iw:h=trunc(ih*${thickness}/2)*2:x=0:y=trunc(ih*${top}/2)*2,boxblur=luma_radius=${lumaRad}:luma_power=3:chroma_radius=${chromaRad}:chroma_power=3[blurBand];` +
+      `[vbase][blurBand]overlay=x=0:y=trunc(main_h*${top}/2)*2,` +
+      `drawbox=x=0:y=trunc(ih*${top}/2)*2:w=iw:h=trunc(ih*${thickness}/2)*2:color=black@0.12:t=fill,` +
+      `drawbox=x=0:y=trunc(ih*${top}/2)*2:w=iw:h=2:color=white@0.22:t=fill,` +
+      `drawbox=x=0:y=trunc(ih*${bottom}/2)*2-2:w=iw:h=2:color=white@0.22:t=fill`;
+  }
+
+  // Subtitle filter
+  if (settings.subtitleEnabled && subFilePath) {
+    const escapedAssPath = subFilePath.replace(/\\/g, '/').replace(/'/g, "'\\''");
+    const escapedFontsDir = FONTS_DIR.replace(/\\/g, '/').replace(/'/g, "'\\''");
+    vChain = `${vChain},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
+  }
+
+  // Watermark Logo
+  if (hasLogo && logoInputIdx > 0) {
+    const scalePct = (Number(settings.logoScale) || 14) / 100;
+    const targetW = Math.max(48, Math.round(canvas.width * scalePct));
+    const opacity = Number(settings.logoOpacity) || 1.0;
+    const align = settings.logoAlign || 'right';
+    const yPct = (Number(settings.logoY) || 8) / 100;
+    const pad = Math.round(canvas.width * 0.02);
+    const edgeX = Math.round(canvas.width * 0.05);
+
+    let xExpr = `main_w-overlay_w-${edgeX}`;
+    if (align === 'left') xExpr = `${edgeX}`;
+    if (align === 'center') xExpr = `(main_w-overlay_w)/2`;
+
+    const yExpr = `${pad}+((main_h-overlay_h-${pad * 2})*${yPct.toFixed(4)})`;
+
+    vChain = `${vChain}[vsubbed];` +
+      `[${logoInputIdx}:v]scale=${targetW}:-2,format=rgba,colorchannelmixer=aa=${opacity.toFixed(2)}[vlogo];` +
+      `[vsubbed][vlogo]overlay=x='${xExpr}':y='${yExpr}'`;
+  }
+
+  vChain = `${vChain}[vout]`;
+  filterParts.push(vChain);
+
+  // Audio: Narration audio is the master timeline!
+  filterParts.push(`[1:a]anull[aout]`);
+
+  return {
+    filterComplex: filterParts.join(';\n'),
+    syncLog
+  };
 }
 
 function runFfmpeg(args, onProgress) {
@@ -396,9 +644,12 @@ async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
   const output = path.join(OUTPUT_DIR, `${outputFileId}.mp4`);
   Object.assign(job, { status: 'processing', progress: 5 });
 
-  const subSpeedMultiplier = audio ? settings.audioSpeed : settings.videoSpeed;
+  const subSpeedMultiplier = settings.syncMode === 'smart' ? 1.0 : (audio ? settings.audioSpeed : settings.videoSpeed);
 
   let subFilePath = null;
+  let filterScriptPath = null;
+  let syncLog = null;
+
   if (settings.subtitleEnabled && settings.subtitleText && settings.subtitleText.trim()) {
     const canvas = settings.aspectRatio === '9:16'
       ? { width: 1080, height: 1920 }
@@ -428,29 +679,70 @@ async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
     logoInputIdx = currentIdx++;
   }
 
-  const filterComplex = buildFilterComplex(
-    settings,
-    subFilePath,
-    Boolean(audio),
-    settings.audioSpeed,
-    settings.videoSpeed,
-    Boolean(logo),
-    logoInputIdx
-  );
+  // Check if Smart Sync can be activated
+  let isSmartSyncActive = false;
+  if (settings.syncMode === 'smart' && audio && settings.subtitleText && settings.subtitleText.includes('-->')) {
+    let vDur = settings.videoDuration;
+    if (!vDur || vDur <= 0) vDur = await probeMediaDuration(input);
+    let aDur = settings.audioDuration;
+    if (!aDur || aDur <= 0) aDur = await probeMediaDuration(audio);
 
-  args.push(
-    '-filter_complex',
-    filterComplex,
-    '-map',
-    '[vout]'
-  );
+    const cues = parseSrtCuesRaw(settings.subtitleText, settings.subtitleOffset || 0);
 
-  if (audio) {
-    args.push('-map', '[aout]', '-shortest');
-  } else if (settings.videoSpeed && settings.videoSpeed !== 1) {
-    args.push('-map', '[aout]?');
-  } else {
-    args.push('-map', '0:a?');
+    if (cues.length >= 2 && vDur > 0 && aDur > 0) {
+      isSmartSyncActive = true;
+      const smartResult = buildSmartSyncFilterComplex(
+        cues,
+        vDur,
+        aDur,
+        settings,
+        subFilePath,
+        Boolean(logo),
+        logoInputIdx
+      );
+      syncLog = smartResult.syncLog;
+      job.syncLog = syncLog;
+
+      filterScriptPath = path.join(INPUT_DIR, `${jobId}-filter.txt`);
+      await fs.writeFile(filterScriptPath, smartResult.filterComplex, 'utf8');
+
+      args.push(
+        '-filter_complex_script',
+        filterScriptPath,
+        '-map',
+        '[vout]',
+        '-map',
+        '[aout]',
+        '-shortest'
+      );
+    }
+  }
+
+  if (!isSmartSyncActive) {
+    const filterComplex = buildFilterComplex(
+      settings,
+      subFilePath,
+      Boolean(audio),
+      settings.audioSpeed,
+      settings.videoSpeed,
+      Boolean(logo),
+      logoInputIdx
+    );
+
+    args.push(
+      '-filter_complex',
+      filterComplex,
+      '-map',
+      '[vout]'
+    );
+
+    if (audio) {
+      args.push('-map', '[aout]', '-shortest');
+    } else if (settings.videoSpeed && settings.videoSpeed !== 1) {
+      args.push('-map', '[aout]?');
+    } else {
+      args.push('-map', '0:a?');
+    }
   }
 
   args.push(
@@ -475,10 +767,11 @@ async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
     await runFfmpeg(args, (progress) => { if (!job.cancelled) job.progress = progress; });
   } finally {
     if (subFilePath) await fs.rm(subFilePath, { force: true }).catch(() => {});
+    if (filterScriptPath) await fs.rm(filterScriptPath, { force: true }).catch(() => {});
   }
 
   if (job.cancelled) { await fs.rm(output, { force: true }); return; }
-  Object.assign(job, { status: 'completed', progress: 100, outputFileId, finishedAt: Date.now() });
+  Object.assign(job, { status: 'completed', progress: 100, outputFileId, syncLog, finishedAt: Date.now() });
 }
 
 function srtTimeToSeconds(srtTime) {

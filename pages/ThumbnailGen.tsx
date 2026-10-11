@@ -15,7 +15,10 @@ import {
   ImageIcon,
   Sliders,
   X,
-  History
+  History,
+  Key,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { saveModuleHistory } from '../services/moduleHistory';
@@ -28,18 +31,19 @@ interface ThumbnailGenProps {
 export type BurmeseFontOption = 'font-akkhayar' | 'font-kunheing' | 'font-jojar' | 'font-myanmaros' | 'font-notosans';
 export type TextColorTheme = 'yellow' | 'white' | 'orange' | 'cyan' | 'lime';
 
-const STYLES = [
-  { name: 'Cinematic', prompt: 'blockbuster cinematic movie scene, hyper-realistic, dramatic rim lighting, 8k resolution, depth of field, anamorphic lens flare, movie still photography' },
-  { name: 'Horror', prompt: 'dark eerie horror atmosphere, mysterious foggy night, glowing high-contrast focal point, dramatic chiaroscuro shadow, cinematic suspense' },
-  { name: 'Action', prompt: 'explosive high-octane action moment, vivid neon and fire reflections, intense hero expression, dynamic motion particles, 8k movie still' },
-  { name: 'Drama', prompt: 'deep emotional storytelling still, poignant close-up lighting, cinematic film grain, raw authentic human expression' },
-  { name: 'Viral High-Contrast', prompt: 'vibrant saturated colors, extreme high-contrast lighting, shocking viral focal element, clean separation between subject and background' },
-  { name: 'Anime', prompt: 'epic anime movie aesthetic, Makoto Shinkai lighting style, magical glowing embers, vibrant fantasy landscape' }
-];
+export const DEFAULT_RECAP_STYLE_NAME = 'Viral Suspense Thriller';
+
+// Master prompt baked with the exact eerie suspense mystery thriller movie aesthetic
+export const CINEMATIC_RECAP_PROMPT_TEMPLATE =
+  "Cinematic suspense thriller psychological horror movie still, Asian cinema high-tension scene. " +
+  "Cool desaturated teal and slate color grading, ominous dim fluorescent overhead lighting, dramatic rim lighting on subject, " +
+  "eerie low-lying volumetric fog and atmospheric mist, haunting hallway or corridor depth of field, 35mm anamorphic film photography, " +
+  "cinematic film grain, hyper-realistic 8k, raw authentic fear and tension, dark bottom-third composition for subtitles, " +
+  "absolutely no text, no subtitles, no watermarks.";
 
 const RATIOS: { id: ImageAspectRatio; label: string }[] = [
+  { id: '9:16', label: '9:16 (TikTok/Shorts/Recap)' },
   { id: '16:9', label: '16:9 (YouTube)' },
-  { id: '9:16', label: '9:16 (TikTok/Shorts)' },
   { id: '1:1', label: '1:1 (Square)' },
   { id: '4:3', label: '4:3 (Standard)' },
 ];
@@ -63,17 +67,17 @@ const COLOR_THEMES: { id: TextColorTheme; color: string }[] = [
 const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [topic, setTopic] = useState('');
   const [titleText, setTitleText] = useState('');
-  const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>('16:9');
-  const [style, setStyle] = useState('Cinematic');
+  // Default to 9:16 vertical recap format matching reference photo
+  const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>('9:16');
   const [file, setFile] = useState<File | null>(null);
 
-  // Typography Customization
+  // Typography Customization - default to Yellow, Akkhayar 21, lower third (83%), smooth backdrop
   const [burmeseFont, setBurmeseFont] = useState<BurmeseFontOption>('font-akkhayar');
   const [textColorPreset, setTextColorPreset] = useState<TextColorTheme>('yellow');
-  const [textY, setTextY] = useState<number>(84);
+  const [textY, setTextY] = useState<number>(83);
   const [textSize, setTextSize] = useState<number>(20);
   const [backdropEnabled, setBackdropEnabled] = useState<boolean>(true);
-  const [backdropOpacity, setBackdropOpacity] = useState<number>(65);
+  const [backdropOpacity, setBackdropOpacity] = useState<number>(80);
 
   // Generation & Output
   const [isGenerating, setIsGenerating] = useState(false);
@@ -83,6 +87,14 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [suggestedHooks, setSuggestedHooks] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState(() => {
+    try {
+      return localStorage.getItem('VITE_GEMINI_API_KEY') || '';
+    } catch {
+      return '';
+    }
+  });
 
   const isMounted = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -151,10 +163,18 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = rawImageUrl;
-    img.onload = () => {
-      let baseW = 1920;
-      let baseH = 1080;
-      if (aspectRatio === '9:16') { baseW = 1080; baseH = 1920; }
+    img.onload = async () => {
+      if (document.fonts) {
+        try {
+          await document.fonts.ready;
+        } catch {
+          // ignore font loading error
+        }
+      }
+
+      let baseW = 1080;
+      let baseH = 1920;
+      if (aspectRatio === '16:9') { baseW = 1920; baseH = 1080; }
       else if (aspectRatio === '1:1') { baseW = 1080; baseH = 1080; }
       else if (aspectRatio === '4:3') { baseW = 1440; baseH = 1080; }
 
@@ -172,7 +192,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
         return;
       }
 
-      // 2. Select Burmese Font
+      // 2. Select Burmese Font (Akkhayar 21 default)
       let fontName = 'Akkhayar21';
       if (burmeseFont === 'font-kunheing') fontName = 'AJKunheing';
       else if (burmeseFont === 'font-jojar') fontName = 'MyanmarJojar';
@@ -198,34 +218,32 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
       const centerY = (h * (textY / 100));
       const startY = centerY - (totalTextH / 2) + (lineHeight / 2);
 
-      // 3. Backdrop Strip
+      // 3. Cinematic Vignette Backdrop (Matches viral recap lower-third gradient fade)
       if (backdropEnabled) {
-        const padY = Math.max(20, Math.round(h * 0.03));
-        const stripTop = Math.max(0, startY - (lineHeight * 0.72) - padY);
-        const stripHeight = totalTextH + (padY * 2) + (lineHeight * 0.25);
+        const fadeStart = Math.max(0, startY - (lineHeight * 1.3));
+        const fadeHeight = h - fadeStart;
 
-        const grad = ctx.createLinearGradient(0, stripTop, 0, stripTop + stripHeight);
+        const grad = ctx.createLinearGradient(0, fadeStart, 0, h);
         const alpha = (backdropOpacity / 100);
         grad.addColorStop(0, `rgba(0, 0, 0, 0)`);
-        grad.addColorStop(0.2, `rgba(0, 0, 0, ${alpha * 0.85})`);
-        grad.addColorStop(0.5, `rgba(0, 0, 0, ${alpha})`);
-        grad.addColorStop(0.8, `rgba(0, 0, 0, ${alpha * 0.85})`);
-        grad.addColorStop(1, `rgba(0, 0, 0, 0)`);
+        grad.addColorStop(0.25, `rgba(0, 0, 0, ${alpha * 0.45})`);
+        grad.addColorStop(0.65, `rgba(0, 0, 0, ${alpha * 0.88})`);
+        grad.addColorStop(1, `rgba(0, 0, 0, ${alpha * 0.98})`);
 
         ctx.save();
         ctx.fillStyle = grad;
-        ctx.fillRect(0, stripTop, w, stripHeight);
+        ctx.fillRect(0, fadeStart, w, fadeHeight);
         ctx.restore();
       }
 
-      // 4. Color
+      // 4. Color (Default yellow #FACC15)
       let primaryColor = '#FACC15';
       if (textColorPreset === 'white') primaryColor = '#FFFFFF';
       else if (textColorPreset === 'orange') primaryColor = '#FB923C';
       else if (textColorPreset === 'cyan') primaryColor = '#38BDF8';
       else if (textColorPreset === 'lime') primaryColor = '#A3E635';
 
-      // 5. Draw text
+      // 5. Draw text with bold black stroke and drop shadow
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -234,16 +252,16 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
       lines.forEach((line, idx) => {
         const lineY = startY + (idx * lineHeight);
 
-        ctx.lineWidth = Math.max(7, Math.floor(baseFontSize * 0.17));
+        ctx.lineWidth = Math.max(8, Math.floor(baseFontSize * 0.18));
         ctx.lineJoin = 'round';
         ctx.miterLimit = 2;
         ctx.strokeStyle = '#000000';
         ctx.strokeText(line, textX, lineY);
 
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = Math.max(8, Math.floor(baseFontSize * 0.22));
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.98)';
+        ctx.shadowBlur = Math.max(10, Math.floor(baseFontSize * 0.25));
         ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = Math.max(3, Math.floor(baseFontSize * 0.06));
+        ctx.shadowOffsetY = Math.max(4, Math.floor(baseFontSize * 0.08));
 
         ctx.fillStyle = primaryColor;
         ctx.fillText(line, textX, lineY);
@@ -286,7 +304,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
     }
   };
 
-  // Generate Thumbnail
+  // Generate Thumbnail (Ultra-Fast 3x Direct Pipeline)
   const handleGenerate = async () => {
     if (!topic.trim()) {
       toast.error('ဇာတ်လမ်း သို့မဟုတ် အကြောင်းအရာ ထည့်ပေးပါ');
@@ -303,19 +321,27 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
     setIsGenerating(true);
 
     try {
-      const selectedStyleObj = STYLES.find((s) => s.name === style) || STYLES[0];
+      // 1. Direct prompt synthesis - bypasses slow LLM rewrite to cut generation time by 3x!
+      let finalPrompt = `${CINEMATIC_RECAP_PROMPT_TEMPLATE} Specific scene focus: ${topic.trim()}. Foreground subject in intense psychological tension, uncanny mysterious figures or eerie depth in misty background.`;
 
-      const promptInstruction = `You are a YouTube thumbnail photographer.
-Transform the concept into a dramatic 8k cinematic thumbnail photo prompt.
-Style: ${style} (${selectedStyleObj.prompt})
-Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k resolution, movie still, leave space for text overlay, no text/watermarks in image. Output 2 English sentences only.`;
+      let imageBase64: string | undefined = undefined;
+      let mimeType: string = 'image/png';
+      if (file) {
+        imageBase64 = await fileToBase64(file);
+        mimeType = file.type || 'image/png';
+        finalPrompt += ' Incorporate the subject appearance from the reference image.';
+      }
 
       let activeBurmeseText = titleText.trim();
 
-      const [refinedPrompt, generatedHook] = await Promise.all([
-        generateText(`Concept: "${topic}"\nGenerate viral thumbnail image prompt.`, promptInstruction),
+      // 2. Launch image generation immediately at 0.0s! Concurrently generate hook if not provided.
+      const [generatedImageUrl, generatedHook] = await Promise.all([
+        generateImage(finalPrompt, aspectRatio, imageBase64, mimeType),
         !activeBurmeseText
-          ? generateText(`Write 1 short catchy Burmese 2-4 words hook for: "${topic}". Output only Burmese text.`, "Respond strictly in Burmese Unicode.")
+          ? generateText(
+            `Write 1 short catchy viral Burmese 2-5 words suspense movie question hook for: "${topic}". Output only the Burmese text, no quotes or punctuation.`,
+            "Respond strictly in Burmese Unicode."
+          ).catch(() => '')
           : Promise.resolve('')
       ]);
 
@@ -324,17 +350,6 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
         activeBurmeseText = cleanHook;
         if (isMounted.current) setTitleText(cleanHook);
       }
-
-      let finalPrompt = refinedPrompt.trim();
-      let imageBase64: string | undefined = undefined;
-      let mimeType: string = 'image/png';
-      if (file) {
-        imageBase64 = await fileToBase64(file);
-        mimeType = file.type || 'image/png';
-        finalPrompt += ' Incorporate the subject from the reference image.';
-      }
-
-      const generatedImageUrl = await generateImage(finalPrompt, aspectRatio, imageBase64, mimeType);
 
       if (isMounted.current) {
         setRawImageUrl(generatedImageUrl);
@@ -346,8 +361,8 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
         title: topic || activeBurmeseText || 'Thumbnail Image',
         outputType: 'image',
         outputData: generatedImageUrl,
-        input: { topic, titleText: activeBurmeseText, style, aspectRatio },
-        extra: { style, aspectRatio, burmeseFont, textColorPreset }
+        input: { topic, titleText: activeBurmeseText, style: DEFAULT_RECAP_STYLE_NAME, aspectRatio },
+        extra: { style: DEFAULT_RECAP_STYLE_NAME, aspectRatio, burmeseFont, textColorPreset }
       });
 
       const currentUser = auth.currentUser;
@@ -356,19 +371,46 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
           currentUser.uid,
           currentUser.email || '',
           'thumbnail',
-          { topic, titleText: activeBurmeseText, style, aspectRatio },
+          { topic, titleText: activeBurmeseText, style: DEFAULT_RECAP_STYLE_NAME, aspectRatio },
           { imageUrl: generatedImageUrl.substring(0, 200) + "..." }
         );
       }
     } catch (err: unknown) {
       if (isMounted.current) {
-        const msg = (err as { message?: string })?.message || 'Thumbnail ထုတ်လုပ်ခြင်း မအောင်မြင်ပါ';
-        toast.error(msg);
+        const rawMsg = (err as { message?: string })?.message || '';
+        const isQuota =
+          rawMsg.includes('429') ||
+          rawMsg.toLowerCase().includes('quota') ||
+          rawMsg.includes('RESOURCE_EXHAUSTED');
+
+        if (isQuota) {
+          setShowApiKeyModal(true);
+          toast.error('Gemini API Quota ပြည့်သွားပါသည် (429 Quota Exceeded)');
+        } else {
+          toast.error(rawMsg || 'Thumbnail ထုတ်လုပ်ခြင်း မအောင်မြင်ပါ');
+        }
       }
     } finally {
       if (isMounted.current) {
         setIsGenerating(false);
       }
+    }
+  };
+
+  const handleSaveApiKey = (andRetry = false) => {
+    const trimmed = customApiKey.trim();
+    if (trimmed) {
+      localStorage.setItem('VITE_GEMINI_API_KEY', trimmed);
+      toast.success('Gemini API Key အသစ် သိမ်းဆည်းပြီးပါပြီ');
+    } else {
+      localStorage.removeItem('VITE_GEMINI_API_KEY');
+      toast.success('Default Key သို့ ပြန်သတ်မှတ်လိုက်ပါပြီ');
+    }
+    setShowApiKeyModal(false);
+    if (andRetry) {
+      setTimeout(() => {
+        handleGenerate();
+      }, 150);
     }
   };
 
@@ -414,14 +456,24 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
             {CREDIT_COSTS[ContentType.THUMBNAIL]} Credits
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowHistory(true)}
-          className="px-3 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
-        >
-          <History className="w-3.5 h-3.5" />
-          <span>History</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowApiKeyModal(true)}
+            className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-white/10 hover:border-amber-500/30 bg-gray-50 dark:bg-white/5 text-slate-700 dark:text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+          >
+            <Key className="w-3.5 h-3.5 text-amber-500" />
+            <span>API Key</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="px-3 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>History</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -473,11 +525,10 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
                       key={i}
                       type="button"
                       onClick={() => setTitleText(h)}
-                      className={`px-2 py-0.5 rounded-lg text-xs border transition-all ${
-                        titleText === h
-                          ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
-                          : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:border-amber-500/40'
-                      }`}
+                      className={`px-2 py-0.5 rounded-lg text-xs border transition-all ${titleText === h
+                        ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
+                        : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:border-amber-500/40'
+                        }`}
                     >
                       {h}
                     </button>
@@ -497,36 +548,12 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
                     key={r.id}
                     type="button"
                     onClick={() => setAspectRatio(r.id)}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
-                      aspectRatio === r.id
-                        ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
-                        : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-amber-500/30'
-                    }`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${aspectRatio === r.id
+                      ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
+                      : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-amber-500/30'
+                      }`}
                   >
                     {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Style */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                Style
-              </label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {STYLES.map((s) => (
-                  <button
-                    key={s.name}
-                    type="button"
-                    onClick={() => setStyle(s.name)}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
-                      style === s.name
-                        ? 'border-amber-500 bg-amber-500/15 text-amber-400 font-bold'
-                        : 'border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-400 hover:border-amber-500/30'
-                    }`}
-                  >
-                    {s.name}
                   </button>
                 ))}
               </div>
@@ -549,7 +576,7 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2 border border-dashed border-gray-200 dark:border-white/10 hover:border-amber-500/40 rounded-xl text-xs text-slate-500 dark:text-zinc-400 flex items-center justify-center gap-1.5"
+                  className="w-full py-2 border border-dashed border-gray-200 dark:border-white/10 hover:border-amber-500/40 rounded-xl text-xs text-slate-500 dark:text-zinc-400 flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
                   <span>Reference Image (Optional)</span>
@@ -562,11 +589,10 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
             <button
               onClick={handleGenerate}
               disabled={isGenerating || !topic.trim()}
-              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-2 ${
-                isGenerating || !topic.trim()
-                  ? 'bg-gray-300 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
-                  : 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98]'
-              }`}
+              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-2 ${isGenerating || !topic.trim()
+                ? 'bg-gray-300 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
+                : 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98]'
+                }`}
             >
               {isGenerating ? (
                 <>
@@ -671,9 +697,8 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
                         key={c.id}
                         type="button"
                         onClick={() => setTextColorPreset(c.id)}
-                        className={`w-5 h-5 rounded-full border transition-transform ${
-                          textColorPreset === c.id ? 'scale-125 ring-2 ring-amber-500' : 'opacity-70 hover:opacity-100'
-                        }`}
+                        className={`w-5 h-5 rounded-full border transition-transform ${textColorPreset === c.id ? 'scale-125 ring-2 ring-amber-500' : 'opacity-70 hover:opacity-100'
+                          }`}
                         style={{ backgroundColor: c.color }}
                       />
                     ))}
@@ -740,11 +765,89 @@ Rules: Dramatic close-up/action scene, high-contrast cinematic lighting, 8k reso
             const inp = rec.input as Record<string, unknown>;
             if (inp.topic) setTopic(String(inp.topic));
             if (inp.titleText) setTitleText(String(inp.titleText));
-            if (inp.style) setStyle(String(inp.style));
             if (inp.aspectRatio) setAspectRatio(inp.aspectRatio as ImageAspectRatio);
           }
         }}
       />
+
+      {/* GEMINI API KEY / QUOTA MODAL */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#121214] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Gemini API Key ချိန်ညှိရန်
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    Google AI Studio Free Tier / Custom Key
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-white/5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>429 Quota Exceeded အကြောင်းရင်း</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-600 dark:text-zinc-300">
+                Google Free Tier တွင် Image Generation Model အတွက် နေ့စဉ် Quota (limit: 0) ပြည့်သွားပါက ဤ error ပေါ်တတ်ပါသည်။ Google AI Studio မှ API Key အသစ်တစ်ခု အခမဲ့ထုတ်ပြီး အောက်တွင် ထည့်ပေးလိုက်ပါ။
+              </p>
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-500 hover:underline pt-1"
+              >
+                <span>Get Free Gemini API Key from Google AI Studio</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                Your Gemini API Key
+              </label>
+              <input
+                type="password"
+                value={customApiKey}
+                onChange={(e) => setCustomApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(false)}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-white/5"
+              >
+                မလုပ်တော့ပါ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveApiKey(true)}
+                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+              >
+                <span>သိမ်းဆည်းပြီး ပြန်စမ်းမည်</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

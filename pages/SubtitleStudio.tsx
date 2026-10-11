@@ -270,7 +270,7 @@ const SubtitleStudio: React.FC<SubtitleStudioProps> = ({ onSpendCredits, onNavig
           >
             <Upload className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
             <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">ဖိုင် ဆွဲထည့် / နှိပ်၍ ရွေးပါ</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">MP3 · WAV · M4A · MP4 · 100MB အထိ</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">MP3 · WAV · MP4 · 100MB အထိ</p>
             <input
               ref={fileInputRef}
               type="file"
