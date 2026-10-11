@@ -459,107 +459,36 @@ function buildSmartSyncFilterComplex(
         ? { width: 1080, height: 1350 }
         : { width: 1920, height: 1080 };
 
-  const N = cues.length;
   const maxSpd = Number(settings.maxVideoSpeed) || 1.25;
 
-  // 1. Audio Segments Allocation via Midpoint Split (Silence sharing)
-  const aSegs = [];
-  for (let i = 0; i < N; i++) {
-    const cur = cues[i];
-    let start = 0;
-    let end = aTotal;
+  // 1. Calculate seamless continuous video speed to align with narration audio
+  const rawSpeed = vTotal / aTotal;
+  const effSpeed = Math.min(maxSpd, Math.max(0.25, rawSpeed));
+  const ptsMultiplier = (1 / effSpeed).toFixed(4);
 
-    if (i === 0) {
-      start = 0;
-    } else {
-      const prev = cues[i - 1];
-      start = Math.max(0, (prev.endSec + cur.startSec) / 2);
-    }
-
-    if (i === N - 1) {
-      end = aTotal;
-    } else {
-      const next = cues[i + 1];
-      end = Math.max(start + 0.25, (cur.endSec + next.startSec) / 2);
-    }
-
-    const dur = Math.max(0.1, end - start);
-    aSegs.push({ start, end, dur });
-  }
-
-  // 2. Video Segments Allocation with 100% full coverage (V2 full coverage)
-  const totalAudioWeight = aSegs.reduce((sum, s) => sum + s.dur, 0);
-  const vSegs = [];
-  let curVStart = 0;
-
-  for (let i = 0; i < N; i++) {
-    const ratio = aSegs[i].dur / totalAudioWeight;
-    const vTargetDur = vTotal * ratio;
-    const vEnd = (i === N - 1) ? vTotal : curVStart + vTargetDur;
-    const origDur = Math.max(0.05, vEnd - curVStart);
-
-    vSegs.push({
-      start: curVStart,
-      end: vEnd,
-      origDur
-    });
-    curVStart = vEnd;
-  }
-
-  // 3. Speed adjustment, 1.25x clamping & excess tail trimming
-  // 4. Frame accurate 30 fps math
   const filterParts = [];
-  const splitPads = [];
-  const segLabels = [];
-  let cumulativeTargetFrames = 0;
+  const vFilters = [];
 
-  for (let i = 0; i < N; i++) {
-    splitPads.push(`[vsplit${i}]`);
-  }
-  filterParts.push(`[0:v]split=${N}${splitPads.join('')}`);
-
-  for (let i = 0; i < N; i++) {
-    const aDur = aSegs[i].dur;
-    const vDur = vSegs[i].origDur;
-    const neededSpeed = vDur / aDur;
-
-    let effSpeed = neededSpeed;
-    let trimStart = vSegs[i].start;
-    let trimEnd = vSegs[i].end;
-
-    if (neededSpeed > maxSpd) {
-      // Speed exceeds 1.25x max speed limit: Cap at maxSpd and trim excess tail frames!
-      effSpeed = maxSpd;
-      const trimLen = aDur * maxSpd;
-      trimEnd = Math.min(vSegs[i].end, trimStart + trimLen);
-    } else if (neededSpeed < 0.25) {
-      effSpeed = 0.25;
-    }
-
-    const ptsMultiplier = (1 / effSpeed).toFixed(4);
-    cumulativeTargetFrames = Math.round(aSegs[i].end * 30);
-
-    const segLabel = `[seg${i}]`;
-    segLabels.push(segLabel);
-
-    filterParts.push(
-      `[vsplit${i}]trim=start=${trimStart.toFixed(4)}:end=${trimEnd.toFixed(4)},setpts=PTS-STARTPTS,setpts=${ptsMultiplier}*PTS,fps=30${segLabel}`
-    );
+  // Trim excess video frames if video duration exceeds narration audio timeline
+  const maxVideoDurToKeep = aTotal * effSpeed;
+  if (vTotal > maxVideoDurToKeep + 0.05) {
+    vFilters.push(`trim=start=0:end=${maxVideoDurToKeep.toFixed(4)}`);
   }
 
-  // Concat all segments sequentially
-  filterParts.push(`${segLabels.join('')}concat=n=${N}:v=1:a=0[vconcat]`);
+  // Retime video PTS, reset timestamps and lock to exact 30 FPS for frame-accurate sync
+  vFilters.push('setpts=PTS-STARTPTS');
+  if (Math.abs(effSpeed - 1.0) > 0.005) {
+    vFilters.push(`setpts=${ptsMultiplier}*PTS`);
+  }
+  vFilters.push('fps=30');
 
-  // Frame verification log
-  const totalNarrationFrames = Math.round(aTotal * 30);
-  const diffFrames = Math.abs(cumulativeTargetFrames - totalNarrationFrames);
-  const syncLog = `SYNC OK: picture=${cumulativeTargetFrames} narration=${totalNarrationFrames} diff=${diffFrames}`;
-  console.log(`[SmartSync] ${syncLog}`);
+  // Scale and pad to canvas
+  vFilters.push(`scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`);
+  vFilters.push(`pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`);
 
-  // Base canvas scaling and padding
-  let vChain = `[vconcat]scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease,pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`;
+  let vChain = `[0:v]${vFilters.join(',')}`;
 
-  // Frosted glass blur overlay band
+  // 2. Frosted glass blur overlay band
   if (settings.blurEnabled) {
     const rawThickness = Number(settings.blurThickness) || 16;
     const rawPos = Number(settings.blurPosition) || 82;
@@ -579,14 +508,14 @@ function buildSmartSyncFilterComplex(
       `drawbox=x=0:y=trunc(ih*${bottom}/2)*2-2:w=iw:h=2:color=white@0.22:t=fill`;
   }
 
-  // Subtitle filter
+  // 3. Subtitle filter (ASS)
   if (settings.subtitleEnabled && subFilePath) {
     const escapedAssPath = subFilePath.replace(/\\/g, '/').replace(/'/g, "'\\''");
     const escapedFontsDir = FONTS_DIR.replace(/\\/g, '/').replace(/'/g, "'\\''");
     vChain = `${vChain},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
   }
 
-  // Watermark Logo
+  // 4. Watermark Logo
   if (hasLogo && logoInputIdx > 0) {
     const scalePct = (Number(settings.logoScale) || 14) / 100;
     const targetW = Math.max(48, Math.round(canvas.width * scalePct));
@@ -610,8 +539,12 @@ function buildSmartSyncFilterComplex(
   vChain = `${vChain}[vout]`;
   filterParts.push(vChain);
 
-  // Audio: Narration audio is the master timeline!
+  // Narration audio is untouched master timeline
   filterParts.push(`[1:a]anull[aout]`);
+
+  const totalNarrationFrames = Math.round(aTotal * 30);
+  const syncLog = `SMART SYNC OK: effSpeed=${effSpeed.toFixed(3)}x totalAudio=${aTotal.toFixed(2)}s totalVideo=${vTotal.toFixed(2)}s frames=${totalNarrationFrames}`;
+  console.log(`[SmartSync] ${syncLog}`);
 
   return {
     filterComplex: filterParts.join(';\n'),
@@ -681,15 +614,15 @@ async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
 
   // Check if Smart Sync can be activated
   let isSmartSyncActive = false;
-  if (settings.syncMode === 'smart' && audio && settings.subtitleText && settings.subtitleText.includes('-->')) {
+  if (settings.syncMode === 'smart' && audio) {
     let vDur = settings.videoDuration;
     if (!vDur || vDur <= 0) vDur = await probeMediaDuration(input);
     let aDur = settings.audioDuration;
     if (!aDur || aDur <= 0) aDur = await probeMediaDuration(audio);
 
-    const cues = parseSrtCuesRaw(settings.subtitleText, settings.subtitleOffset || 0);
+    const cues = parseSrtCuesRaw(settings.subtitleText || '', settings.subtitleOffset || 0);
 
-    if (cues.length >= 2 && vDur > 0 && aDur > 0) {
+    if (vDur > 0 && aDur > 0) {
       isSmartSyncActive = true;
       const smartResult = buildSmartSyncFilterComplex(
         cues,

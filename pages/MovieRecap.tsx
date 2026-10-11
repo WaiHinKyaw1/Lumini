@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
 import { CREDIT_COSTS, ContentType, JsonValue, JsonRecord } from '../types';
@@ -579,8 +579,19 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   };
 
   // --- Speed & Timeline Synchronization Helpers ---
-  const effectiveVideoDuration = videoDuration > 0 ? videoDuration / videoSpeed : 0;
-  const effectiveAudioDuration = audioDuration > 0 ? audioDuration / audioSpeed : 0;
+  const smartVideoSpeed = useMemo(() => {
+    if (videoDuration > 0 && audioDuration > 0) {
+      const calculated = videoDuration / audioDuration;
+      return Math.min(maxVideoSpeed, Math.max(0.25, Number(calculated.toFixed(2))));
+    }
+    return 1.0;
+  }, [videoDuration, audioDuration, maxVideoSpeed]);
+
+  const activeVideoSpeed = syncMode === 'smart' ? smartVideoSpeed : videoSpeed;
+  const activeAudioSpeed = syncMode === 'smart' ? 1.0 : audioSpeed;
+
+  const effectiveVideoDuration = videoDuration > 0 ? videoDuration / activeVideoSpeed : 0;
+  const effectiveAudioDuration = audioDuration > 0 ? audioDuration / activeAudioSpeed : 0;
   const durationDiff = effectiveVideoDuration - effectiveAudioDuration;
   const isTimelineSynced = audioFile ? Math.abs(durationDiff) <= 0.4 : true;
 
@@ -633,7 +644,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           .then(() => {
             setIsPlaying(true);
             if (audioRef.current) {
-              const syncedAudioTime = (video.currentTime / videoSpeed) * audioSpeed;
+              const syncedAudioTime = (video.currentTime / activeVideoSpeed) * activeAudioSpeed;
               if (Number.isFinite(syncedAudioTime)) {
                 audioRef.current.currentTime = Math.max(0, Math.min(audioDuration, syncedAudioTime));
               }
@@ -703,15 +714,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     setCurrentTime(time);
     if (videoRef.current) videoRef.current.currentTime = time;
     if (audioRef.current) {
-      const syncedAudioTime = (time / videoSpeed) * audioSpeed;
+      const syncedAudioTime = (time / activeVideoSpeed) * activeAudioSpeed;
       audioRef.current.currentTime = Math.max(0, Math.min(audioDuration, syncedAudioTime));
     }
   };
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.playbackRate = videoSpeed;
-    if (audioRef.current) audioRef.current.playbackRate = audioSpeed;
-  }, [videoSpeed, audioSpeed]);
+    if (videoRef.current) videoRef.current.playbackRate = activeVideoSpeed;
+    if (audioRef.current) audioRef.current.playbackRate = activeAudioSpeed;
+  }, [activeVideoSpeed, activeAudioSpeed]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1119,8 +1130,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
           maxVideoSpeed,
           videoDuration,
           audioDuration,
-          videoSpeed,
-          audioSpeed,
+          videoSpeed: activeVideoSpeed,
+          audioSpeed: activeAudioSpeed,
           aspectRatio,
           blurEnabled,
           blurPosition,
