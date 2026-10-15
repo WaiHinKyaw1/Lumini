@@ -8,6 +8,7 @@ export interface MediaUploadResult {
 
 export interface SyncSettings {
   syncMode?: 'standard' | 'smart';
+  trimSilenceGaps?: boolean;
   maxVideoSpeed?: number;
   videoDuration?: number;
   audioDuration?: number;

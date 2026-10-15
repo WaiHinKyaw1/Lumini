@@ -43,14 +43,25 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Settings
-  const [selectedVoice, setSelectedVoice] = useState('my-MM-ThihaNeural');
+  const [selectedVoice, setSelectedVoice] = useState('my-MM-NilarNeural');
+  const [voiceMode, setVoiceMode] = useState<'preset' | 'custom-sample'>('preset');
+  const [voiceSampleFile, setVoiceSampleFile] = useState<File | null>(null);
+  const [voiceSampleUrl, setVoiceSampleUrl] = useState<string | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState('+15%');
   const [selectedRatio, setSelectedRatio] = useState('original');
   const [enableSubtitles, setEnableSubtitles] = useState(true);
+  const [subtitleStyle, setSubtitleStyle] = useState('font-akkhayar');
   const [enableBlur, setEnableBlur] = useState(true);
-  const [blurPosition, setBlurPosition] = useState<'lower' | 'center' | 'bottom'>('lower');
+  const [blurPosition, setBlurPosition] = useState<number>(78);
+  const [blurThickness, setBlurThickness] = useState<number>(14);
+  const [blurIntensity, setBlurIntensity] = useState<number>(30);
   const [watermarkText, setWatermarkText] = useState('');
   const [includeOriginalAudio, setIncludeOriginalAudio] = useState(false);
+
+  // Video Preview State
+  const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
+  const [previewDuration, setPreviewDuration] = useState(0);
+  const [previewIsPlaying, setPreviewIsPlaying] = useState(false);
 
   // Job & Progress
   const [jobId, setJobId] = useState<string | null>(null);
@@ -63,7 +74,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const videoPlayerRef = useRef<HTMLVideoElement>(null);
+  const voiceSampleInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Determine if video source has been provided
@@ -92,8 +105,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+      if (voiceSampleUrl) URL.revokeObjectURL(voiceSampleUrl);
     };
-  }, [filePreviewUrl]);
+  }, [filePreviewUrl, voiceSampleUrl]);
 
   const handleFileSelect = useCallback((selectedFile: File) => {
     const validExts = /\.(mp4|webm|avi|mov|mkv)$/i;
@@ -110,11 +124,24 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
     setFile(selectedFile);
     setFilePreviewUrl(URL.createObjectURL(selectedFile));
+    setPreviewCurrentTime(0);
+    setPreviewIsPlaying(false);
     setError(null);
     setJobId(null);
     setJobStatus(null);
     setTranscript(null);
   }, [filePreviewUrl]);
+
+  const handleVoiceSampleSelect = (audioFile: File) => {
+    if (!audioFile.type.startsWith('audio/') && !/\.(mp3|wav|m4a|webm|ogg)$/i.test(audioFile.name)) {
+      setError('MP3, WAV, M4A, WebM အသံဖိုင်သာ ထည့်သွင်းပေးပါ');
+      return;
+    }
+    if (voiceSampleUrl) URL.revokeObjectURL(voiceSampleUrl);
+    setVoiceSampleFile(audioFile);
+    setVoiceSampleUrl(URL.createObjectURL(audioFile));
+    setError(null);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
@@ -124,6 +151,32 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files?.[0]) handleFileSelect(e.dataTransfer.files[0]);
+  };
+
+  const togglePreviewPlay = () => {
+    if (!previewVideoRef.current) return;
+    if (previewVideoRef.current.paused) {
+      previewVideoRef.current.play();
+      setPreviewIsPlaying(true);
+    } else {
+      previewVideoRef.current.pause();
+      setPreviewIsPlaying(false);
+    }
+  };
+
+  const handlePreviewSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    setPreviewCurrentTime(val);
+    if (previewVideoRef.current) {
+      previewVideoRef.current.currentTime = val;
+    }
+  };
+
+  const formatTimeSimple = (sec: number): string => {
+    if (!Number.isFinite(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   const handleStart = async () => {
@@ -155,8 +208,12 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
           enableSubtitles,
           enableBlur,
           blurPosition,
+          blurThickness,
+          blurIntensity,
+          subtitleStyle,
           watermarkText: watermarkText.trim(),
           includeOriginalAudio,
+          voiceSample: voiceMode === 'custom-sample' ? voiceSampleFile : null,
         }
       );
 
@@ -375,26 +432,123 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
               )}
             </div>
 
-            {/* If video is selected, show summary preview card */}
+            {/* If video is selected, show summary preview card & Interactive Blur Calibrator */}
             {hasVideo && !isProcessing && !isUploading ? (
-              <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg flex-shrink-0">
-                    {inputMode === 'url' ? '🔗' : '🎬'}
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg flex-shrink-0">
+                      {inputMode === 'url' ? '🔗' : '🎬'}
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">
+                        {inputMode === 'url' ? videoUrl : file?.name}
+                      </p>
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 flex items-center gap-1">
+                        <span>✓</span> Video Ready for Calibration
+                      </p>
+                    </div>
                   </div>
-                  <div className="overflow-hidden">
-                    <p className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">
-                      {inputMode === 'url' ? videoUrl : file?.name}
-                    </p>
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 flex items-center gap-1">
-                      <span>✓</span> Video Ready for Settings
-                    </p>
-                  </div>
+
+                  <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 text-xs font-bold whitespace-nowrap">
+                    Ready
+                  </span>
                 </div>
 
-                <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 text-xs font-bold whitespace-nowrap">
-                  Ready
-                </span>
+                {/* Interactive Video Preview Box (When video file is uploaded) */}
+                {filePreviewUrl && (
+                  <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-950 p-3.5 space-y-3 shadow-inner">
+                    <div className="flex items-center justify-between text-xs font-bold text-zinc-300">
+                      <span className="flex items-center gap-2">
+                        <span>👁️ Live Preview & Blur Calibrator</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          Interactive
+                        </span>
+                      </span>
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        {formatTimeSimple(previewCurrentTime)} / {formatTimeSimple(previewDuration)}
+                      </span>
+                    </div>
+
+                    {/* Video Screen with Live Blur Overlay */}
+                    <div className="relative mx-auto rounded-xl overflow-hidden bg-black flex items-center justify-center max-h-[360px] aspect-video border border-zinc-800">
+                      <video
+                        ref={previewVideoRef}
+                        src={filePreviewUrl}
+                        onTimeUpdate={() => setPreviewCurrentTime(previewVideoRef.current?.currentTime || 0)}
+                        onLoadedMetadata={() => setPreviewDuration(previewVideoRef.current?.duration || 0)}
+                        onEnded={() => setPreviewIsPlaying(false)}
+                        className="w-full h-full object-contain"
+                        playsInline
+                      />
+
+                      {/* Live Frosted Glass Blur Band Overlay */}
+                      {enableBlur && (
+                        <div
+                          style={{
+                            top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
+                            height: `${blurThickness}%`,
+                          }}
+                          className="absolute left-0 right-0 pointer-events-none transition-all duration-150 flex flex-col items-center justify-center overflow-hidden border-y border-amber-400/60 shadow-lg"
+                        >
+                          {/* Frosted Glass Effect */}
+                          <div
+                            style={{
+                              backdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
+                              backgroundColor: `rgba(0, 0, 0, ${Math.min(0.72, Math.max(0.25, (blurIntensity / 100) * 0.85))})`,
+                            }}
+                            className="absolute inset-0"
+                          />
+
+                          {/* Dynamic Subtitle Text Display inside blur box */}
+                          <div className="relative z-10 px-4 text-center max-w-[85%]">
+                            <p
+                              style={{
+                                color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFD700',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
+                              }}
+                              className="text-[13px] sm:text-[15px] font-bold leading-tight font-sans tracking-wide">
+                              မွေးစားဖခင်ဖြစ်သူကလည်း အမြဲတမ်း နောက်ပြောင်ပြီး ညည်းတွားတတ်ပါတယ်။
+                            </p>
+                          </div>
+
+                          {/* Height & Position Tag */}
+                          <div className="absolute top-1 right-2 z-10 text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/70 text-amber-300 font-semibold border border-amber-400/40">
+                            Height: {blurThickness}% · Y: {blurPosition}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Video Scrubber & Play Controls */}
+                    <div className="flex items-center gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={togglePreviewPlay}
+                        className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-xs font-bold transition-all flex-shrink-0">
+                        {previewIsPlaying ? '⏸' : '▶'}
+                      </button>
+
+                      <input
+                        type="range"
+                        min={0}
+                        max={previewDuration || 100}
+                        step={0.1}
+                        value={previewCurrentTime}
+                        onChange={handlePreviewSeek}
+                        className="flex-1 accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
+                      />
+
+                      <span className="text-[11px] font-mono text-zinc-400 flex-shrink-0">
+                        {formatTimeSimple(previewCurrentTime)}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400">
+                      💡 ဗီဒီယိုကို ရွှေ့ကြည့်ပြီး မူရင်း English စာတန်းထိုးပေါ် Blur အုပ်မှု အံကိုက်ဖြစ်စေရန် အောက်ရှိ Slider များဖြင့် ချိန်ညှိပါ
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               /* Input Selector Tabs & Boxes */
@@ -481,48 +635,130 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
             )}
           </div>
 
-          {/* Step 2: Settings Card (Always visible or highlighted when video is ready) */}
+          {/* Step 2: Settings Card */}
           <div className={`rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-6 shadow-sm transition-all space-y-6 ${!hasVideo ? 'opacity-60 pointer-events-none' : ''}`}>
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-zinc-800/80">
               <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
                 2
               </span>
               <h2 className="text-sm font-bold text-slate-800 dark:text-zinc-100">
-                Step 2: Recap Settings ချိန်ညှိပါ
+                Step 2: Recap Settings & Voice Customization
               </h2>
             </div>
 
-            {/* 1. Voice & Speed */}
+            {/* 1. Voice & Cloning */}
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block mb-2">
-                  🎙️ အသံရွေးချယ်မှု (Voice Model)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {[
-                    { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ရုပ်ရှင်ဇာတ်လမ်းပြော တည်ငြိမ်သော ယောက်ျားသံ (Movie Recap)' },
-                    { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ)', gender: 'Female', description: 'ဇာတ်လမ်းပြော ချိုသာကြည်လင်သော မိန်းမသံ (Soft Story)' },
-                  ].map((v) => (
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                    🎙️ အသံရွေးချယ်မှု သို့မဟုတ် နမူနာအသံတုပခြင်း (Voice / Cloning)
+                  </label>
+                  <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[10px] font-bold">
                     <button
-                      key={v.id}
                       type="button"
-                      onClick={() => setSelectedVoice(v.id)}
-                      disabled={isProcessing || isUploading}
-                      className={`p-3 rounded-2xl border text-left transition-all
-                        ${selectedVoice === v.id
-                          ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
-                          : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
-                        }`}>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900 dark:text-white">{v.name}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold">
-                          {v.gender}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-snug">{v.description}</p>
+                      onClick={() => setVoiceMode('preset')}
+                      className={`px-2.5 py-1 rounded-md transition-all ${voiceMode === 'preset' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400'}`}>
+                      မြန်မာ AI အသံများ
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setVoiceMode('custom-sample')}
+                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${voiceMode === 'custom-sample' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400'}`}>
+                      <span>✨ အသံဖိုင်တုပမည်</span>
+                      <span className="text-[9px] bg-purple-500/30 px-1 rounded">Clone</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* Preset Voices */}
+                {voiceMode === 'preset' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {[
+                      { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ) ✨ Recommended', gender: 'Female', description: 'ဇာတ်လမ်းပြော ချိုသာကြည်လင်သော မိန်းမသံ (သဘာဝကျပြီး စက်ရုပ်သံမပေါက်ပါ)' },
+                      { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ရုပ်ရှင်ဇာတ်လမ်းပြော တည်ငြိမ်သော ယောက်ျားသံ (Deep Male Narrator)' },
+                    ].map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setSelectedVoice(v.id)}
+                        disabled={isProcessing || isUploading}
+                        className={`p-3 rounded-2xl border text-left transition-all
+                          ${selectedVoice === v.id
+                            ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
+                            : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
+                          }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-slate-900 dark:text-white">{v.name}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold">
+                            {v.gender}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-snug">{v.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  /* Custom Sample Upload for Voice Cloning */
+                  <div className="rounded-2xl border border-purple-500/30 bg-purple-50/30 dark:bg-purple-950/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
+                        <span>🎙️</span> Narrator Voice Cloning (ElevenLabs Instant Voice Clone)
+                      </span>
+                      {voiceSampleFile && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVoiceSampleFile(null);
+                            if (voiceSampleUrl) URL.revokeObjectURL(voiceSampleUrl);
+                            setVoiceSampleUrl(null);
+                          }}
+                          className="text-[11px] font-bold text-red-500 hover:underline">
+                          ဖျက်မည်
+                        </button>
+                      )}
+                    </div>
+
+                    {voiceSampleFile ? (
+                      <div className="space-y-2 p-3 rounded-xl bg-white dark:bg-zinc-900 border border-purple-300/40">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">
+                            🎵 {voiceSampleFile.name}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-bold">
+                            ✓ Ready to Clone
+                          </span>
+                        </div>
+                        {voiceSampleUrl && (
+                          <audio controls src={voiceSampleUrl} className="w-full h-8" />
+                        )}
+                        <p className="text-[10px] text-purple-600 dark:text-purple-400">
+                          ✨ ဤအသံနမူနာ၏ အသံနေအထားအတိုင်း ElevenLabs Multilingual AI ဖြင့် တူညီစွာ ဇာတ်လမ်းပြောပါမည်။
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => voiceSampleInputRef.current?.click()}
+                        className="border-2 border-dashed border-purple-300 dark:border-purple-800 rounded-xl p-5 text-center cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-900/20 transition-all">
+                        <div className="text-2xl mb-1">🎧</div>
+                        <p className="text-xs font-bold text-purple-900 dark:text-purple-200">
+                          ကြိုက်နှစ်သက်သော ဇာတ်လမ်းပြောသူ၏ အသံဖိုင် (Voice Sample) တင်ပေးပါ
+                        </p>
+                        <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-0.5">
+                          ၅ စက္ကန့်မှ ၁ မိနစ်အတွင်း MP3, WAV, M4A အသံဖိုင် (ဆူညံသံမပါသော အသံကြည်လင်မှု အကောင်းဆုံးဖြစ်သည်)
+                        </p>
+                        <input
+                          ref={voiceSampleInputRef}
+                          type="file"
+                          accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) handleVoiceSampleSelect(e.target.files[0]);
+                          }}
+                          className="hidden"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Speed Presets */}
@@ -562,10 +798,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
               </div>
             </div>
 
-            {/* 2. Subtitles & Blur Position */}
+            {/* 2. Subtitles & Blur Position Precision Controls */}
             <div className="pt-4 border-t border-slate-100 dark:border-zinc-800/80 space-y-4">
               <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
-                ✨ စာတန်းထိုးနှင့် Blur ဆက်တင်များ
+                ✨ စာတန်းထိုးနှင့် Blur နေရာ / အထူ အတိအကျချိန်ညှိမှု (Precision Calibrator)
               </label>
 
               {/* Switches */}
@@ -599,34 +835,119 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                 </div>
               </div>
 
-              {/* Blur Position Selector (When Blur is Enabled) */}
+              {/* Blur Sliders & Presets (When Blur is Enabled) */}
               {enableBlur && (
-                <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 space-y-2.5">
+                <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                      <span>🎯</span> Blur အုပ်မည့် စာသားနေရာ (Subtitle Position)
+                      <span>🎯</span> Blur Quick Presets (အမြန်ရွေးချယ်ရန်)
                     </span>
                     <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
-                      TikTok မူရင်းစာတန်း မလွဲစေရန်
+                      အပေါ် ဗီဒီယိုပေါ်တွင် တိုက်ရိုက် ကြည့်နိုင်ပါသည်
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Preset Buttons */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { id: 'lower', label: 'TikTok အောက်ပိုင်း (70%-85%)', tip: 'TikTok Auto-Captions အများစုအတွက် (Default)' },
-                      { id: 'center', label: 'ဖန်သားပြင် အလယ် (50%-70%)', tip: 'အလယ်ဗဟို စာတန်းများအတွက်' },
-                      { id: 'bottom', label: 'အောက်ခြေစွန်း (80%-95%)', tip: 'Landscape ရုပ်ရှင် စာတန်းများအတွက်' },
-                    ].map((bp) => (
+                      { label: 'TikTok ပုံမှန်', pos: 78, thick: 13, tip: 'TikTok Captions' },
+                      { label: 'အောက်ခြေစွန်း', pos: 86, thick: 12, tip: 'Bottom Subtitles' },
+                      { label: 'ဖန်သားပြင် အလယ်', pos: 62, thick: 14, tip: 'Center Captions' },
+                      { label: 'အပါးဆုံး Strip', pos: 80, thick: 9, tip: 'Thin 9% Strip' },
+                    ].map((p, idx) => (
                       <button
-                        key={bp.id}
+                        key={idx}
                         type="button"
-                        onClick={() => setBlurPosition(bp.id as any)}
-                        className={`p-2.5 rounded-xl border text-center transition-all
-                          ${blurPosition === bp.id
+                        onClick={() => {
+                          setBlurPosition(p.pos);
+                          setBlurThickness(p.thick);
+                        }}
+                        className={`p-2 rounded-xl border text-center transition-all ${
+                          blurPosition === p.pos && blurThickness === p.thick
                             ? 'border-indigo-500 bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
-                            : 'border-transparent hover:border-slate-200 dark:hover:border-zinc-700 text-slate-600 dark:text-zinc-400 text-xs'
-                          }`}>
-                        <span className="block text-xs">{bp.label}</span>
+                            : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-600 dark:text-zinc-400 text-xs'
+                        }`}>
+                        <span className="block text-xs font-semibold">{p.label}</span>
+                        <span className="block text-[10px] opacity-75">{p.thick}% / {p.pos}%</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Precision Sliders */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
+                    {/* Blur Position Slider */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">
+                          ↕️ Blur အမြင့်နေရာ (Position Y)
+                        </span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          {blurPosition}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={45}
+                        max={92}
+                        value={blurPosition}
+                        onChange={(e) => setBlurPosition(Number(e.target.value))}
+                        className="w-full accent-indigo-600 h-2 bg-slate-200 dark:bg-zinc-700 rounded-lg cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span>အပေါ်ပိုင်း (45%)</span>
+                        <span>အောက်ခြေစွန်း (92%)</span>
+                      </div>
+                    </div>
+
+                    {/* Blur Height / Thickness Slider */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">
+                          📏 Blur အထူ / အကျယ် (Height)
+                        </span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          {blurThickness}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={7}
+                        max={26}
+                        value={blurThickness}
+                        onChange={(e) => setBlurThickness(Number(e.target.value))}
+                        className="w-full accent-indigo-600 h-2 bg-slate-200 dark:bg-zinc-700 rounded-lg cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span>ပါးပါးလေး (7%)</span>
+                        <span>ထူထူ (26%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Subtitle Font Style */}
+              {enableSubtitles && (
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800 space-y-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 block">
+                    🎨 စာတန်းထိုး ဒီဇိုင်းပုံစံ (Subtitle Style)
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'font-akkhayar', label: 'Akkhayar (ရွှေဝါရောင် + Black Stroke)', desc: 'Movie Recap စံနှုန်း' },
+                      { id: 'font-padauk', label: 'Padauk (အဖြူရောင် + Black Stroke)', desc: 'သန့်ရှင်းသော ခေတ်မီပုံစံ' },
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setSubtitleStyle(st.id)}
+                        className={`p-2 rounded-xl border text-left transition-all ${
+                          subtitleStyle === st.id
+                            ? 'border-indigo-500 bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
+                            : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-xs'
+                        }`}>
+                        <span className="block text-xs">{st.label}</span>
+                        <span className="block text-[10px] text-slate-400 mt-0.5">{st.desc}</span>
                       </button>
                     ))}
                   </div>

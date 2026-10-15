@@ -108,9 +108,14 @@ export interface OneClickJobOptions {
   ratio: string;
   enableSubtitles?: boolean;
   enableBlur?: boolean;
-  blurPosition?: 'lower' | 'center' | 'bottom';
+  blurPosition?: number | 'lower' | 'center' | 'bottom';
+  blurThickness?: number;
+  blurIntensity?: number;
+  subtitleStyle?: string;
   watermarkText?: string;
   includeOriginalAudio?: boolean;
+  voiceSample?: File | null;
+  voiceId?: string;
 }
 
 /**
@@ -132,7 +137,28 @@ export async function startOneClickJob(
   formData.append('ratio', options.ratio);
   formData.append('enable_subtitles', String(options.enableSubtitles !== false));
   formData.append('enable_blur', String(Boolean(options.enableBlur)));
-  formData.append('blur_position', options.blurPosition || 'lower');
+
+  if (options.blurPosition !== undefined) {
+    formData.append('blur_position', String(options.blurPosition));
+  } else {
+    formData.append('blur_position', '78');
+  }
+
+  if (options.blurThickness !== undefined) {
+    formData.append('blur_thickness', String(options.blurThickness));
+  }
+  if (options.blurIntensity !== undefined) {
+    formData.append('blur_intensity', String(options.blurIntensity));
+  }
+  if (options.subtitleStyle) {
+    formData.append('subtitle_style', options.subtitleStyle);
+  }
+  if (options.voiceSample) {
+    formData.append('voice_sample', options.voiceSample);
+  }
+  if (options.voiceId) {
+    formData.append('voice_id', options.voiceId);
+  }
   if (options.watermarkText) formData.append('watermark_text', options.watermarkText.trim());
   formData.append('include_original_audio', String(Boolean(options.includeOriginalAudio)));
 

@@ -354,6 +354,7 @@ function validateSettings(raw = {}) {
   const aspectRatio = ['16:9', '9:16', '1:1', '4:5'].includes(raw.aspectRatio) ? raw.aspectRatio : '16:9';
   return {
     syncMode: raw.syncMode === 'smart' ? 'smart' : 'standard',
+    trimSilenceGaps: raw.trimSilenceGaps !== false,
     maxVideoSpeed: number(raw.maxVideoSpeed, 1.25, 1.0, 2.5),
     videoDuration: number(raw.videoDuration, 0, 0, 100000),
     audioDuration: number(raw.audioDuration, 0, 0, 100000),
@@ -470,6 +471,73 @@ async function probeMediaDuration(filePath) {
   });
 }
 
+async function detectSilenceIntervals(videoPath) {
+  return new Promise((resolve) => {
+    const child = spawn(process.env.FFMPEG_BIN || 'ffmpeg', [
+      '-i', videoPath,
+      '-af', 'silencedetect=noise=-30dB:d=0.45',
+      '-f', 'null',
+      '-'
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.on('error', () => resolve([]));
+    child.on('close', () => {
+      const silences = [];
+      const startRegex = /silence_start:\s*([0-9.]+)/g;
+      const endRegex = /silence_end:\s*([0-9.]+)/g;
+
+      let match;
+      const starts = [];
+      while ((match = startRegex.exec(stderr)) !== null) {
+        starts.push(parseFloat(match[1]));
+      }
+      const ends = [];
+      while ((match = endRegex.exec(stderr)) !== null) {
+        ends.push(parseFloat(match[1]));
+      }
+
+      for (let i = 0; i < Math.min(starts.length, ends.length); i++) {
+        if (ends[i] > starts[i]) {
+          silences.push({ start: starts[i], end: ends[i] });
+        }
+      }
+      resolve(silences);
+    });
+  });
+}
+
+function getActiveVideoIntervals(vTotal, silences, minClipDur = 0.4) {
+  if (!silences || silences.length === 0) {
+    return [{ start: 0, end: vTotal }];
+  }
+  const active = [];
+  let cur = 0;
+  for (const s of silences) {
+    if (s.start > cur + minClipDur) {
+      active.push({ start: cur, end: s.start });
+    }
+    cur = Math.max(cur, s.end);
+  }
+  if (cur + minClipDur < vTotal) {
+    active.push({ start: cur, end: vTotal });
+  }
+  return active.length > 0 ? active : [{ start: 0, end: vTotal }];
+}
+
+function mapActiveOffsetToVideoTime(activeOffset, activeIntervals) {
+  let accum = 0;
+  for (const interval of activeIntervals) {
+    const dur = interval.end - interval.start;
+    if (activeOffset <= accum + dur) {
+      return interval.start + (activeOffset - accum);
+    }
+    accum += dur;
+  }
+  return activeIntervals[activeIntervals.length - 1].end;
+}
+
 function parseSrtCuesRaw(srtText, offsetSec = 0) {
   if (!srtText || !srtText.includes('-->')) return [];
   const clean = srtText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
@@ -498,7 +566,8 @@ function buildSmartSyncFilterComplex(
   settings,
   subFilePath,
   hasLogo = false,
-  logoInputIdx = -1
+  logoInputIdx = -1,
+  silences = []
 ) {
   const canvas = settings.aspectRatio === '9:16'
     ? { width: 1080, height: 1920 }
@@ -508,28 +577,80 @@ function buildSmartSyncFilterComplex(
         ? { width: 1080, height: 1350 }
         : { width: 1920, height: 1080 };
 
-  const maxSpd = Math.max(1.0, Number(settings.maxVideoSpeed) || 1.25);
   const filterParts = [];
-
   const totalNarrationFrames = Math.max(1, Math.round(aTotal * 30));
   let totalPictureFrames = totalNarrationFrames;
 
-  // Filter valid cues
+  // 1. Extract active non-silent, non-gap video intervals (removes dialogue pauses & dead air)
+  const activeIntervals = (settings.trimSilenceGaps && silences && silences.length > 0)
+    ? getActiveVideoIntervals(vTotal, silences, 0.4)
+    : [{ start: 0, end: vTotal }];
+
+  const totalActiveDur = Math.max(0.1, activeIntervals.reduce((acc, c) => acc + (c.end - c.start), 0));
+  const removedGapSec = Math.max(0, vTotal - totalActiveDur);
+  console.log(`[SmartSync] Active video footage: ${totalActiveDur.toFixed(2)}s across ${activeIntervals.length} clips (trimmed ${removedGapSec.toFixed(2)}s of dialogue/silent pauses)`);
+
   const validCues = Array.isArray(cues)
     ? cues.filter((c) => c && Number.isFinite(c.startSec) && Number.isFinite(c.endSec) && c.endSec > c.startSec)
     : [];
 
-  const N = validCues.length;
-  const overallSpeed = vTotal / aTotal;
+  const K = activeIntervals.length;
 
-  // If N <= 1 (no cues or only 1 cue), retime continuous video to total narration frames
-  if (N <= 1) {
-    const ptsMultiplier = (aTotal / Math.max(0.01, vTotal)).toFixed(6);
-    filterParts.push(
-      `[0:v]trim=start=0:end=${vTotal.toFixed(4)},setpts=PTS-STARTPTS,setpts=${ptsMultiplier}*PTS,fps=30,trim=start_frame=0:end_frame=${totalNarrationFrames},setpts=PTS-STARTPTS[vcat]`
-    );
+  if (validCues.length <= 1) {
+    // Retime each active interval proportionally so the combined active footage exactly equals aTotal
+    const segLabels = [];
+    let prevCumFrames = 0;
+
+    for (let i = 0; i < K; i++) {
+      const clip = activeIntervals[i];
+      const clipDur = Math.max(0.01, clip.end - clip.start);
+      // Proportion of audio this active clip gets
+      const cumTargetTime = (i === K - 1)
+        ? aTotal
+        : (activeIntervals.slice(0, i + 1).reduce((acc, c) => acc + (c.end - c.start), 0) / totalActiveDur) * aTotal;
+      const cumTargetFrames = Math.round(cumTargetTime * 30);
+      let fCount = cumTargetFrames - prevCumFrames;
+      if (fCount < 1) fCount = 1;
+      prevCumFrames = cumTargetFrames;
+
+      const targetDur = fCount / 30;
+      const ptsMult = (targetDur / clipDur).toFixed(6);
+
+      const label = `vseg${i}`;
+      segLabels.push(`[${label}]`);
+
+      filterParts.push(
+        `[0:v]trim=start=${clip.start.toFixed(4)}:end=${clip.end.toFixed(4)},` +
+        `setpts=PTS-STARTPTS,` +
+        `setpts=${ptsMult}*PTS,` +
+        `fps=30,` +
+        `trim=start_frame=0:end_frame=${fCount},` +
+        `setpts=PTS-STARTPTS[${label}]`
+      );
+    }
+
+    // Concatenate active clips
+    if (K > 1) {
+      const BATCH_SIZE = 48;
+      if (K > BATCH_SIZE) {
+        const batchLabels = [];
+        let batchIdx = 0;
+        for (let i = 0; i < K; i += BATCH_SIZE) {
+          const slice = segLabels.slice(i, i + BATCH_SIZE);
+          const batchLabel = `vbatch${batchIdx++}`;
+          filterParts.push(`${slice.join('')}concat=n=${slice.length}:v=1:a=0[${batchLabel}]`);
+          batchLabels.push(`[${batchLabel}]`);
+        }
+        filterParts.push(`${batchLabels.join('')}concat=n=${batchLabels.length}:v=1:a=0[vcat]`);
+      } else {
+        filterParts.push(`${segLabels.join('')}concat=n=${K}:v=1:a=0[vcat]`);
+      }
+    } else {
+      filterParts.push(`[vseg0]anull[vcat]`);
+    }
   } else {
-    // N > 1 cues: Perform true cue-segmented smart sync with cumulative 30fps frame-locking (OneClick EdgeSmartSync algorithm)
+    // Cue-segmented Smart Sync with active clips mapped across narrative progress
+    const N = validCues.length;
     const midpoints = [];
     for (let i = 0; i < N - 1; i++) {
       const curEnd = validCues[i].endSec;
@@ -565,22 +686,21 @@ function buildSmartSyncFilterComplex(
 
     const segLabels = [];
     for (let i = 0; i < N; i++) {
-      // Map video position proportionally to narration story progress
+      // Map video position proportionally across ACTIVE intervals (excluding dialogue/silence gaps)
       const storyStartRatio = audioWindows[i].start / aTotal;
       const storyEndRatio = (i === N - 1) ? 1.0 : (audioWindows[i].end / aTotal);
 
-      const vStart = storyStartRatio * vTotal;
-      const vEnd = storyEndRatio * vTotal;
-      const vOrigDur = Math.max(0.01, vEnd - vStart);
+      // Find time in active timeline
+      const activeStart = storyStartRatio * totalActiveDur;
+      const activeEnd = storyEndRatio * totalActiveDur;
+
+      // Translate active offset into actual video timestamp
+      const vTrimStart = mapActiveOffsetToVideoTime(activeStart, activeIntervals);
+      const vTrimEnd = Math.max(vTrimStart + 0.05, mapActiveOffsetToVideoTime(activeEnd, activeIntervals));
+      const actualKept = Math.max(0.01, vTrimEnd - vTrimStart);
 
       const fCount = targetFrames[i];
       const targetDur = fCount / 30;
-
-      // Cap speed at maxSpd (1.25x) and trim excess from end of this segment
-      const vKeep = Math.min(vOrigDur, targetDur * maxSpd);
-      const vTrimStart = vStart;
-      const vTrimEnd = Math.min(vTotal, vStart + vKeep);
-      const actualKept = Math.max(0.01, vTrimEnd - vTrimStart);
       const ptsMult = (targetDur / actualKept).toFixed(6);
 
       const label = `vseg${i}`;
@@ -753,6 +873,12 @@ async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
 
     if (vDur > 0 && aDur > 0) {
       isSmartSyncActive = true;
+      let silences = [];
+      if (settings.trimSilenceGaps) {
+        job.progress = 10;
+        silences = await detectSilenceIntervals(input);
+        console.log(`[SmartSync] Detected ${silences.length} silent/pause gaps in input video`);
+      }
       const smartResult = buildSmartSyncFilterComplex(
         cues,
         vDur,
@@ -760,7 +886,8 @@ async function processJob(jobId, fileId, audioFileId, settings, logoFileId) {
         settings,
         subFilePath,
         Boolean(logo),
-        logoInputIdx
+        logoInputIdx,
+        silences
       );
       syncLog = smartResult.syncLog;
       job.syncLog = syncLog;

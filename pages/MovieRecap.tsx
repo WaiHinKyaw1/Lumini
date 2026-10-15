@@ -90,6 +90,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1' | '4:5'>('16:9');
   const [syncMode, setSyncMode] = useState<'smart' | 'standard'>('smart');
   const [maxVideoSpeed, setMaxVideoSpeed] = useState<number>(1.25);
+  const [trimSilenceGaps, setTrimSilenceGaps] = useState<boolean>(true);
   const [videoSpeed, setVideoSpeed] = useState(1.0);
   const [audioSpeed, setAudioSpeed] = useState(1.0);
 
@@ -751,283 +752,37 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     };
   }, [isPlaying, activeVideoSpeed, activeAudioSpeed, audioDuration]);
 
-  // --- Live Canvas Renderer ---
-  const renderFrame = useCallback((
-    ctx: CanvasRenderingContext2D,
-    video: HTMLVideoElement,
-    width: number,
-    height: number,
-    timeMs: number
-  ) => {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+  // --- Active Subtitle & Zoom Computations for Hardware-Accelerated Preview ---
+  const subtitleFontFamily = useMemo(() => {
+    if (subtitleStyle === 'font-kunheing') return 'AJKunheing, sans-serif';
+    if (subtitleStyle === 'font-jojar') return 'MyanmarJojar, sans-serif';
+    if (subtitleStyle === 'font-myanmaros') return 'MyanmarOS, sans-serif';
+    return 'Akkhayar21, sans-serif';
+  }, [subtitleStyle]);
 
-    const vRatio = video.videoWidth / video.videoHeight;
-    const cRatio = width / height;
-    let drawW, drawH, offsetX, offsetY;
-
-    if (vRatio > cRatio) {
-      drawW = width;
-      drawH = width / vRatio;
-      offsetX = 0;
-      offsetY = (height - drawH) / 2;
-    } else {
-      drawH = height;
-      drawW = height * vRatio;
-      offsetX = (width - drawW) / 2;
-      offsetY = 0;
+  const activeSubText = useMemo(() => {
+    if (!subtitleEnabled || !subtitleText.trim()) return '';
+    if (subtitleText.includes('-->')) {
+      const currentAudioTime = audioRef.current && isPlaying
+        ? audioRef.current.currentTime
+        : (audioFile ? (currentTime / activeVideoSpeed) * activeAudioSpeed : currentTime);
+      return getActiveSubtitleCue(subtitleText, currentAudioTime || 0, subtitleOffset);
     }
+    return subtitleText.trim();
+  }, [subtitleEnabled, subtitleText, currentTime, isPlaying, audioFile, activeVideoSpeed, activeAudioSpeed, subtitleOffset]);
 
-    let scale = 1.0;
-    if (zoomEnabled) {
-      const timeSec = timeMs / 1000;
-      const safeInterval = Math.max(1, zoomInterval);
-      const safeDuration = Math.min(zoomDuration, safeInterval);
-      const timeInInterval = timeSec % safeInterval;
-      if (timeInInterval < safeDuration) {
-        const p = timeInInterval / safeDuration;
-        scale = 1.0 + (Math.sin(p * Math.PI) * 0.15);
-      }
+  const currentZoomScale = useMemo(() => {
+    if (!zoomEnabled) return 1.0;
+    const timeSec = currentTime;
+    const safeInterval = Math.max(1, zoomInterval);
+    const safeDuration = Math.min(zoomDuration, safeInterval);
+    const timeInInterval = timeSec % safeInterval;
+    if (timeInInterval < safeDuration) {
+      const p = timeInInterval / safeDuration;
+      return 1.0 + (Math.sin(p * Math.PI) * 0.15);
     }
-
-    ctx.save();
-    ctx.translate(width / 2, height / 2);
-    ctx.scale(scale, scale);
-    ctx.translate(-width / 2, -height / 2);
-    ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
-    ctx.restore();
-
-    // Blur Strip (True Frosted Glass Blur - natural video blur without opaque black block)
-    if (blurEnabled) {
-      const bY = (blurPosition / 100) * height;
-      const bH = (blurThickness / 100) * height;
-      if (!helperCanvasRef.current) helperCanvasRef.current = document.createElement('canvas');
-      const helper = helperCanvasRef.current;
-
-      if (helper) {
-        const scaleFactor = 0.2;
-        const smallW = Math.max(1, Math.floor(width * scaleFactor));
-        const smallH = Math.max(1, Math.floor(height * scaleFactor));
-        if (helper.width !== smallW || helper.height !== smallH) {
-          helper.width = smallW;
-          helper.height = smallH;
-        }
-        const hCtx = helper.getContext('2d', { alpha: false });
-        if (hCtx) {
-          hCtx.fillStyle = '#000';
-          hCtx.fillRect(0, 0, smallW, smallH);
-          const blurPx = Math.max(6, Math.round(blurIntensity * scaleFactor * 1.5));
-          hCtx.filter = `blur(${blurPx}px)`;
-          hCtx.drawImage(video, offsetX * scaleFactor, offsetY * scaleFactor, drawW * scaleFactor, drawH * scaleFactor);
-          hCtx.filter = 'none';
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(0, bY - bH / 2, width, bH);
-          ctx.clip();
-          // Draw the true blurred video frame
-          ctx.drawImage(helper, 0, 0, smallW, smallH, 0, 0, width, height);
-
-          // Subtle soft glass tint so underlying movie colors remain vibrant and visible while text is thoroughly obscured
-          ctx.fillStyle = 'rgba(0,0,0,0.12)';
-          ctx.fillRect(0, bY - bH / 2, width, bH);
-
-          // Subtle elegant glass edge borders
-          ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(0, bY - bH / 2);
-          ctx.lineTo(width, bY - bH / 2);
-          ctx.moveTo(0, bY + bH / 2);
-          ctx.lineTo(width, bY + bH / 2);
-          ctx.stroke();
-          ctx.restore();
-        }
-      }
-    }
-
-    // Subtitle Style Preview Text (only if subtitleEnabled is on and subtitleText is present)
-    if (subtitleEnabled && subtitleText.trim()) {
-      ctx.save();
-      let subText = '';
-      if (subtitleText.includes('-->')) {
-        const currentAudioTime = audioRef.current && isPlaying
-          ? audioRef.current.currentTime
-          : (audioFile ? (video.currentTime / videoSpeed) * audioSpeed : video.currentTime);
-        const active = getActiveSubtitleCue(subtitleText, currentAudioTime || 0, subtitleOffset);
-        subText = active || (video.paused ? getFirstSubtitleCue(subtitleText) : '');
-      } else {
-        subText = subtitleText.trim();
-      }
-
-      if (subText) {
-        // High prominent recap font size (never tiny)
-        const isPortrait = height > width;
-        let fontSize = isPortrait
-          ? Math.max(16, Math.floor(height * 0.042))
-          : Math.max(18, Math.floor(height * 0.065));
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        let fontName = 'Akkhayar21';
-        if (subtitleStyle === 'font-kunheing') fontName = 'AJKunheing';
-        else if (subtitleStyle === 'font-jojar') fontName = 'MyanmarJojar';
-        else if (subtitleStyle === 'font-myanmaros') fontName = 'MyanmarOS';
-        else fontName = 'Akkhayar21';
-
-        // Safe 78% width with 11% margins on each side (prevents full-width stretching)
-        const maxLineWidth = width * 0.78;
-        const wrapTextToMax2Lines = (text: string, maxW: number): string[] => {
-          const clean = text.replace(/\\N/gi, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
-          ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
-          if (clean.length <= 24 && ctx.measureText(clean).width <= maxW) return [clean];
-
-          const len = clean.length;
-          const mid = len / 2;
-          const minMid = Math.floor(len * 0.35);
-          const maxMid = Math.ceil(len * 0.65);
-
-          // 1. If spaces exist in balanced middle window [35%, 65%], split at space closest to midpoint
-          const spaces: number[] = [];
-          for (let i = minMid; i <= maxMid; i++) {
-            if (clean[i] === ' ') spaces.push(i);
-          }
-          if (spaces.length > 0) {
-            let best = spaces[0];
-            let minDiff = Math.abs(best - mid);
-            for (const sp of spaces) {
-              const diff = Math.abs(sp - mid);
-              if (diff < minDiff) {
-                minDiff = diff;
-                best = sp;
-              }
-            }
-            return [clean.slice(0, best).trim(), clean.slice(best).trim()];
-          }
-
-          // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation in [25%, 75%]
-          const puncts: number[] = [];
-          for (let i = Math.floor(len * 0.25); i <= Math.ceil(len * 0.75); i++) {
-            if (clean[i] === '၊' || clean[i] === '။') puncts.push(i + 1);
-          }
-          if (puncts.length > 0) {
-            let best = puncts[0];
-            let minDiff = Math.abs(best - mid);
-            for (const p of puncts) {
-              const diff = Math.abs(p - mid);
-              if (diff < minDiff) {
-                minDiff = diff;
-                best = p;
-              }
-            }
-            return [clean.slice(0, best).trim(), clean.slice(best).trim()];
-          }
-
-          // 3. Burmese syllable boundary: look for a consonant [\u1000-\u1021] NOT preceded by virama \u1039 in [30%, 70%]
-          const syllableStarts: number[] = [];
-          const sMin = Math.floor(len * 0.30);
-          const sMax = Math.ceil(len * 0.70);
-          for (let i = sMin; i <= sMax; i++) {
-            const code = clean.charCodeAt(i);
-            if (code >= 0x1000 && code <= 0x1021) {
-              const prev = i > 0 ? clean.charCodeAt(i - 1) : 0;
-              if (prev !== 0x1039) syllableStarts.push(i);
-            }
-          }
-          if (syllableStarts.length > 0) {
-            let bestSyl = syllableStarts[0];
-            let minDiff = Math.abs(bestSyl - mid);
-            for (const s of syllableStarts) {
-              const diff = Math.abs(s - mid);
-              if (diff < minDiff) {
-                minDiff = diff;
-                bestSyl = s;
-              }
-            }
-            return [clean.slice(0, bestSyl).trim(), clean.slice(bestSyl).trim()];
-          }
-
-          return [clean.slice(0, Math.floor(mid)).trim(), clean.slice(Math.floor(mid)).trim()];
-        };
-
-        // Auto-scale font so both lines fit cleanly within maxLineWidth (never shrink below minimum)
-        let lines = wrapTextToMax2Lines(subText, maxLineWidth);
-        ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
-        const maxMeasured = Math.max(...lines.map(l => ctx.measureText(l).width));
-        if (maxMeasured > maxLineWidth) {
-          fontSize = Math.max(15, Math.floor(fontSize * maxLineWidth / maxMeasured));
-          ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
-          lines = wrapTextToMax2Lines(subText, maxLineWidth);
-        }
-
-        const lineHeight = fontSize * 1.35;
-        const subX = width / 2;
-        // Center within the blur strip band
-        const stripCenterY = blurEnabled ? (blurPosition / 100) * height : height - Math.max(26, Math.floor(height * 0.09));
-        const totalTextH = lines.length * lineHeight;
-        const startY = stripCenterY - (totalTextH / 2) + lineHeight / 2;
-
-        lines.forEach((line, idx) => {
-          const lineY = startY + idx * lineHeight;
-          ctx.lineWidth = Math.max(2.5, Math.floor(height * 0.007));
-          ctx.strokeStyle = '#000000';
-          ctx.strokeText(line, subX, lineY);
-          ctx.fillStyle = '#FACC15';
-          ctx.fillText(line, subX, lineY);
-        });
-      }
-      ctx.restore();
-    }
-
-    // Logo Watermark
-    if (logoImage) {
-      const lWidth = Math.max(32, width * (logoScale / 100));
-      const aspect = (logoImage.naturalWidth && logoImage.naturalHeight)
-        ? logoImage.naturalHeight / logoImage.naturalWidth
-        : 1;
-      const lHeight = lWidth * aspect;
-      const pad = Math.max(8, width * 0.02);
-      const edgeX = width * 0.05; // horizontal margin for left/right logos (5% in from edge)
-
-      let lx = edgeX;
-      if (logoAlign === 'center') {
-        lx = (width - lWidth) / 2;
-      } else if (logoAlign === 'right') {
-        lx = width - lWidth - edgeX;
-      }
-
-      const availableH = Math.max(0, height - lHeight - (pad * 2));
-      const ly = pad + (availableH * (logoY / 100));
-
-      ctx.save();
-      ctx.globalAlpha = Math.max(0.1, logoOpacity / 100);
-      ctx.drawImage(logoImage, lx, ly, lWidth, lHeight);
-      ctx.restore();
-    }
-  }, [blurEnabled, blurPosition, blurThickness, blurIntensity, zoomEnabled, zoomInterval, zoomDuration, logoImage, logoY, logoAlign, logoScale, logoOpacity, subtitleStyle, subtitleText, subtitleOffset, audioFile, videoSpeed, audioSpeed]);
-
-  // Preview render loop
-  useEffect(() => {
-    const loop = () => {
-      if (previewCanvasRef.current && videoRef.current && (videoRef.current.readyState >= 1 || videoRef.current.videoWidth > 0)) {
-        const cvs = previewCanvasRef.current;
-        const ctx = cvs.getContext('2d');
-        let w = 480;
-        let h = 270;
-        if (aspectRatio === "9:16") { w = 270; h = 480; }
-        else if (aspectRatio === "1:1") { w = 360; h = 360; }
-        else if (aspectRatio === "4:5") { w = 320; h = 400; }
-        cvs.width = w;
-        cvs.height = h;
-        if (ctx) renderFrame(ctx, videoRef.current, w, h, videoRef.current.currentTime * 1000);
-      }
-      animationFrameRef.current = requestAnimationFrame(loop);
-    };
-    loop();
-    return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    };
-  }, [aspectRatio, renderFrame]);
+    return 1.0;
+  }, [zoomEnabled, currentTime, zoomInterval, zoomDuration]);
 
   // Cancel generator handler
   const handleCancelGeneration = () => {
@@ -1140,6 +895,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         uploadedVideo.fileId,
         {
           syncMode,
+          trimSilenceGaps,
           maxVideoSpeed,
           videoDuration,
           audioDuration,
@@ -1881,6 +1637,34 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                       </div>
                     </div>
 
+                    {/* Smart Silence & Dialogue Gap Cut Card */}
+                    <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/25 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">🎬</span>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800 dark:text-zinc-100">
+                              စကားပြောခန်း / Silence Gaps အလိုအလျောက် ဖြတ်ထုတ်မည်
+                            </p>
+                            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
+                              Auto-Trim Dialogue & Pauses (1:1 Frame-Lock)
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTrimSilenceGaps(!trimSilenceGaps)}
+                          className={`w-10 h-5 rounded-full transition-colors relative ${trimSilenceGaps ? 'bg-purple-600' : 'bg-slate-300 dark:bg-zinc-700'}`}>
+                          <span className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${trimSilenceGaps ? 'translate-x-5' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-relaxed">
+                        {trimSilenceGaps
+                          ? '✓ မူရင်းဗီဒီယိုထဲက ဇာတ်ကောင် စကားပြောခန်းများနှင့် ငြိမ်သက်နေသော Gaps များကို အလိုအလျောက် ဖယ်ရှားပြီး ဇာတ်လမ်းပြောသံနှင့် အံကိုက်ဖြစ်သော Action အခန်းများကိုသာ ဆက်စပ်ပေးပါမည်။'
+                          : '✕ မူရင်းဗီဒီယို အစအဆုံး အတိုင်းသာ ထားရှိပါမည် (Gaps များကို မဖြတ်ထုတ်ပါ)။'}
+                      </p>
+                    </div>
+
                     {/* Feature Badges */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className="p-2 rounded-xl bg-white/60 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-center">
@@ -2338,18 +2122,123 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 </span>
               </div>
 
-              {/* Video Canvas Container */}
-              <div className="relative w-full min-h-[260px] max-h-[380px] bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-black/40">
+              {/* Video Preview Container with Hardware Accelerated Native Playback */}
+              <div className="relative w-full min-h-[260px] max-h-[400px] bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-black/40">
                 {videoUrl ? (
-                  <>
-                    <canvas ref={previewCanvasRef} className="max-w-full max-h-[380px] object-contain mx-auto" />
+                  <div
+                    className={`relative mx-auto flex items-center justify-center overflow-hidden max-h-[400px] w-full ${
+                      aspectRatio === '9:16'
+                        ? 'aspect-[9/16] h-[380px]'
+                        : aspectRatio === '1:1'
+                          ? 'aspect-square h-[340px]'
+                          : aspectRatio === '4:5'
+                            ? 'aspect-[4/5] h-[360px]'
+                            : 'aspect-video'
+                    }`}
+                  >
+                    <video
+                      ref={videoRef}
+                      src={videoUrl}
+                      preload="auto"
+                      playsInline
+                      muted
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-contain"
+                      style={{
+                        transform: zoomEnabled ? `scale(${currentZoomScale})` : undefined,
+                        transition: zoomEnabled ? 'transform 0.1s linear' : undefined,
+                      }}
+                      onLoadedMetadata={onVideoLoaded}
+                      onLoadedData={onVideoLoaded}
+                      onDurationChange={onVideoLoaded}
+                      onCanPlay={onVideoLoaded}
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
+                      onTimeUpdate={() => {
+                        if (videoRef.current) {
+                          setCurrentTime(videoRef.current.currentTime);
+                        }
+                      }}
+                    />
+
+                    {/* Frosted Glass Blur Band Overlay */}
+                    {blurEnabled && (
+                      <div
+                        style={{
+                          top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
+                          height: `${blurThickness}%`,
+                        }}
+                        className="absolute left-0 right-0 pointer-events-none transition-all duration-100 flex flex-col items-center justify-center overflow-hidden border-y border-amber-400/50 shadow-lg"
+                      >
+                        <div
+                          style={{
+                            backdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
+                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.72, Math.max(0.18, (blurIntensity / 100) * 0.75))})`,
+                          }}
+                          className="absolute inset-0"
+                        />
+                        {/* Centered Subtitle inside Blur Band */}
+                        {subtitleEnabled && (
+                          <div className="relative z-10 px-4 text-center max-w-[85%]">
+                            <p
+                              style={{
+                                fontFamily: subtitleFontFamily,
+                                color: '#FFD700',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
+                              }}
+                              className="text-xs sm:text-sm font-bold leading-tight"
+                            >
+                              {activeSubText || (subtitleText.trim() ? getFirstSubtitleCue(subtitleText) : 'နမူနာ စာတန်းထိုး (Preview Subtitle)')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Subtitle when Blur is disabled */}
+                    {subtitleEnabled && !blurEnabled && (
+                      <div className="absolute bottom-6 left-0 right-0 pointer-events-none z-10 px-4 text-center">
+                        <p
+                          style={{
+                            fontFamily: subtitleFontFamily,
+                            color: '#FFD700',
+                            textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
+                          }}
+                          className="text-xs sm:text-sm font-bold leading-tight"
+                        >
+                          {activeSubText || (subtitleText.trim() ? getFirstSubtitleCue(subtitleText) : 'နမူနာ စာတန်းထိုး (Preview Subtitle)')}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Logo Watermark Overlay */}
+                    {logoUrl && (
+                      <img
+                        src={logoUrl}
+                        alt="Watermark"
+                        style={{
+                          position: 'absolute',
+                          top: `${logoY}%`,
+                          left: logoAlign === 'left' ? '5%' : logoAlign === 'center' ? '50%' : undefined,
+                          right: logoAlign === 'right' ? '5%' : undefined,
+                          transform: logoAlign === 'center' ? 'translateX(-50%)' : undefined,
+                          width: `${logoScale}%`,
+                          opacity: logoOpacity / 100,
+                          pointerEvents: 'none',
+                        }}
+                        className="max-h-[30%] object-contain"
+                      />
+                    )}
+
+                    {/* Play/Pause Button Overlay */}
                     <button
+                      type="button"
                       onClick={togglePlayback}
-                      className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white flex items-center justify-center shadow-2xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-95"
+                      className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white flex items-center justify-center shadow-2xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-95 z-20"
                     >
                       {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
                     </button>
-                  </>
+                  </div>
                 ) : (
                   <div className="text-center p-6 space-y-2 text-zinc-500">
                     <Video className="w-8 h-8 mx-auto text-zinc-600 animate-pulse" />
@@ -2453,22 +2342,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
               </motion.div>
             )}
 
-            {/* Active media elements: placed in DOM with opacity 0.01 so PC Chromium hardware decoder doesn't cull/freeze them */}
-            <video
-              ref={videoRef}
-              src={videoUrl || ''}
-              preload="auto"
-              playsInline
-              muted
-              crossOrigin="anonymous"
-              style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, opacity: 0.01, pointerEvents: 'none', zIndex: -10 }}
-              onLoadedMetadata={onVideoLoaded}
-              onLoadedData={onVideoLoaded}
-              onDurationChange={onVideoLoaded}
-              onCanPlay={onVideoLoaded}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-            />
+            {/* Active audio element for synced playback */}
             <audio
               ref={audioRef}
               src={audioUrl || ''}
