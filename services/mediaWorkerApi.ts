@@ -34,6 +34,7 @@ export interface SyncJob {
   status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   outputFileId?: string;
+  syncLog?: string;
   error?: string;
 }
 

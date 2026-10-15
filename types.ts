@@ -6,6 +6,7 @@ export enum ContentType {
   VOICEOVER = 'VOICEOVER',
   VIDEO_INSIGHTS = 'VIDEO_INSIGHTS',
   MOVIE_RECAP = 'MOVIE_RECAP',
+  ONECLICK_RECAP = 'ONECLICK_RECAP',
   SUBTITLE = 'SUBTITLE',
   SOCIAL_GEN = 'SOCIAL_GEN',
   AUTO_CAPTION = 'AUTO_CAPTION',
@@ -65,6 +66,7 @@ export interface CreditCosts {
   [ContentType.VOICEOVER]: number;
   [ContentType.VIDEO_INSIGHTS]: number;
   [ContentType.MOVIE_RECAP]: number;
+  [ContentType.ONECLICK_RECAP]: number;
   [ContentType.SUBTITLE]: number;
   [ContentType.SOCIAL_GEN]: number;
   [ContentType.AUTO_CAPTION]: number;
@@ -84,6 +86,7 @@ export const CREDIT_COSTS: CreditCosts = {
   [ContentType.VOICEOVER]: 5,
   [ContentType.VIDEO_INSIGHTS]: 10,
   [ContentType.MOVIE_RECAP]: 15,
+  [ContentType.ONECLICK_RECAP]: 20,
   [ContentType.SUBTITLE]: 12,
   [ContentType.SOCIAL_GEN]: 5,
   [ContentType.AUTO_CAPTION]: 15,

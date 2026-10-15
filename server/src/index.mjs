@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
+import http from 'node:http';
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -94,6 +95,54 @@ app.post('/api/voxcpm/synthesize', async (request, reply) => {
   } catch (err) {
     return jsonError(reply, 502, `VoxCPM Connection Error: ${err.message}`);
   }
+});
+
+// ─── OneClick Recap EN→MM Streaming Reverse Proxy ────────────────────
+const ONECLICK_INTERNAL_URL = process.env.ONECLICK_INTERNAL_URL || 'http://172.17.0.1:8090';
+
+app.all('/api/oneclick/*', async (request, reply) => {
+  return new Promise((resolve) => {
+    try {
+      const targetUrl = new URL(request.raw.url, ONECLICK_INTERNAL_URL);
+      const reqHeaders = { ...request.raw.headers };
+      delete reqHeaders['host'];
+      reqHeaders['host'] = targetUrl.host;
+
+      const proxyReq = http.request(
+        {
+          hostname: targetUrl.hostname,
+          port: targetUrl.port || 80,
+          path: targetUrl.pathname + targetUrl.search,
+          method: request.raw.method,
+          headers: reqHeaders,
+        },
+        (proxyRes) => {
+          reply.raw.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(reply.raw);
+          proxyRes.on('end', () => resolve());
+        }
+      );
+
+      proxyReq.on('error', (err) => {
+        if (!reply.raw.headersSent) {
+          reply.code(502).send({
+            online: false,
+            ready: false,
+            service: 'OneClick Recap EN→MM',
+            error: `OneClick Service Unavailable: ${err.message}`,
+          });
+        }
+        resolve();
+      });
+
+      request.raw.pipe(proxyReq);
+    } catch (err) {
+      if (!reply.raw.headersSent) {
+        reply.code(500).send({ error: err.message });
+      }
+      resolve();
+    }
+  });
 });
 
 app.post('/api/voice-clones', async (request, reply) => {
@@ -459,36 +508,115 @@ function buildSmartSyncFilterComplex(
         ? { width: 1080, height: 1350 }
         : { width: 1920, height: 1080 };
 
-  const maxSpd = Number(settings.maxVideoSpeed) || 1.25;
-
-  // 1. Calculate seamless continuous video speed to align with narration audio
-  const rawSpeed = vTotal / aTotal;
-  const effSpeed = Math.min(maxSpd, Math.max(0.25, rawSpeed));
-  const ptsMultiplier = (1 / effSpeed).toFixed(4);
-
+  const maxSpd = Math.max(1.0, Number(settings.maxVideoSpeed) || 1.25);
   const filterParts = [];
-  const vFilters = [];
 
-  // Trim excess video frames if video duration exceeds narration audio timeline
-  const maxVideoDurToKeep = aTotal * effSpeed;
-  if (vTotal > maxVideoDurToKeep + 0.05) {
-    vFilters.push(`trim=start=0:end=${maxVideoDurToKeep.toFixed(4)}`);
+  const totalNarrationFrames = Math.max(1, Math.round(aTotal * 30));
+  let totalPictureFrames = totalNarrationFrames;
+
+  // Filter valid cues
+  const validCues = Array.isArray(cues)
+    ? cues.filter((c) => c && Number.isFinite(c.startSec) && Number.isFinite(c.endSec) && c.endSec > c.startSec)
+    : [];
+
+  const N = validCues.length;
+  const overallSpeed = vTotal / aTotal;
+
+  // If N <= 1 (no cues or only 1 cue), retime continuous video to total narration frames
+  if (N <= 1) {
+    const ptsMultiplier = (aTotal / Math.max(0.01, vTotal)).toFixed(6);
+    filterParts.push(
+      `[0:v]trim=start=0:end=${vTotal.toFixed(4)},setpts=PTS-STARTPTS,setpts=${ptsMultiplier}*PTS,fps=30,trim=start_frame=0:end_frame=${totalNarrationFrames},setpts=PTS-STARTPTS[vcat]`
+    );
+  } else {
+    // N > 1 cues: Perform true cue-segmented smart sync with cumulative 30fps frame-locking (OneClick EdgeSmartSync algorithm)
+    const midpoints = [];
+    for (let i = 0; i < N - 1; i++) {
+      const curEnd = validCues[i].endSec;
+      const nextStart = validCues[i + 1].startSec;
+      const m = nextStart >= curEnd ? (curEnd + nextStart) / 2 : curEnd;
+      midpoints.push(m);
+    }
+
+    const audioWindows = [];
+    for (let i = 0; i < N; i++) {
+      const start = (i === 0) ? 0 : midpoints[i - 1];
+      const end = (i === N - 1) ? Math.max(aTotal, validCues[i].endSec) : midpoints[i];
+      audioWindows.push({ start, end: Math.max(start + 0.05, end) });
+    }
+
+    // 30 fps Cumulative Frame Allocation
+    const targetFrames = [];
+    let prevCumFrames = 0;
+    for (let i = 0; i < N; i++) {
+      const cumAudioTime = (i === N - 1) ? aTotal : audioWindows[i].end;
+      const cumTargetFrames = Math.round(cumAudioTime * 30);
+      let segFrames = cumTargetFrames - prevCumFrames;
+      if (segFrames < 1) segFrames = 1;
+      targetFrames.push(segFrames);
+      prevCumFrames = cumTargetFrames;
+    }
+
+    // Lock exact total frame count
+    const currentSum = targetFrames.reduce((acc, f) => acc + f, 0);
+    const frameCorrection = totalNarrationFrames - currentSum;
+    targetFrames[N - 1] = Math.max(1, targetFrames[N - 1] + frameCorrection);
+    totalPictureFrames = targetFrames.reduce((acc, f) => acc + f, 0);
+
+    const segLabels = [];
+    for (let i = 0; i < N; i++) {
+      // Map video position proportionally to narration story progress
+      const storyStartRatio = audioWindows[i].start / aTotal;
+      const storyEndRatio = (i === N - 1) ? 1.0 : (audioWindows[i].end / aTotal);
+
+      const vStart = storyStartRatio * vTotal;
+      const vEnd = storyEndRatio * vTotal;
+      const vOrigDur = Math.max(0.01, vEnd - vStart);
+
+      const fCount = targetFrames[i];
+      const targetDur = fCount / 30;
+
+      // Cap speed at maxSpd (1.25x) and trim excess from end of this segment
+      const vKeep = Math.min(vOrigDur, targetDur * maxSpd);
+      const vTrimStart = vStart;
+      const vTrimEnd = Math.min(vTotal, vStart + vKeep);
+      const actualKept = Math.max(0.01, vTrimEnd - vTrimStart);
+      const ptsMult = (targetDur / actualKept).toFixed(6);
+
+      const label = `vseg${i}`;
+      segLabels.push(`[${label}]`);
+
+      filterParts.push(
+        `[0:v]trim=start=${vTrimStart.toFixed(4)}:end=${vTrimEnd.toFixed(4)},` +
+        `setpts=PTS-STARTPTS,` +
+        `setpts=${ptsMult}*PTS,` +
+        `fps=30,` +
+        `trim=start_frame=0:end_frame=${fCount},` +
+        `setpts=PTS-STARTPTS[${label}]`
+      );
+    }
+
+    const BATCH_SIZE = 48;
+    if (N > BATCH_SIZE) {
+      const batchLabels = [];
+      let batchIdx = 0;
+      for (let i = 0; i < N; i += BATCH_SIZE) {
+        const slice = segLabels.slice(i, i + BATCH_SIZE);
+        const batchLabel = `vbatch${batchIdx++}`;
+        filterParts.push(`${slice.join('')}concat=n=${slice.length}:v=1:a=0[${batchLabel}]`);
+        batchLabels.push(`[${batchLabel}]`);
+      }
+      filterParts.push(`${batchLabels.join('')}concat=n=${batchLabels.length}:v=1:a=0[vcat]`);
+    } else {
+      filterParts.push(`${segLabels.join('')}concat=n=${N}:v=1:a=0[vcat]`);
+    }
   }
 
-  // Retime video PTS, reset timestamps and lock to exact 30 FPS for frame-accurate sync
-  vFilters.push('setpts=PTS-STARTPTS');
-  if (Math.abs(effSpeed - 1.0) > 0.005) {
-    vFilters.push(`setpts=${ptsMultiplier}*PTS`);
-  }
-  vFilters.push('fps=30');
+  // Common downstream filters on [vcat]: Scale & Pad to canvas
+  let vChain = `[vcat]scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease,` +
+    `pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`;
 
-  // Scale and pad to canvas
-  vFilters.push(`scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`);
-  vFilters.push(`pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`);
-
-  let vChain = `[0:v]${vFilters.join(',')}`;
-
-  // 2. Frosted glass blur overlay band
+  // Frosted glass blur overlay band
   if (settings.blurEnabled) {
     const rawThickness = Number(settings.blurThickness) || 16;
     const rawPos = Number(settings.blurPosition) || 82;
@@ -508,14 +636,14 @@ function buildSmartSyncFilterComplex(
       `drawbox=x=0:y=trunc(ih*${bottom}/2)*2-2:w=iw:h=2:color=white@0.22:t=fill`;
   }
 
-  // 3. Subtitle filter (ASS)
+  // Subtitle filter (ASS)
   if (settings.subtitleEnabled && subFilePath) {
     const escapedAssPath = subFilePath.replace(/\\/g, '/').replace(/'/g, "'\\''");
     const escapedFontsDir = FONTS_DIR.replace(/\\/g, '/').replace(/'/g, "'\\''");
     vChain = `${vChain},ass='${escapedAssPath}':fontsdir='${escapedFontsDir}'`;
   }
 
-  // 4. Watermark Logo
+  // Watermark Logo
   if (hasLogo && logoInputIdx > 0) {
     const scalePct = (Number(settings.logoScale) || 14) / 100;
     const targetW = Math.max(48, Math.round(canvas.width * scalePct));
@@ -542,8 +670,9 @@ function buildSmartSyncFilterComplex(
   // Narration audio is untouched master timeline
   filterParts.push(`[1:a]anull[aout]`);
 
-  const totalNarrationFrames = Math.round(aTotal * 30);
-  const syncLog = `SMART SYNC OK: effSpeed=${effSpeed.toFixed(3)}x totalAudio=${aTotal.toFixed(2)}s totalVideo=${vTotal.toFixed(2)}s frames=${totalNarrationFrames}`;
+  // Log exactly as required: SYNC OK: picture=… narration=… diff=…
+  const diff = totalPictureFrames - totalNarrationFrames;
+  const syncLog = `SYNC OK: picture=${totalPictureFrames} narration=${totalNarrationFrames} diff=${diff}`;
   console.log(`[SmartSync] ${syncLog}`);
 
   return {
@@ -737,13 +866,16 @@ function secondsToAssTime(seconds) {
   return `${h}:${mStr}:${sStr}.${csStr}`;
 }
 
-// Strictly format into at most 2 lines (never 3 lines)
+// Strictly format into at most 2 balanced lines (never 3 lines)
 function findBestBurmeseSplitPoint(text) {
-  const mid = text.length / 2;
+  const len = text.length;
+  const mid = len / 2;
+  const minMid = Math.floor(len * 0.35);
+  const maxMid = Math.ceil(len * 0.65);
 
-  // 1. If spaces exist, split at space closest to midpoint
+  // 1. If spaces exist in balanced middle window [35%, 65%], split at space closest to midpoint
   const spaces = [];
-  for (let i = 0; i < text.length; i++) {
+  for (let i = minMid; i <= maxMid; i++) {
     if (text[i] === ' ') spaces.push(i);
   }
   if (spaces.length > 0) {
@@ -759,9 +891,9 @@ function findBestBurmeseSplitPoint(text) {
     return best;
   }
 
-  // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation closest to midpoint
+  // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation in [25%, 75%]
   const puncts = [];
-  for (let i = 0; i < text.length; i++) {
+  for (let i = Math.floor(len * 0.25); i <= Math.ceil(len * 0.75); i++) {
     if (text[i] === '၊' || text[i] === '။') puncts.push(i + 1);
   }
   if (puncts.length > 0) {
@@ -777,11 +909,11 @@ function findBestBurmeseSplitPoint(text) {
     return best;
   }
 
-  // 3. Burmese syllable boundary: look for a consonant [\u1000-\u1021] NOT preceded by virama \u1039
+  // 3. Burmese syllable boundary: consonant [\u1000-\u1021] NOT preceded by virama \u1039 in [30%, 70%]
   const syllableStarts = [];
-  const minBound = Math.floor(text.length * 0.25);
-  const maxBound = Math.floor(text.length * 0.75);
-  for (let i = minBound; i <= maxBound; i++) {
+  const sMin = Math.floor(len * 0.30);
+  const sMax = Math.ceil(len * 0.70);
+  for (let i = sMin; i <= sMax; i++) {
     const code = text.charCodeAt(i);
     if (code >= 0x1000 && code <= 0x1021) {
       const prevCode = i > 0 ? text.charCodeAt(i - 1) : 0;
@@ -806,8 +938,8 @@ function findBestBurmeseSplitPoint(text) {
   return Math.floor(mid);
 }
 
-// Strictly format into at most 2 lines (never 3 lines, wider margins)
-function wrapSubtitleText(text, maxCharsPerLine = 42) {
+// Strictly format into at most 2 lines (wrap at 24 chars max so subtitles never stretch full width)
+function wrapSubtitleText(text, maxCharsPerLine = 24) {
   if (!text) return '';
   const clean = text
     .replace(/\\N/gi, ' ')
@@ -858,7 +990,7 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, offsetSec = 
 
     if (cueText) {
       if (endSec <= startSec) endSec = startSec + (2.5 / speed);
-      const wrapped = wrapSubtitleText(cueText, 32);
+      const wrapped = wrapSubtitleText(cueText, 24);
       rawCues.push({ startSec, endSec, cueText: wrapped });
     }
   }
@@ -878,9 +1010,9 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, offsetSec = 
 
   const isPortrait = canvas.height > canvas.width;
   const baseFontSize = isPortrait
-    ? Math.max(48, Math.round(canvas.height * 0.028))
-    : Math.max(54, Math.round(canvas.height * 0.052));
-  const availableWidth = canvas.width * 0.95;
+    ? Math.max(44, Math.round(canvas.height * 0.026))
+    : Math.max(50, Math.round(canvas.height * 0.046));
+  const availableWidth = canvas.width * 0.78;
 
   const events = [];
   for (const cue of rawCues) {
@@ -893,7 +1025,7 @@ function parseSrtToAssEvents(srtText, marginV, speedMultiplier = 1, offsetSec = 
 
     // Burmese letters average ~0.72 of font size in width
     const maxFitFontSize = Math.floor(availableWidth / Math.max(1, maxLineLen * 0.72));
-    const cueFontSize = Math.max(42, Math.min(baseFontSize, maxFitFontSize));
+    const cueFontSize = Math.max(36, Math.min(baseFontSize, maxFitFontSize));
 
     const formattedText = cueFontSize < baseFontSize
       ? `{\\fs${cueFontSize}}${cue.cueText}`
@@ -911,8 +1043,8 @@ function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
 
   const isPortrait = canvas.height > canvas.width;
   const fontSize = isPortrait
-    ? Math.max(48, Math.round(canvas.height * 0.028))
-    : Math.max(54, Math.round(canvas.height * 0.052));
+    ? Math.max(44, Math.round(canvas.height * 0.026))
+    : Math.max(50, Math.round(canvas.height * 0.046));
 
   const blurPos = Number.isFinite(settings.blurPosition) ? settings.blurPosition : 82;
   const stripCenterFromBottom = ((100 - blurPos) / 100) * canvas.height;
@@ -924,7 +1056,8 @@ function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
     ? Math.max(10, Math.round(stripCenterFromBottom - (fontSize * 0.72)))
     : Math.round(isPortrait ? canvas.height * 0.08 : canvas.height * 0.10);
 
-  const marginLR = isPortrait ? 18 : 24;
+  // Safe ~11% side margins to keep subtitles gracefully centered (never stretching full width)
+  const marginLR = Math.round(canvas.width * 0.11);
 
   let fontName = 'Akkhayar21';
   if (settings.subtitleStyle === 'font-kunheing' || settings.subtitleStyle === 'kunheing') {
@@ -955,10 +1088,10 @@ function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
     if (text.includes('-->') || /^\d+\s*$/m.test(text)) {
       return null;
     }
-    const escapedText = wrapSubtitleText(text, 32);
+    const escapedText = wrapSubtitleText(text, 24);
     const parts = escapedText.split('\\N');
     const maxLineLen = Math.max(...parts.map((p) => p.length));
-    const availableWidth = canvas.width * 0.88;
+    const availableWidth = canvas.width * 0.78;
     const maxFitFontSize = Math.floor(availableWidth / Math.max(1, maxLineLen * 0.72));
     const cueFontSize = Math.max(22, Math.min(fontSize, maxFitFontSize));
     const formattedText = cueFontSize < fontSize ? `{\\fs${cueFontSize}}${escapedText}` : escapedText;
@@ -994,9 +1127,10 @@ function buildFilterComplex(settings, assFilePath, hasAudio, audioSpeed, videoSp
         : { width: 1920, height: 1080 };
 
   const vFilters = [];
-  if (settings.videoSpeed && settings.videoSpeed !== 1) {
-    vFilters.push(`setpts=${(1 / settings.videoSpeed).toFixed(4)}*PTS`);
+  if (videoSpeed && videoSpeed !== 1) {
+    vFilters.push(`setpts=${(1 / videoSpeed).toFixed(6)}*PTS`);
   }
+  vFilters.push('fps=30');
   vFilters.push(`scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`);
   vFilters.push(`pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2:color=black`);
 

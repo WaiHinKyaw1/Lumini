@@ -1,0 +1,27 @@
+# OneClick Recap EN→MM — Python Dependencies
+# Install on AWS EC2: pip install -r oneclick_requirements.txt
+
+# Core API server
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+python-multipart>=0.0.18
+
+# Whisper (English speech-to-text)
+openai-whisper>=20231117
+
+# Gemini AI (translation)
+google-genai>=2.25.0
+
+# Edge TTS (Myanmar voice)
+edge-tts>=7.2.8
+
+# Environment
+python-dotenv>=1.0.1
+
+# Audio processing (used by whisper internally)
+torch>=2.0.0
+numpy>=1.24.0
+
+# Video Downloaders (YouTube & TikTok with browser impersonation)
+yt-dlp>=2026.8.19
+curl-cffi>=0.16.3

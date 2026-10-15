@@ -120,6 +120,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const [outputMimeType, setOutputMimeType] = useState<string>('video/mp4');
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [syncResultLog, setSyncResultLog] = useState<string | null>(null);
 
   // Server availability status
   const [workerOnline, setWorkerOnline] = useState<boolean | null>(null);
@@ -595,7 +596,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
   const durationDiff = effectiveVideoDuration - effectiveAudioDuration;
   const isTimelineSynced = audioFile ? Math.abs(durationDiff) <= 0.4 : true;
 
-  // Auto-Match Video Speed to Voiceover Duration
+  // Auto-Match Video Speed to Voiceover Duration (high precision 4-decimal to prevent drift)
   const handleAutoMatchVideoToAudio = () => {
     if (!videoDuration || !audioDuration) {
       toast.error('ဗီဒီယိုနှင့် အသံဖိုင် နှစ်ခုစလုံး လိုအပ်ပါသည်');
@@ -603,12 +604,12 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     }
     const effectiveAudioDur = audioDuration / audioSpeed;
     const targetVideoSpeed = videoDuration / effectiveAudioDur;
-    const clamped = Math.min(3.0, Math.max(0.25, Number(targetVideoSpeed.toFixed(2))));
+    const clamped = Math.min(3.0, Math.max(0.25, Number(targetVideoSpeed.toFixed(4))));
     setVideoSpeed(clamped);
-    toast.success(`ဗီဒီယို Speed ကို ${clamped}x သို့ ညှိပြီး Voiceover ကြာချိန် (${formatTimeSimple(effectiveAudioDur)}) နှင့် အချိန်ကိုက် ညှိပြီးပါပြီ!`);
+    toast.success(`ဗီဒီယို Speed ကို ${clamped.toFixed(2)}x သို့ ညှိပြီး Voiceover ကြာချိန် (${formatTimeSimple(effectiveAudioDur)}) နှင့် အချိန်ကိုက် ညှိပြီးပါပြီ!`);
   };
 
-  // Auto-Match Voiceover Speed to Video Duration
+  // Auto-Match Voiceover Speed to Video Duration (high precision 4-decimal)
   const handleAutoMatchAudioToVideo = () => {
     if (!videoDuration || !audioDuration) {
       toast.error('ဗီဒီယိုနှင့် အသံဖိုင် နှစ်ခုစလုံး လိုအပ်ပါသည်');
@@ -616,9 +617,9 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
     }
     const effectiveVideoDur = videoDuration / videoSpeed;
     const targetAudioSpeed = audioDuration / effectiveVideoDur;
-    const clamped = Math.min(3.0, Math.max(0.25, Number(targetAudioSpeed.toFixed(2))));
+    const clamped = Math.min(3.0, Math.max(0.25, Number(targetAudioSpeed.toFixed(4))));
     setAudioSpeed(clamped);
-    toast.success(`Voiceover Speed ကို ${clamped}x သို့ ညှိပြီး ဗီဒီယို ကြာချိန် (${formatTimeSimple(effectiveVideoDur)}) နှင့် အချိန်ကိုက် ညှိပြီးပါပြီ!`);
+    toast.success(`Voiceover Speed ကို ${clamped.toFixed(2)}x သို့ ညှိပြီး ဗီဒီယို ကြာချိန် (${formatTimeSimple(effectiveVideoDur)}) နှင့် အချိန်ကိုက် ညှိပြီးပါပြီ!`);
   };
 
   // Reset Speeds
@@ -731,7 +732,16 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       if (audioRef.current) audioRef.current.pause();
     };
     const onTimeUpdate = () => {
-      if (video) setCurrentTime(video.currentTime);
+      if (video) {
+        setCurrentTime(video.currentTime);
+        if (audioRef.current && isPlaying && !audioRef.current.paused) {
+          const expectedAudioTime = (video.currentTime / activeVideoSpeed) * activeAudioSpeed;
+          const diff = Math.abs(audioRef.current.currentTime - expectedAudioTime);
+          if (diff > 0.25) {
+            audioRef.current.currentTime = Math.max(0, Math.min(audioDuration, expectedAudioTime));
+          }
+        }
+      }
     };
     video?.addEventListener('ended', onEnded);
     video?.addEventListener('timeupdate', onTimeUpdate);
@@ -739,7 +749,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       video?.removeEventListener('ended', onEnded);
       video?.removeEventListener('timeupdate', onTimeUpdate);
     };
-  }, [isPlaying]);
+  }, [isPlaying, activeVideoSpeed, activeAudioSpeed, audioDuration]);
 
   // --- Live Canvas Renderer ---
   const renderFrame = useCallback((
@@ -865,18 +875,21 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
         else if (subtitleStyle === 'font-myanmaros') fontName = 'MyanmarOS';
         else fontName = 'Akkhayar21';
 
-        // Expand horizontally to 95% of width (users requested "ဘေးဘက်တေ တိုးလိုက်")
-        const maxLineWidth = width * 0.95;
+        // Safe 78% width with 11% margins on each side (prevents full-width stretching)
+        const maxLineWidth = width * 0.78;
         const wrapTextToMax2Lines = (text: string, maxW: number): string[] => {
           const clean = text.replace(/\\N/gi, ' ').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
           ctx.font = `bold ${fontSize}px ${fontName}, sans-serif`;
-          if (ctx.measureText(clean).width <= maxW) return [clean];
+          if (clean.length <= 24 && ctx.measureText(clean).width <= maxW) return [clean];
 
-          const mid = clean.length / 2;
+          const len = clean.length;
+          const mid = len / 2;
+          const minMid = Math.floor(len * 0.35);
+          const maxMid = Math.ceil(len * 0.65);
 
-          // 1. If spaces exist, split at space closest to midpoint
+          // 1. If spaces exist in balanced middle window [35%, 65%], split at space closest to midpoint
           const spaces: number[] = [];
-          for (let i = 0; i < clean.length; i++) {
+          for (let i = minMid; i <= maxMid; i++) {
             if (clean[i] === ' ') spaces.push(i);
           }
           if (spaces.length > 0) {
@@ -892,9 +905,9 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             return [clean.slice(0, best).trim(), clean.slice(best).trim()];
           }
 
-          // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation closest to midpoint
+          // 2. If Burmese punctuation marks exist (၊ or ။), split after punctuation in [25%, 75%]
           const puncts: number[] = [];
-          for (let i = 0; i < clean.length; i++) {
+          for (let i = Math.floor(len * 0.25); i <= Math.ceil(len * 0.75); i++) {
             if (clean[i] === '၊' || clean[i] === '။') puncts.push(i + 1);
           }
           if (puncts.length > 0) {
@@ -910,11 +923,11 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
             return [clean.slice(0, best).trim(), clean.slice(best).trim()];
           }
 
-          // 3. Burmese syllable boundary: look for a consonant [\u1000-\u1021] NOT preceded by virama \u1039
+          // 3. Burmese syllable boundary: look for a consonant [\u1000-\u1021] NOT preceded by virama \u1039 in [30%, 70%]
           const syllableStarts: number[] = [];
-          const minBound = Math.floor(clean.length * 0.25);
-          const maxBound = Math.floor(clean.length * 0.75);
-          for (let i = minBound; i <= maxBound; i++) {
+          const sMin = Math.floor(len * 0.30);
+          const sMax = Math.ceil(len * 0.70);
+          for (let i = sMin; i <= sMax; i++) {
             const code = clean.charCodeAt(i);
             if (code >= 0x1000 && code <= 0x1021) {
               const prev = i > 0 ? clean.charCodeAt(i - 1) : 0;
@@ -1179,7 +1192,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setOutputMimeType('video/mp4');
       setProgress(100);
       setProcessingStage('complete');
-      setStatusMessage('မြန်မာ Recap ဗီဒီယို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ! (100%)');
+      if (completed.syncLog) {
+        setSyncResultLog(completed.syncLog);
+        setStatusMessage(completed.syncLog);
+      } else {
+        setSyncResultLog(null);
+        setStatusMessage('မြန်မာ Recap ဗီဒီယို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ! (100%)');
+      }
 
       const currentUser = auth.currentUser;
       if (currentUser) {
@@ -2394,9 +2413,17 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                     </div>
                     <div>
                       <h3 className="text-xs font-bold text-slate-900 dark:text-white">Recap Video Ready</h3>
-                      <span className="text-[9px] text-emerald-400 font-semibold">
-                        {subtitleEnabled ? 'မြန်မာစာတန်းထိုး ပါဝင်သည်' : 'Clean Video (စာတန်းမပါ)'}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] text-emerald-400 font-semibold">
+                          {subtitleEnabled ? 'မြန်မာစာတန်းထိုး ပါဝင်သည်' : 'Clean Video (စာတန်းမပါ)'}
+                        </span>
+                        {syncResultLog && (
+                          <span className="text-[9px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-mono font-bold flex items-center gap-1 border border-indigo-500/30">
+                            <Zap className="w-2.5 h-2.5 text-amber-300" />
+                            {syncResultLog}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
