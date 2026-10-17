@@ -113,6 +113,11 @@ export interface OneClickJobOptions {
   blurIntensity?: number;
   subtitleStyle?: string;
   watermarkText?: string;
+  logoFile?: File | null;
+  logoY?: number;
+  logoAlign?: 'left' | 'center' | 'right';
+  logoScale?: number;
+  logoOpacity?: number;
   includeOriginalAudio?: boolean;
   voiceSample?: File | null;
   voiceId?: string;
@@ -160,6 +165,13 @@ export async function startOneClickJob(
     formData.append('voice_id', options.voiceId);
   }
   if (options.watermarkText) formData.append('watermark_text', options.watermarkText.trim());
+  if (options.logoFile) {
+    formData.append('logo_file', options.logoFile);
+  }
+  if (options.logoY !== undefined) formData.append('logo_y', String(options.logoY));
+  if (options.logoAlign) formData.append('logo_align', options.logoAlign);
+  if (options.logoScale !== undefined) formData.append('logo_scale', String(options.logoScale));
+  if (options.logoOpacity !== undefined) formData.append('logo_opacity', String(options.logoOpacity));
   formData.append('include_original_audio', String(Boolean(options.includeOriginalAudio)));
 
   const res = await fetch(`${getBaseUrl()}/api/oneclick/start`, {

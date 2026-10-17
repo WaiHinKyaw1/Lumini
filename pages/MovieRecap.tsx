@@ -732,9 +732,15 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       setIsPlaying(false);
       if (audioRef.current) audioRef.current.pause();
     };
+    let lastTimeUpdate = 0;
     const onTimeUpdate = () => {
       if (video) {
-        setCurrentTime(video.currentTime);
+        const now = performance.now();
+        // Throttle React state update to ~6fps during continuous playback to eliminate mobile & PC lag
+        if (now - lastTimeUpdate >= 160) {
+          lastTimeUpdate = now;
+          setCurrentTime(video.currentTime);
+        }
         if (audioRef.current && isPlaying && !audioRef.current.paused) {
           const expectedAudioTime = (video.currentTime / activeVideoSpeed) * activeAudioSpeed;
           const diff = Math.abs(audioRef.current.currentTime - expectedAudioTime);
@@ -2126,14 +2132,14 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
               <div className="relative w-full min-h-[260px] max-h-[400px] bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-black/40">
                 {videoUrl ? (
                   <div
-                    className={`relative mx-auto flex items-center justify-center overflow-hidden max-h-[400px] w-full ${
+                    className={`relative mx-auto flex items-center justify-center overflow-hidden max-h-[400px] ${
                       aspectRatio === '9:16'
                         ? 'aspect-[9/16] h-[380px]'
                         : aspectRatio === '1:1'
                           ? 'aspect-square h-[340px]'
                           : aspectRatio === '4:5'
                             ? 'aspect-[4/5] h-[360px]'
-                            : 'aspect-video'
+                            : 'aspect-video w-full'
                     }`}
                   >
                     <video
@@ -2146,7 +2152,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                       className="w-full h-full object-contain"
                       style={{
                         transform: zoomEnabled ? `scale(${currentZoomScale})` : undefined,
-                        transition: zoomEnabled ? 'transform 0.1s linear' : undefined,
                       }}
                       onLoadedMetadata={onVideoLoaded}
                       onLoadedData={onVideoLoaded}
@@ -2154,11 +2159,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                       onCanPlay={onVideoLoaded}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
-                      onTimeUpdate={() => {
-                        if (videoRef.current) {
-                          setCurrentTime(videoRef.current.currentTime);
-                        }
-                      }}
                     />
 
                     {/* Frosted Glass Blur Band Overlay */}
@@ -2168,12 +2168,13 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                           top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
                           height: `${blurThickness}%`,
                         }}
-                        className="absolute left-0 right-0 pointer-events-none transition-all duration-100 flex flex-col items-center justify-center overflow-hidden border-y border-amber-400/50 shadow-lg"
+                        className="absolute left-0 right-0 pointer-events-none transition-all duration-75 flex flex-col items-center justify-center overflow-hidden border-y border-amber-400/60 shadow-lg"
                       >
                         <div
                           style={{
-                            backdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
-                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.72, Math.max(0.18, (blurIntensity / 100) * 0.75))})`,
+                            backdropFilter: isPlaying ? undefined : `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
+                            WebkitBackdropFilter: isPlaying ? undefined : `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
+                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.78, Math.max(0.35, (blurIntensity / 100) * 0.85))})`,
                           }}
                           className="absolute inset-0"
                         />
@@ -2211,7 +2212,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                       </div>
                     )}
 
-                    {/* Logo Watermark Overlay */}
+                    {/* Logo Watermark Overlay - 100% Calibrated with Server FFmpeg Coordinates */}
                     {logoUrl && (
                       <img
                         src={logoUrl}
@@ -2221,7 +2222,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                           top: `${logoY}%`,
                           left: logoAlign === 'left' ? '5%' : logoAlign === 'center' ? '50%' : undefined,
                           right: logoAlign === 'right' ? '5%' : undefined,
-                          transform: logoAlign === 'center' ? 'translateX(-50%)' : undefined,
+                          transform: `translate(${logoAlign === 'center' ? '-50%' : '0%'}, -${logoY}%)`,
                           width: `${logoScale}%`,
                           opacity: logoOpacity / 100,
                           pointerEvents: 'none',

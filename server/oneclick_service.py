@@ -447,6 +447,40 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
 
 # ─────────────────────────── Step 4: Edge TTS Myanmar Voice ───────────────────────────
 
+def normalize_edge_rate(speed_input: Any) -> str:
+    """Safely convert any speed format (e.g. 1.25, '1.25x', '+25%', 1.35) into calibrated Edge TTS rate string (+XX%).
+    Because Microsoft Myanmar TTS (Nilar/Thiha) default speed is very slow and formal,
+    we calibrate the speed factor so that 1.25x and 1.35x truly sound energetic, fast, and snappy for movie recaps.
+    """
+    if not speed_input:
+        return "+25%"
+    s = str(speed_input).strip()
+
+    # If already formatted like +XX% or -XX%
+    if re.match(r'^[+-]\d+%$', s):
+        pct = int(s[1:-1])
+        if s.startswith("+"):
+            # Boost the percentage because raw Edge-TTS Myanmar is inherently sluggish
+            # +15% -> +25%, +25% -> +40%, +35% -> +55%, +50% -> +72%
+            boosted = max(pct, int(pct * 1.55))
+            return f"+{min(100, boosted)}%"
+        return s
+
+    # If given as multiplier like '1.25', '1.25x', '1.35', 1.5
+    s_clean = s.lower().replace('x', '').strip()
+    try:
+        val = float(s_clean)
+        if val <= 1.0:
+            pct = int((val - 1.0) * 100)
+            return f"{pct}%" if pct < 0 else "+15%"
+        else:
+            # Calibrate multiplier: 1.25x -> +38%, 1.35x -> +53%, 1.50x -> +75%
+            pct = int((val - 1.0) * 155)
+            return f"+{min(100, max(15, pct))}%"
+    except (ValueError, TypeError):
+        return "+30%"
+
+
 async def _edge_tts_save(text: str, voice: str, rate: str, output_path: Path):
     """Async Edge TTS synthesis to MP3."""
     import edge_tts
@@ -459,13 +493,16 @@ def synthesize_edge_tts(
     job_dir: Path,
     job_id: str,
     voice: str = "my-MM-ThihaNeural",
-    speed: str = "+0%",
+    speed: str = "+25%",
 ) -> list[dict]:
     """Generate Myanmar voice audio for each translated segment using Edge TTS."""
     update_job(job_id, step="voice_synthesis", progress=58, message="Edge TTS voice synthesis starting...")
 
     tts_dir = job_dir / "tts_audio"
     tts_dir.mkdir(parents=True, exist_ok=True)
+
+    calibrated_rate = normalize_edge_rate(speed)
+    print(f"[EdgeTTS] Speed input: {speed} -> Calibrated rate: {calibrated_rate}")
 
     ffmpeg = find_ffmpeg()
     results = []
@@ -493,13 +530,15 @@ def synthesize_edge_tts(
         success = False
         for attempt in range(3):
             try:
-                asyncio.run(_edge_tts_save(clean, voice, speed, mp3_path))
+                asyncio.run(_edge_tts_save(clean, voice, calibrated_rate, mp3_path))
 
                 if mp3_path.is_file() and mp3_path.stat().st_size > 256:
-                    # Convert MP3 → WAV
+                    # Convert MP3 → WAV & remove awkward silence padding for tight, fast pacing
                     conv = subprocess.run(
                         [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                         "-i", str(mp3_path), "-ac", "1", "-ar", "24000",
+                         "-i", str(mp3_path),
+                         "-af", "silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse",
+                         "-ac", "1", "-ar", "24000",
                          "-c:a", "pcm_s16le", str(wav_path)],
                         capture_output=True, text=True,
                     )
@@ -855,6 +894,11 @@ def render_smart_sync_video(
     blur_intensity: float = 30.0,
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
+    logo_path: Optional[Path] = None,
+    logo_y: float = 8.0,
+    logo_align: str = "right",
+    logo_scale: float = 12.0,
+    logo_opacity: float = 1.0,
     include_original_audio: bool = False,
 ) -> Path:
     """Render final video using the exact Git Recap-style Smart Sync:
@@ -883,6 +927,9 @@ def render_smart_sync_video(
     elif ratio == "1:1":
         canvas_w, canvas_h = 1080, 1080
         ratio_filter = "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"
+    elif ratio == "4:5":
+        canvas_w, canvas_h = 1080, 1350
+        ratio_filter = "scale=1080:1350:force_original_aspect_ratio=decrease,pad=1080:1350:(ow-iw)/2:(oh-ih)/2:black"
 
     # Step A: Render each video part retimed to its audio duration (Exact Git Sync)
     video_parts = []
@@ -981,10 +1028,6 @@ def render_smart_sync_video(
     output_path = job_dir / "final_oneclick_recap.mp4"
     vol_filter = f"volume={voice_volume}" if voice_volume != 1.0 else "volume=1.0"
 
-    v_filters = []
-    if ratio_filter:
-        v_filters.append(ratio_filter)
-
     try:
         b_pos = float(blur_position)
     except (ValueError, TypeError):
@@ -992,6 +1035,8 @@ def render_smart_sync_video(
             b_pos = 60.0
         elif str(blur_position) == "bottom":
             b_pos = 86.0
+        elif str(blur_position) == "auto":
+            b_pos = 78.0 if is_portrait else 84.0
         else:
             b_pos = 78.0
 
@@ -1005,7 +1050,15 @@ def render_smart_sync_video(
     except (ValueError, TypeError):
         b_intense = 30.0
 
-    # 1. Natural frosted glass blur directly covering original subtitle area
+    filter_chains = []
+    current_v = "[0:v]"
+
+    # 1. Ratio Scaling & Padding to canvas
+    if ratio_filter:
+        filter_chains.append(f"{current_v}{ratio_filter}[vbase]")
+        current_v = "[vbase]"
+
+    # 2. Natural frosted glass blur directly covering original subtitle area
     if enable_blur:
         thickness = max(0.06, min(0.35, b_thick / 100.0))
         top = max(0.0, min(1.0 - thickness, (b_pos - b_thick / 2.0) / 100.0))
@@ -1013,38 +1066,73 @@ def render_smart_sync_video(
         luma_rad = max(10, min(36, int(b_intense * 0.75)))
         chroma_rad = max(5, int(luma_rad * 0.5))
 
-        blur_filter = (
-            f"split=2[vbase][vblur];"
+        blur_chain = (
+            f"{current_v}split=2[vmain][vblur];"
             f"[vblur]crop=w=iw:h=trunc(ih*{thickness:.4f}/2)*2:x=0:y=trunc(ih*{top:.4f}/2)*2,"
             f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
-            f"[vbase][blurBand]overlay=x=0:y=trunc(main_h*{top:.4f}/2)*2,"
+            f"[vmain][blurBand]overlay=x=0:y=trunc(main_h*{top:.4f}/2)*2,"
             f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=trunc(ih*{thickness:.4f}/2)*2:color=black@0.12:t=fill,"
             f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=2:color=white@0.20:t=fill,"
-            f"drawbox=x=0:y=trunc(ih*{bottom:.4f}/2)*2-2:w=iw:h=2:color=white@0.20:t=fill"
+            f"drawbox=x=0:y=trunc(ih*{bottom:.4f}/2)*2-2:w=iw:h=2:color=white@0.20:t=fill[vblurred]"
         )
-        v_filters.append(blur_filter)
-
-    # 2. Watermark
-    if watermark_text and watermark_text.strip():
-        safe_wm = watermark_text.strip().replace("'", "").replace(":", "")
-        wm_size = 32 if not is_portrait else 26
-        v_filters.append(f"drawtext=font='Akkhayar21':text='{safe_wm}':fontcolor=white@0.85:fontsize={wm_size}:x=w-tw-30:y=30")
+        filter_chains.append(blur_chain)
+        current_v = "[vblurred]"
 
     # 3. Subtitles burn-in directly over the blurred zone
     if enable_subtitles and subtitles_timing:
         ass_path = job_dir / "burmese_subtitles.ass"
         generate_burmese_ass(subtitles_timing, ass_path, canvas_w, canvas_h, blur_enabled=enable_blur, blur_position=b_pos, subtitle_style=subtitle_style)
         escaped_ass = str(ass_path.resolve()).replace("\\", "/").replace(":", "\\:")
-        v_filters.append(f"ass='{escaped_ass}'")
+        filter_chains.append(f"{current_v}ass='{escaped_ass}'[vsubbed]")
+        current_v = "[vsubbed]"
 
-    vf = ",".join(v_filters) if v_filters else "null"
-
-    cmd_final = [
+    # 4. Logo Watermark or Text Watermark
+    has_logo_file = bool(logo_path and Path(logo_path).is_file())
+    cmd_inputs = [
         ffmpeg, "-y", "-hide_banner", "-loglevel", "warning",
         "-i", str(full_video),
         "-i", str(full_audio),
-        "-filter_complex", f"[0:v]{vf}[v];[1:a]{vol_filter}[a]",
-        "-map", "[v]", "-map", "[a]",
+    ]
+
+    if has_logo_file:
+        cmd_inputs.extend(["-i", str(logo_path)])
+        scale_pct = max(0.04, min(0.40, float(logo_scale) / 100.0))
+        target_w = max(48, int(canvas_w * scale_pct))
+        opacity = max(0.1, min(1.0, float(logo_opacity)))
+        align = str(logo_align).lower()
+        y_pct = max(0.0, min(1.0, float(logo_y) / 100.0))
+        pad = int(canvas_w * 0.02)
+        edge_x = int(canvas_w * 0.05)
+        if align == "left":
+            x_expr = f"{edge_x}"
+        elif align == "center":
+            x_expr = "(main_w-overlay_w)/2"
+        else:
+            x_expr = f"main_w-overlay_w-{edge_x}"
+        y_expr = f"{pad}+((main_h-overlay_h-{pad*2})*{y_pct:.4f})"
+
+        logo_chain = (
+            f"[2:v]scale={target_w}:-2,format=rgba,colorchannelmixer=aa={opacity:.2f}[vlogo];"
+            f"{current_v}[vlogo]overlay=x='{x_expr}':y='{y_expr}'[vout]"
+        )
+        filter_chains.append(logo_chain)
+        current_v = "[vout]"
+    elif watermark_text and watermark_text.strip():
+        safe_wm = watermark_text.strip().replace("'", "").replace(":", "")
+        wm_size = 32 if not is_portrait else 26
+        filter_chains.append(f"{current_v}drawtext=font='Akkhayar21':text='{safe_wm}':fontcolor=white@0.85:fontsize={wm_size}:x=w-tw-30:y=30[vout]")
+        current_v = "[vout]"
+    else:
+        if current_v != "[vout]":
+            filter_chains.append(f"{current_v}null[vout]")
+            current_v = "[vout]"
+
+    filter_complex = ";\n".join(filter_chains) + f";\n[1:a]{vol_filter}[aout]"
+
+    cmd_final = [
+        *cmd_inputs,
+        "-filter_complex", filter_complex,
+        "-map", "[vout]", "-map", "[aout]",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-threads", "2",
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",
@@ -1128,6 +1216,11 @@ def run_oneclick_pipeline(
     blur_intensity: float = 30.0,
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
+    logo_path: Optional[Path] = None,
+    logo_y: float = 8.0,
+    logo_align: str = "right",
+    logo_scale: float = 12.0,
+    logo_opacity: float = 1.0,
     include_original_audio: bool = False,
     voice_sample_path: Optional[Path] = None,
     voice_id: Optional[str] = None,
@@ -1202,6 +1295,11 @@ def run_oneclick_pipeline(
             blur_intensity=blur_intensity,
             subtitle_style=subtitle_style,
             watermark_text=watermark_text,
+            logo_path=logo_path,
+            logo_y=logo_y,
+            logo_align=logo_align,
+            logo_scale=logo_scale,
+            logo_opacity=logo_opacity,
             include_original_audio=include_original_audio,
         )
 
@@ -1271,6 +1369,11 @@ async def start_job(
     blur_intensity: float = Form(30.0),
     subtitle_style: str = Form("font-akkhayar"),
     watermark_text: str = Form(""),
+    logo_file: Optional[UploadFile] = File(default=None),
+    logo_y: float = Form(8.0),
+    logo_align: str = Form("right"),
+    logo_scale: float = Form(12.0),
+    logo_opacity: float = Form(1.0),
     include_original_audio: bool = Form(False),
     voice_sample: Optional[UploadFile] = File(default=None),
     voice_id: Optional[str] = Form(default=None),
@@ -1318,6 +1421,15 @@ async def start_job(
             with open(voice_sample_path, "wb") as sf:
                 sf.write(s_content)
 
+    logo_path = None
+    if logo_file and logo_file.filename:
+        l_ext = Path(logo_file.filename).suffix or ".png"
+        logo_path = job_dir / f"logo{l_ext}"
+        l_content = await logo_file.read()
+        if len(l_content) > 100:
+            with open(logo_path, "wb") as lf:
+                lf.write(l_content)
+
     # Initialize job status
     _job_store[job_id] = {
         "job_id": job_id,
@@ -1335,6 +1447,7 @@ async def start_job(
         "blur_intensity": blur_intensity,
         "subtitle_style": subtitle_style,
         "watermark_text": watermark_text,
+        "has_logo": bool(logo_path),
         "include_original_audio": include_original_audio,
         "has_voice_sample": bool(voice_sample_path),
         "source_file": source_name,
@@ -1358,6 +1471,11 @@ async def start_job(
         blur_intensity,
         subtitle_style,
         watermark_text,
+        logo_path,
+        logo_y,
+        logo_align,
+        logo_scale,
+        logo_opacity,
         include_original_audio,
         voice_sample_path,
         voice_id,
