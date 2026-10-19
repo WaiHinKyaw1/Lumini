@@ -417,17 +417,48 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
             raise RuntimeError(f"Gemini translation failed after retries: {last_error}")
 
     # Validate — audit for missing/corrupted translations
-    audit_pass = True
-    for i, chunk in enumerate(chunks):
-        has_translation = any(tc["start"] == chunk["start"] and tc.get("narration") for tc in translated_chunks)
-        if not has_translation:
-            audit_pass = False
-            translated_chunks.append({
-                **chunk,
-                "narration": chunk["text"],  # fallback to English
-            })
+    def has_burmese_chars(text: str) -> bool:
+        return bool(re.search(r'[\u1000-\u109F]', text or ''))
 
-    # Sort by start time
+    final_translated = []
+    for i, chunk in enumerate(chunks):
+        matched = next((tc for tc in translated_chunks if tc["start"] == chunk["start"]), None)
+        if matched and has_burmese_chars(matched.get("narration", "")):
+            final_translated.append(matched)
+            continue
+
+        # Missing or non-Burmese translation — retry single chunk translation with Gemini
+        clean_en = str(chunk.get("text", "")).strip()
+        translated_mm = ""
+        if clean_en:
+            try:
+                single_prompt = (
+                    "Translate this English sentence into natural spoken Myanmar movie recap narration (ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော):\n"
+                    f"\"{clean_en}\"\n"
+                    "Rules: Return ONLY the natural spoken Myanmar narration. Strictly NO English words. NO quotes."
+                )
+                r = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=single_prompt,
+                    config={"temperature": 0.3}
+                )
+                res_txt = r.text.strip().replace('"', '').replace("'", "")
+                if has_burmese_chars(res_txt):
+                    translated_mm = res_txt
+            except Exception as e:
+                print(f"[GeminiAudit] Single chunk translation note: {e}")
+
+        # Strictly NEVER fallback to raw English text! If translation fails, leave empty to prevent English voice cut-in
+        if translated_mm:
+            final_translated.append({
+                **chunk,
+                "narration": translated_mm,
+            })
+        else:
+            print(f"[GeminiAudit] Warning: Segment {i+1} has no Burmese translation; skipping to prevent English audio leak.")
+
+    # Sort by start time and only keep segments with valid Burmese narration
+    translated_chunks = [tc for tc in final_translated if has_burmese_chars(tc.get("narration", ""))]
     translated_chunks.sort(key=lambda x: x["start"])
 
     # Save translations
@@ -438,8 +469,7 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
     )
 
     update_job(job_id, progress=55,
-               message=f"Translation complete — {len(translated_chunks)} segments" +
-                       (" (some fallbacks)" if not audit_pass else ""))
+               message=f"Translation complete — {len(translated_chunks)} pure Burmese segments")
     return translated_chunks
 
 
@@ -564,7 +594,8 @@ def synthesize_edge_tts(
         # Clean text for TTS
         clean = unicodedata.normalize("NFC", narration)
         clean = re.sub(r'\s+', ' ', clean).strip()
-        if not clean or not any(ch.isalnum() for ch in clean):
+        if not clean or not re.search(r'[\u1000-\u109F]', clean):
+            print(f"[EdgeTTS] Skipping non-Burmese text chunk #{i+1}: '{clean}'")
             continue
 
         stem = f"tts_{i+1:04d}"
@@ -677,8 +708,8 @@ def analyze_voice_sample(sample_path: Path) -> dict:
     is_male = est_pitch < 170.0
     base_voice = "my-MM-ThihaNeural" if is_male else "my-MM-NilarNeural"
     base_pitch = 125.0 if is_male else 210.0
-    # Strictly bound pitch ratio to subtle variations (max +/- 2%) to prevent cartoon/child chipmunk voices
-    pitch_ratio = max(0.98, min(1.02, est_pitch / base_pitch))
+    # Dynamic pitch ratio matching the sample's pitch naturally (up to +/- 20%)
+    pitch_ratio = max(0.82, min(1.25, est_pitch / base_pitch))
 
     print(f"[VoiceClone] Analyzed sample: Pitch={est_pitch:.1f}Hz, Gender={'Male' if is_male else 'Female'}, Base={base_voice}, ShiftRatio={pitch_ratio:.4f}")
     return {
@@ -698,8 +729,7 @@ def synthesize_acoustic_cloned_voice(
 ) -> list[dict]:
     """Smart Acoustic Voice Clone:
     Analyzes the user's reference voice sample, selects matching baseline model,
-    synthesizes Burmese narration, and applies acoustic tone & warmth morphing to match the user's voice
-    without unnatural chipmunk/child formant shifting.
+    synthesizes Burmese narration, and applies acoustic tone & warmth morphing to match the user's voice.
     """
     analysis = analyze_voice_sample(voice_sample_path)
     base_voice = analysis["base_voice"]
@@ -711,7 +741,7 @@ def synthesize_acoustic_cloned_voice(
         job_id,
         step="voice_synthesis",
         progress=58,
-        message=f"Cloning Voice ({gender_str}, ~{pitch_hz}Hz) matching your audio sample..."
+        message=f"Acoustic Voice Cloning ({gender_str}, ~{pitch_hz}Hz) matching your audio sample..."
     )
 
     tts_dir = job_dir / "tts_audio"
@@ -722,10 +752,9 @@ def synthesize_acoustic_cloned_voice(
     results = []
     total = len(translated_chunks)
 
-    # Build audio morph filter:
-    # Rich cinematic EQ and warm vocal body rather than unnatural formant shifting
+    # Build audio morph filter matching the sample's acoustic profile
     af_filters = []
-    if abs(pitch_ratio - 1.0) > 0.01:
+    if abs(pitch_ratio - 1.0) > 0.02:
         af_filters.extend([
             f"asetrate=24000*{pitch_ratio:.4f}",
             f"atempo={1.0 / pitch_ratio:.4f}",
@@ -734,14 +763,14 @@ def synthesize_acoustic_cloned_voice(
     if analysis["is_male"]:
         # Warm, deep chest resonance + clear vocal definition
         af_filters.extend([
-            "equalizer=f=140:width_type=o:width=1.5:g=3.2",
-            "equalizer=f=3200:width_type=o:width=1.5:g=1.5"
+            "equalizer=f=120:width_type=o:width=1.5:g=3.8",
+            "equalizer=f=2800:width_type=o:width=1.5:g=1.8"
         ])
     else:
         # Smooth, clear feminine articulation
         af_filters.extend([
-            "equalizer=f=240:width_type=o:width=1.5:g=1.8",
-            "equalizer=f=3600:width_type=o:width=1.5:g=2.0"
+            "equalizer=f=220:width_type=o:width=1.5:g=2.2",
+            "equalizer=f=3400:width_type=o:width=1.5:g=2.2"
         ])
 
     af_filters.append("silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse")
@@ -754,7 +783,8 @@ def synthesize_acoustic_cloned_voice(
 
         clean = unicodedata.normalize("NFC", narration)
         clean = re.sub(r'\s+', ' ', clean).strip()
-        if not clean or not any(ch.isalnum() for ch in clean):
+        if not clean or not re.search(r'[\u1000-\u109F]', clean):
+            print(f"[VoiceClone] Skipping non-Burmese text chunk #{i+1}: '{clean}'")
             continue
 
         stem = f"tts_{i+1:04d}"
@@ -956,9 +986,9 @@ def format_burmese_two_lines(raw_text: str, base_font_size: int, is_portrait: bo
     if not clean_text:
         return "", base_font_size
 
-    # Target safe line length (characters) before requiring font scaling
-    safe_max_chars = 18 if is_portrait else 24
-    single_line_threshold = 14 if is_portrait else 20
+    # Target safe line length (characters) before requiring font scaling (wider for movie recap flow)
+    safe_max_chars = 26 if is_portrait else 34
+    single_line_threshold = 20 if is_portrait else 28
 
     # If already short enough, keep as 1 single line
     if len(clean_text) <= single_line_threshold:
@@ -1006,7 +1036,7 @@ def format_burmese_two_lines(raw_text: str, base_font_size: int, is_portrait: bo
     if max_line_len > safe_max_chars:
         # Scale font down proportionally so libass will NEVER auto-wrap into a 3rd line
         ratio = safe_max_chars / max_line_len
-        scaled_font_size = max(24, int(base_font_size * ratio))
+        scaled_font_size = max(30, int(base_font_size * ratio))
 
     if scaled_font_size < base_font_size:
         formatted = f"{{\\fs{scaled_font_size}}}{line1}\\N{line2}"
@@ -1038,10 +1068,10 @@ def generate_burmese_ass(
         font_name = "Myanmar OS"
 
     is_portrait = canvas_h > canvas_w
-    font_size = int(canvas_h * 0.026) if is_portrait else int(canvas_h * 0.046)
-    font_size = max(36, min(56, font_size))
+    font_size = int(canvas_h * 0.042) if is_portrait else int(canvas_h * 0.054)
+    font_size = max(44, min(70, font_size))
 
-    hook_font_size = max(42, int(font_size * 1.32))
+    hook_font_size = max(46, int(font_size * 1.30))
     hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
 
     try:
@@ -1058,11 +1088,11 @@ def generate_burmese_ass(
 
     if blur_enabled:
         strip_center_from_bottom = ((100.0 - b_pos) / 100.0) * canvas_h
-        margin_v = max(10, int(strip_center_from_bottom - (font_size * 0.72)))
+        margin_v = max(10, int(strip_center_from_bottom - (font_size * 1.05)))
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
 
-    margin_lr = int(canvas_w * 0.11)  # safe 11% padding on both sides
+    margin_lr = int(canvas_w * 0.05)  # Wide 5% padding on sides (allows 90% full subtitle width)
 
     # WrapStyle: 2 = strictly NO auto-wrapping by libass (guarantees max 2 lines!)
     header = f"""[Script Info]
@@ -1074,8 +1104,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,3.8,1.6,2,{margin_lr},{margin_lr},{margin_v},1
-Style: IntroHook,{font_name},{hook_font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,5.2,2.8,2,{margin_lr},{margin_lr},{hook_margin_v},1
+Style: Default,{font_name},{font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,4.2,1.8,2,{margin_lr},{margin_lr},{margin_v},1
+Style: IntroHook,{font_name},{hook_font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,5.5,2.8,2,{margin_lr},{margin_lr},{hook_margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -1421,7 +1451,12 @@ def render_smart_sync_video(
     filter_chains = []
     current_v = "[0:v]"
 
-    # 1. Natural frosted glass blur directly covering original subtitle area (applied BEFORE ratio padding for 100% exact preview match)
+    # 1. Ratio Scaling & Padding to canvas FIRST (ensures blur, subtitles & logo share 100% exact preview canvas coordinates)
+    if ratio_filter:
+        filter_chains.append(f"{current_v}{ratio_filter}[vbase]")
+        current_v = "[vbase]"
+
+    # 2. Natural frosted glass blur directly covering original subtitle area
     if enable_blur:
         thickness = max(0.06, min(0.35, b_thick / 100.0))
         top = max(0.0, min(1.0 - thickness, (b_pos - b_thick / 2.0) / 100.0))
@@ -1441,11 +1476,6 @@ def render_smart_sync_video(
         )
         filter_chains.append(blur_chain)
         current_v = "[vblurred]"
-
-    # 2. Ratio Scaling & Padding to canvas
-    if ratio_filter:
-        filter_chains.append(f"{current_v}{ratio_filter}[vbase]")
-        current_v = "[vbase]"
 
     # 3. Subtitles burn-in directly over the blurred zone & export .srt
     if enable_subtitles and subtitles_timing:

@@ -1502,17 +1502,17 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           className="absolute inset-0 pointer-events-none"
                         />
 
-                        {/* Centered Subtitle inside Blur Band */}
+                        {/* Centered Subtitle inside Blur Band (Matches Output Video Size & Width) */}
                         {enableSubtitles && (
-                          <div className="relative z-10 px-4 text-center max-w-[88%] pointer-events-none">
+                          <div className="relative z-10 px-2 text-center max-w-[94%] pointer-events-none">
                             <p
                               style={{
                                 color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFD700',
                                 textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
                               }}
-                              className="text-xs sm:text-sm font-bold leading-tight"
+                              className="text-xs sm:text-sm md:text-base font-black leading-snug tracking-wide"
                             >
-                              Blur here
+                              အဲဒီနောက်မှာတော့ သူတို့အားလုံး အလွန်အံ့အားသင့်သွားကြပါတယ်...
                             </p>
                           </div>
                         )}
