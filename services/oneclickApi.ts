@@ -106,14 +106,16 @@ export interface OneClickJobOptions {
   voice: string;
   speed: string;
   ratio: string;
+  tempId?: string;
   enableSubtitles?: boolean;
   enableBlur?: boolean;
-  blurPosition?: number | 'lower' | 'center' | 'bottom';
+  blurPosition?: number | string;
   blurThickness?: number;
   blurIntensity?: number;
   subtitleStyle?: string;
   watermarkText?: string;
   logoFile?: File | null;
+  logoX?: number;
   logoY?: number;
   logoAlign?: 'left' | 'center' | 'right';
   logoScale?: number;
@@ -121,18 +123,54 @@ export interface OneClickJobOptions {
   includeOriginalAudio?: boolean;
   voiceSample?: File | null;
   voiceId?: string;
+  elevenlabsApiKey?: string;
+  enableIntroHook?: boolean;
+  introHookText?: string;
+}
+
+/**
+ * Pre-download YouTube or TikTok video so it displays in live preview player before processing.
+ */
+export async function fetchOneClickUrlVideo(url: string): Promise<{
+  success: boolean;
+  temp_id: string;
+  duration: number;
+  width: number;
+  height: number;
+  filename: string;
+  preview_url: string;
+}> {
+  const form = new FormData();
+  form.append('url', url.trim());
+  const res = await fetch(`${getBaseUrl()}/api/oneclick/fetch-video`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to download video from URL' }));
+    throw new Error(err.detail || 'Failed to download video from URL');
+  }
+  const data = await res.json();
+  // Ensure full URL is provided if preview_url is relative
+  if (data.preview_url && data.preview_url.startsWith('/')) {
+    data.preview_url = `${getBaseUrl()}${data.preview_url}`;
+  }
+  return data;
 }
 
 /**
  * Upload a video or send a video URL (YouTube, TikTok) and start the OneClick pipeline.
  */
 export async function startOneClickJob(
-  input: { file?: File | null; videoUrl?: string },
+  input: { file?: File | null; videoUrl?: string; tempId?: string },
   options: OneClickJobOptions
 ): Promise<OneClickStartResponse> {
   const formData = new FormData();
   if (input.file) {
     formData.append('file', input.file);
+  }
+  if (input.tempId || options.tempId) {
+    formData.append('temp_id', String(input.tempId || options.tempId));
   }
   if (input.videoUrl) {
     formData.append('video_url', input.videoUrl.trim());
@@ -146,7 +184,7 @@ export async function startOneClickJob(
   if (options.blurPosition !== undefined) {
     formData.append('blur_position', String(options.blurPosition));
   } else {
-    formData.append('blur_position', '78');
+    formData.append('blur_position', '82');
   }
 
   if (options.blurThickness !== undefined) {
@@ -164,15 +202,23 @@ export async function startOneClickJob(
   if (options.voiceId) {
     formData.append('voice_id', options.voiceId);
   }
+  if (options.elevenlabsApiKey) {
+    formData.append('elevenlabs_api_key', options.elevenlabsApiKey.trim());
+  }
   if (options.watermarkText) formData.append('watermark_text', options.watermarkText.trim());
   if (options.logoFile) {
     formData.append('logo_file', options.logoFile);
   }
+  if (options.logoX !== undefined) formData.append('logo_x', String(options.logoX));
   if (options.logoY !== undefined) formData.append('logo_y', String(options.logoY));
   if (options.logoAlign) formData.append('logo_align', options.logoAlign);
   if (options.logoScale !== undefined) formData.append('logo_scale', String(options.logoScale));
   if (options.logoOpacity !== undefined) formData.append('logo_opacity', String(options.logoOpacity));
   formData.append('include_original_audio', String(Boolean(options.includeOriginalAudio)));
+  formData.append('enable_intro_hook', String(options.enableIntroHook === true));
+  if (options.introHookText) {
+    formData.append('intro_hook_text', options.introHookText.trim());
+  }
 
   const res = await fetch(`${getBaseUrl()}/api/oneclick/start`, {
     method: 'POST',
@@ -215,6 +261,20 @@ export async function downloadOneClickResult(jobId: string): Promise<Blob> {
  */
 export function getOneClickDownloadUrl(jobId: string): string {
   return `${getBaseUrl()}/api/oneclick/download/${jobId}`;
+}
+
+/**
+ * Get the direct download URL for the Myanmar subtitle (.srt) file.
+ */
+export function getOneClickSrtDownloadUrl(jobId: string): string {
+  return `${getBaseUrl()}/api/oneclick/subtitles/${jobId}`;
+}
+
+/**
+ * Get the direct download URL for the intro thumbnail cover (.jpg) image.
+ */
+export function getOneClickThumbnailUrl(jobId: string): string {
+  return `${getBaseUrl()}/api/oneclick/thumbnail/${jobId}`;
 }
 
 /**

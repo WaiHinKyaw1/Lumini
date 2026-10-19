@@ -1664,11 +1664,6 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                           <span className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${trimSilenceGaps ? 'translate-x-5' : 'translate-x-1'}`} />
                         </button>
                       </div>
-                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-relaxed">
-                        {trimSilenceGaps
-                          ? '✓ မူရင်းဗီဒီယိုထဲက ဇာတ်ကောင် စကားပြောခန်းများနှင့် ငြိမ်သက်နေသော Gaps များကို အလိုအလျောက် ဖယ်ရှားပြီး ဇာတ်လမ်းပြောသံနှင့် အံကိုက်ဖြစ်သော Action အခန်းများကိုသာ ဆက်စပ်ပေးပါမည်။'
-                          : '✕ မူရင်းဗီဒီယို အစအဆုံး အတိုင်းသာ ထားရှိပါမည် (Gaps များကို မဖြတ်ထုတ်ပါ)။'}
-                      </p>
                     </div>
 
                     {/* Feature Badges */}
@@ -1754,9 +1749,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                       onChange={(e) => setMaxVideoSpeed(Number(Number(e.target.value).toFixed(2)))}
                       className="w-full accent-indigo-500 cursor-pointer"
                     />
-                    <p className="text-[10px] text-slate-400 dark:text-zinc-500 leading-relaxed">
-                      ရုပ်ကွက်ကို {maxVideoSpeed}x ထက် ပိုမမြန်စေဘဲ အသံထက် တိုနေသော အပို frames များကို အလိုအလျောက် ဖြတ်တောက်ချိန်ညှိပေးပါမည်။
-                    </p>
+
                   </div>
                 </div>
               ) : (
@@ -2132,15 +2125,14 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
               <div className="relative w-full min-h-[260px] max-h-[400px] bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-black/40">
                 {videoUrl ? (
                   <div
-                    className={`relative mx-auto flex items-center justify-center overflow-hidden max-h-[400px] ${
-                      aspectRatio === '9:16'
-                        ? 'aspect-[9/16] h-[380px]'
-                        : aspectRatio === '1:1'
-                          ? 'aspect-square h-[340px]'
-                          : aspectRatio === '4:5'
-                            ? 'aspect-[4/5] h-[360px]'
-                            : 'aspect-video w-full'
-                    }`}
+                    className={`relative mx-auto flex items-center justify-center overflow-hidden max-h-[400px] ${aspectRatio === '9:16'
+                      ? 'aspect-[9/16] h-[380px]'
+                      : aspectRatio === '1:1'
+                        ? 'aspect-square h-[340px]'
+                        : aspectRatio === '4:5'
+                          ? 'aspect-[4/5] h-[360px]'
+                          : 'aspect-video w-full'
+                      }`}
                   >
                     <video
                       ref={videoRef}

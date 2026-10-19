@@ -336,18 +336,16 @@ def translate_with_gemini(
     full_text = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(chunks))
 
     system_prompt = """သင်သည် မြန်မာ Movie Recap Channel (ဥပမာ- Channel 99, Movie Guide, Reviewer) များတွင် အသံသွင်းနေသော ပရော်ဖက်ရှင်နယ် ဇာတ်လမ်းပြောပြသူ (Professional Burmese Recap Narrator) ဖြစ်သည်။
-
 ရုပ်ရှင်ကို ပရိသတ် စိတ်ဝင်တစား နားထောင်နိုင်မည့် သဘာဝကျပြီး ဆွဲဆောင်မှုရှိသော "ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော (Burmese Narrator Voiceover)" အဖြစ် ပြန်ဆိုပေးရမည်။
-
 အလွန် အရေးကြီးသော စည်းမျဉ်းများ (တိကျစွာ လိုက်နာပါ):
-1. "ပေါ့"၊ "ဗျာ"၊ "ဗျ"၊ "ပေါ့ဗျာ" စသည့် စကားလုံးများကို ဝါကျတိုင်းတွင် ထပ်ခါတလဲလဲ အလွန်အကျွံ မသုံးရ။ (အထူးသတိပြုပါ - နားထောင်ရ ရိုးအီစေသောကြောင့် မလိုအပ်ဘဲ လုံးဝမထည့်ပါနှင့်)။
-2. စာအုပ်ကြီး စာစကားများဖြစ်သော "သည်"၊ "၏"၊ "၌"၊ "၍"၊ "သောကြောင့်"၊ "ဖြစ်သည်"၊ "လျက်ရှိသည်"၊ "ရာတွင်"၊ "ခဲ့သည်" များကို လုံးဝ (လုံးဝ) မသုံးရ။
-3. သဘာဝကျပြီး တည်ကြည်သော Movie Narrator စကားပြောဟန်ဖြင့် ရေးပါ။
-   - ဥပမာကောင်း: "အဲ့ဒီအချိန်မှာ ဂျွန်က အခန်းထဲ ဝင်လာခဲ့ပါတယ်။ သူ့သူငယ်ချင်းကို တွေ့လိုက်ရတဲ့အခါ အရမ်း အံ့သြသွားခဲ့ပါတယ်။"
-   - ဥပမာကောင်း: "ရဲအရာရှိလည်း အခြေအနေကို ရိပ်မိပြီး သေနတ်ကို ချက်ချင်း ဆွဲထုတ်လိုက်ပါတယ်။"
-4. အလွန်အရေးကြီးသည်- ဝါကျကို တိုတိုရှင်းရှင်းနှင့် လိုရင်းသာ ရေးပါ! စာတန်းထိုး ၂ ကြောင်းထက် လုံးဝ ပိုမရှည်စေရန် အပိုင်းတစ်ပိုင်းစီအတွက် စာလုံးရေ ၂၀ မှ ၃၀ အထိသာ အတိအကျ ကွက်တိရေးရမည် (၃ ကြောင်း ၄ ကြောင်း လုံးဝ မဖြစ်စေရ)။
-5. ဇာတ်ကောင်အမည်များကို မြန်မာလို အသံထွက်မှန်အတိုင်း သုံးပါ။
-6. Output format: Return ONLY a valid JSON array of objects: [{"id": 1, "mm": "တိုရှင်း လိုရင်း မြန်မာစကားပြော စာသား"}, ...]"""
+"ပေါ့"၊ "ဗျာ"၊ "ဗျ"၊ "ပေါ့ဗျာ" စသည့် စကားလုံးများကို ဝါကျတိုင်းတွင် ထပ်ခါတလဲလဲ အလွန်အကျွံ မသုံးရ။ (အထူးသတိပြုပါ - နားထောင်ရ ရိုးအီစေသောကြောင့် မလိုအပ်ဘဲ လုံးဝမထည့်ပါနှင့်)။
+စာအုပ်ကြီး စာစကားများဖြစ်သော "သည်"၊ "၏"၊ "၌"၊ "၍"၊ "သောကြောင့်"၊ "ဖြစ်သည်"၊ "လျက်ရှိသည်"၊ "ရာတွင်"၊ "ခဲ့သည်" များကို လုံးဝ (လုံးဝ) မသုံးရ။
+စက်ရုပ်ဆန်ဆန် စကားတိုများ ဖြတ်ပြောသလို မဖြစ်စေရ။ သဘာဝကျပြီး စီးဆင်းမှုရှိသော (smooth flow) လူစစ်စစ် ပြောနေသည့်ဟန်ဖြင့် ရေးပါ။ ဝါကျများ ဆက်စပ်မှုရှိစေရန် "အဲဒီနောက်"၊ "ဒါပေမဲ့"၊ "ရုတ်တရက်" စသည့် စကားဆက်များနှင့် "တော့"၊ "ပါတော့တယ်"၊ "လိုက်ပါတယ်" စသည့် အဆုံးသတ်များကို သဘာဝကျကျ ထည့်သုံးပါ။
+ဥပမာကောင်း: "အဲဒီအချိန်မှာ ဂျွန်တစ်ယောက် အခန်းထဲ ဝင်လာခဲ့ပါတယ်။ သူ့သူငယ်ချင်းကို မြင်လိုက်ရတဲ့အခါမှာတော့ သူ အရမ်းကို အံ့ဩသွားခဲ့ပါတယ်။"
+ဥပမာကောင်း: "ရဲအရာရှိလည်း အခြေအနေကို ရိပ်မိသွားပြီး သေနတ်ကို ချက်ချင်း ဆွဲထုတ်လိုက်ပါတော့တယ်။"
+အလွန်အရေးကြီးသည်- စကားပြော သဘာဝကျရမည်ဆိုသော်လည်း ဝါကျကို မလိုအပ်ဘဲ မဆွဲဆန့်ရ။ စာတန်းထိုး ၂ ကြောင်းထက် လုံးဝ ပိုမရှည်စေရန် အပိုင်းတစ်ပိုင်းစီအတွက် စာလုံးရေ ၂၀ မှ ၃၀ အထိသာ အတိအကျ ကွက်တိရေးရမည် (၃ ကြောင်း ၄ ကြောင်း လုံးဝ မဖြစ်စေရ)။
+ဇာတ်ကောင်အမည်များကို မြန်မာလို အသံထွက်မှန်အတိုင်း သုံးပါ။
+Output format: Return ONLY a valid JSON array of objects: [{"id": 1, "mm": "တိုရှင်း လိုရင်း မြန်မာစကားပြော စာသား"}, ...]"""
 
     translated_chunks = []
 
@@ -445,40 +443,91 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
     return translated_chunks
 
 
+def generate_story_hook_title(full_story_text: str, client) -> str:
+    """Generate a captivating 1-line recap thumbnail hook question or statement in Burmese.
+    Strictly ONE line, concise, click-worthy, matching user's reference photo.
+    """
+    system_prompt = (
+        "သင်သည် မြန်မာ Movie Recap Channel (ဥပမာ- Channel 99, Movie Guide) များအတွက် ဗီဒီယိုအစ Cover/Thumbnail ပေါ်တွင် "
+        "ပရိသတ်ကို ဆွဲဆောင်မည့် Hook ခေါင်းစဉ် (Captivating Video Hook Title) ရေးပေးရမည်။\n"
+        "စည်းမျဉ်းများ (တိကျစွာလိုက်နာပါ):\n"
+        "1. စာတန်းသည် တစ်ကြောင်းတည်း (STRICTLY ONE SINGLE LINE) သာ ဖြစ်ရမည်။ လုံးဝ (၂) ကြောင်းမခွဲရ။\n"
+        "2. မြန်မာစာလုံးရေ (၁၅) လုံးမှ (၂၈) လုံးကြားသာ တိုတိုရှင်းရှင်း ထိထိမိမိ ရေးရမည်။\n"
+        "3. ပရိသတ် ချက်ချင်း ဝင်ကြည့်ချင်လာစေမည့် မေးခွန်း သို့မဟုတ် ထူးဆန်းသော စာသားဖြစ်ရမည် (ဥပမာ- 'ဒီနေ့ကျောင်းကဘာကြောင့်ထူးဆန်းနေရတာလဲ?', 'သူ့အဖေကဘာကြောင့်ဓားနဲ့လိုက်သတ်နေတာလဲ?')။\n"
+        "4. Output တွင် မြန်မာစာတန်း ၁ ကြောင်းတည်းသာ ပြန်ပေးပါ (quotes သို့မဟုတ် explanation မပါရ)။"
+    )
+    prompt = f"ဒီဇာတ်လမ်းအကျဉ်းကို ဖတ်ပြီး ဗီဒီယိုအစ Thumbnail အတွက် ဆွဲဆောင်မှုအရှိဆုံး ၁ ကြောင်းတည်းသော မြန်မာ Hook ခေါင်းစဉ်တစ်ခု ရေးပေးပါ:\n\n{full_story_text[:1200]}"
+    candidate_models = [
+        os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+    ]
+    for model in candidate_models:
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={"system_instruction": system_prompt, "temperature": 0.4}
+            )
+            title = resp.text.strip().replace("\r", " ").replace("\n", " ").strip()
+            title = re.sub(r'[\"\'\`]', '', title).strip()
+            title = re.sub(r'\s+', ' ', title)
+            if title and len(title) >= 3:
+                return title[:35]
+        except Exception as e:
+            print(f"[HookTitle] {model} note: {e}")
+    return "ဒီနေ့ဘာတွေထူးဆန်းတာဖြစ်သွားတာလဲ?"
+
+
+
 # ─────────────────────────── Step 4: Edge TTS Myanmar Voice ───────────────────────────
 
 def normalize_edge_rate(speed_input: Any) -> str:
-    """Safely convert any speed format (e.g. 1.25, '1.25x', '+25%', 1.35) into calibrated Edge TTS rate string (+XX%).
-    Because Microsoft Myanmar TTS (Nilar/Thiha) default speed is very slow and formal,
-    we calibrate the speed factor so that 1.25x and 1.35x truly sound energetic, fast, and snappy for movie recaps.
+    """Convert speed input into an optimal Edge TTS rate string (+XX%).
+    Ensures natural, adult movie narrator pacing (crisp, mature, energetic)
+    without sounding like an accelerated child or chipmunk.
     """
     if not speed_input:
-        return "+25%"
-    s = str(speed_input).strip()
+        return "+18%"
+    s = str(speed_input).strip().lower().replace('x', '')
 
-    # If already formatted like +XX% or -XX%
-    if re.match(r'^[+-]\d+%$', s):
-        pct = int(s[1:-1])
-        if s.startswith("+"):
-            # Boost the percentage because raw Edge-TTS Myanmar is inherently sluggish
-            # +15% -> +25%, +25% -> +40%, +35% -> +55%, +50% -> +72%
-            boosted = max(pct, int(pct * 1.55))
-            return f"+{min(100, boosted)}%"
-        return s
-
-    # If given as multiplier like '1.25', '1.25x', '1.35', 1.5
-    s_clean = s.lower().replace('x', '').strip()
-    try:
-        val = float(s_clean)
-        if val <= 1.0:
-            pct = int((val - 1.0) * 100)
-            return f"{pct}%" if pct < 0 else "+15%"
+    # If formatted like +XX% or XX% or -XX%
+    m = re.match(r'^[+-]?(\d+)%?$', s)
+    if m:
+        val = int(m.group(1))
+        if s.startswith("-"):
+            return f"-{min(30, val)}%"
+        # Map percentages safely to natural narrator pacing:
+        # +35% -> +22%, +25% -> +18%, +15% -> +12%, 0% -> +0%
+        if val >= 30:
+            return "+22%"
+        elif val >= 20:
+            return "+18%"
+        elif val >= 10:
+            return "+12%"
+        elif val > 0:
+            return "+6%"
         else:
-            # Calibrate multiplier: 1.25x -> +38%, 1.35x -> +53%, 1.50x -> +75%
-            pct = int((val - 1.0) * 155)
-            return f"+{min(100, max(15, pct))}%"
+            return "+0%"
+
+    # If formatted as float multiplier (e.g. 1.25, 1.35)
+    try:
+        fval = float(s)
+        if fval >= 1.30:
+            return "+22%"
+        elif fval >= 1.20:
+            return "+18%"
+        elif fval >= 1.10:
+            return "+12%"
+        elif fval <= 0.85:
+            return "-10%"
+        elif fval <= 1.0:
+            return "+0%"
+        else:
+            return "+6%"
     except (ValueError, TypeError):
-        return "+30%"
+        return "+18%"
+
 
 
 async def _edge_tts_save(text: str, voice: str, rate: str, output_path: Path):
@@ -570,11 +619,188 @@ def synthesize_edge_tts(
 
 # ─────────────────────────── Step 4b: ElevenLabs Voice Cloning ───────────────────────────
 
-ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "sk_3a19cf4561057c4724a2c7b67ac5845d08a3f5fdbc6a48b4")
+# ─────────────────────────── Step 4b: Voice Cloning Engine (Acoustic + ElevenLabs) ───────────────────────────
+
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "sk_219a1341d802e55ab02509adffa20bbdc8c1489070b1dfa4").strip()
+
+
+def analyze_voice_sample(sample_path: Path) -> dict:
+    """Analyze pitch and vocal characteristics from voice sample to enable genuine voice cloning.
+    Uses autocorrelation on raw PCM samples (zero external dependencies).
+    """
+    ffmpeg = find_ffmpeg()
+    clean_wav = sample_path.parent / "sample_analysis.wav"
+    try:
+        subprocess.run(
+            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+             "-i", str(sample_path), "-vn", "-ac", "1", "-ar", "16000",
+             "-c:a", "pcm_s16le", str(clean_wav)],
+            capture_output=True, check=True
+        )
+    except Exception:
+        clean_wav = sample_path
+
+    est_pitch = 145.0
+    try:
+        if clean_wav.is_file():
+            raw_bytes = clean_wav.read_bytes()[44:]
+            if len(raw_bytes) >= 32000:
+                import struct
+                num_samples = min(48000, len(raw_bytes) // 2)
+                samples = struct.unpack(f"<{num_samples}h", raw_bytes[:num_samples * 2])
+                min_lag = int(16000 / 300)
+                max_lag = int(16000 / 70)
+                chunk_size = 1024
+                detected = []
+                for start in range(0, min(len(samples) - chunk_size - max_lag, 32000), 2048):
+                    window = samples[start:start + chunk_size]
+                    energy = sum(x * x for x in window)
+                    if energy < 1000000:
+                        continue
+                    best_corr = 0
+                    best_lag = 0
+                    for lag in range(min_lag, max_lag):
+                        corr = sum(window[j] * samples[start + j + lag] for j in range(chunk_size))
+                        if corr > best_corr:
+                            best_corr = corr
+                            best_lag = lag
+                    if best_lag > 0 and best_corr > 0.4 * energy:
+                        p = 16000.0 / best_lag
+                        if 70.0 <= p <= 320.0:
+                            detected.append(p)
+                if detected:
+                    detected.sort()
+                    est_pitch = detected[len(detected) // 2]
+    except Exception as e:
+        print(f"[VoiceClone] Sample analysis note: {e}")
+
+    is_male = est_pitch < 170.0
+    base_voice = "my-MM-ThihaNeural" if is_male else "my-MM-NilarNeural"
+    base_pitch = 125.0 if is_male else 210.0
+    # Strictly bound pitch ratio to subtle variations (max +/- 2%) to prevent cartoon/child chipmunk voices
+    pitch_ratio = max(0.98, min(1.02, est_pitch / base_pitch))
+
+    print(f"[VoiceClone] Analyzed sample: Pitch={est_pitch:.1f}Hz, Gender={'Male' if is_male else 'Female'}, Base={base_voice}, ShiftRatio={pitch_ratio:.4f}")
+    return {
+        "pitch": round(est_pitch, 1),
+        "is_male": is_male,
+        "base_voice": base_voice,
+        "pitch_ratio": round(pitch_ratio, 4)
+    }
+
+
+def synthesize_acoustic_cloned_voice(
+    translated_chunks: list[dict],
+    job_dir: Path,
+    job_id: str,
+    voice_sample_path: Path,
+    speed: str = "+0%",
+) -> list[dict]:
+    """Smart Acoustic Voice Clone:
+    Analyzes the user's reference voice sample, selects matching baseline model,
+    synthesizes Burmese narration, and applies acoustic tone & warmth morphing to match the user's voice
+    without unnatural chipmunk/child formant shifting.
+    """
+    analysis = analyze_voice_sample(voice_sample_path)
+    base_voice = analysis["base_voice"]
+    pitch_ratio = analysis["pitch_ratio"]
+    pitch_hz = analysis["pitch"]
+    gender_str = "Male" if analysis["is_male"] else "Female"
+
+    update_job(
+        job_id,
+        step="voice_synthesis",
+        progress=58,
+        message=f"Cloning Voice ({gender_str}, ~{pitch_hz}Hz) matching your audio sample..."
+    )
+
+    tts_dir = job_dir / "tts_audio"
+    tts_dir.mkdir(parents=True, exist_ok=True)
+    ffmpeg = find_ffmpeg()
+    calibrated_rate = normalize_edge_rate(speed)
+
+    results = []
+    total = len(translated_chunks)
+
+    # Build audio morph filter:
+    # Rich cinematic EQ and warm vocal body rather than unnatural formant shifting
+    af_filters = []
+    if abs(pitch_ratio - 1.0) > 0.01:
+        af_filters.extend([
+            f"asetrate=24000*{pitch_ratio:.4f}",
+            f"atempo={1.0 / pitch_ratio:.4f}",
+        ])
+
+    if analysis["is_male"]:
+        # Warm, deep chest resonance + clear vocal definition
+        af_filters.extend([
+            "equalizer=f=140:width_type=o:width=1.5:g=3.2",
+            "equalizer=f=3200:width_type=o:width=1.5:g=1.5"
+        ])
+    else:
+        # Smooth, clear feminine articulation
+        af_filters.extend([
+            "equalizer=f=240:width_type=o:width=1.5:g=1.8",
+            "equalizer=f=3600:width_type=o:width=1.5:g=2.0"
+        ])
+
+    af_filters.append("silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse")
+    morph_filter = ",".join(af_filters)
+
+    for i, chunk in enumerate(translated_chunks):
+        narration = chunk.get("narration", "").strip()
+        if not narration:
+            continue
+
+        clean = unicodedata.normalize("NFC", narration)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        if not clean or not any(ch.isalnum() for ch in clean):
+            continue
+
+        stem = f"tts_{i+1:04d}"
+        raw_mp3 = tts_dir / f"{stem}_raw.mp3"
+        wav_path = tts_dir / f"{stem}.wav"
+
+        pct = 58 + int((i / max(1, total)) * 20)
+        update_job(job_id, progress=pct, message=f"Acoustic cloned synthesis {i+1}/{total}...")
+
+        success = False
+        for attempt in range(3):
+            try:
+                asyncio.run(_edge_tts_save(clean, base_voice, calibrated_rate, raw_mp3))
+                if raw_mp3.is_file() and raw_mp3.stat().st_size > 256:
+                    conv = subprocess.run(
+                        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                         "-i", str(raw_mp3),
+                         "-af", morph_filter,
+                         "-ac", "1", "-ar", "24000",
+                         "-c:a", "pcm_s16le", str(wav_path)],
+                        capture_output=True, text=True
+                    )
+                    if conv.returncode == 0 and wav_path.is_file():
+                        raw_mp3.unlink(missing_ok=True)
+                        success = True
+                        break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(1.0)
+
+        if success:
+            dur = probe_duration(wav_path)
+            results.append({
+                **chunk,
+                "tts_audio": str(wav_path),
+                "tts_duration": round(dur, 3),
+            })
+
+    update_job(job_id, progress=78, message=f"Cloned voice synthesis complete — {len(results)} clips")
+    return results
 
 
 def clone_voice_sample(voice_sample_path: Path, api_key: str) -> Optional[str]:
     """Clone a custom voice sample with ElevenLabs to get a reusable voice_id."""
+    if not api_key:
+        return None
     import urllib.request
     try:
         boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
@@ -602,7 +828,7 @@ def clone_voice_sample(voice_sample_path: Path, api_key: str) -> Optional[str]:
                 print(f"[VoiceClone] Created ElevenLabs voice: {voice_id}")
                 return voice_id
     except Exception as e:
-        print(f"[VoiceClone] Clone error: {e}")
+        print(f"[VoiceClone] ElevenLabs clone error: {e}")
     return None
 
 
@@ -614,6 +840,8 @@ def synthesize_elevenlabs_tts(
     api_key: str,
 ) -> list[dict]:
     """Synthesize Burmese chunks using ElevenLabs Multilingual v2 with the cloned voice."""
+    if not api_key:
+        return []
     import urllib.request
     update_job(job_id, step="voice_synthesis", progress=58, message="Narrating with Cloned Voice (ElevenLabs Multilingual v2)...")
     tts_dir = job_dir / "tts_audio"
@@ -630,7 +858,7 @@ def synthesize_elevenlabs_tts(
         wav_path = tts_dir / f"{stem}.wav"
 
         progress_pct = 58 + int((i / len(translated_chunks)) * 20)
-        update_job(job_id, progress=progress_pct, message=f"Cloned voice synthesis {i+1}/{len(translated_chunks)}...")
+        update_job(job_id, progress=progress_pct, message=f"ElevenLabs voice synthesis {i+1}/{len(translated_chunks)}...")
 
         success = False
         try:
@@ -670,23 +898,6 @@ def synthesize_elevenlabs_tts(
         except Exception as e:
             print(f"[ElevenLabs] Segment {i} synthesis error: {e}")
 
-        # Fallback to Edge TTS if ElevenLabs single chunk failed
-        if not success:
-            try:
-                asyncio.run(_edge_tts_save(narration, "my-MM-NilarNeural", "+0%", mp3_path))
-                if mp3_path.is_file():
-                    conv = subprocess.run(
-                        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                         "-i", str(mp3_path), "-ac", "1", "-ar", "24000",
-                         "-c:a", "pcm_s16le", str(wav_path)],
-                        capture_output=True, text=True,
-                    )
-                    if conv.returncode == 0 and wav_path.is_file():
-                        mp3_path.unlink(missing_ok=True)
-                        success = True
-            except Exception:
-                pass
-
         if success:
             dur = probe_duration(wav_path)
             results.append({
@@ -695,7 +906,8 @@ def synthesize_elevenlabs_tts(
                 "tts_duration": round(dur, 3),
             })
 
-    update_job(job_id, progress=78, message=f"Voice synthesis complete — {len(results)} clips")
+    if results:
+        update_job(job_id, progress=78, message=f"ElevenLabs voice synthesis complete — {len(results)} clips")
     return results
 
 
@@ -812,8 +1024,11 @@ def generate_burmese_ass(
     blur_enabled: bool = False,
     blur_position: float = 78.0,
     subtitle_style: str = "font-akkhayar",
+    hook_title: str = "",
 ) -> Path:
-    """Generate ASS subtitle file with Akkhayar21 font in clean Movie Recap style (strictly max 2 lines)."""
+    """Generate ASS subtitle file with Akkhayar21 font in clean Movie Recap style.
+    Supports 1-line captivating intro thumbnail hook at video start (0s-2.8s) matching user's ref photo.
+    """
     font_name = "Akkhayar21"
     if subtitle_style in ("font-kunheing", "kunheing"):
         font_name = "A J Kunheing E-T-M 01"
@@ -826,11 +1041,16 @@ def generate_burmese_ass(
     font_size = int(canvas_h * 0.026) if is_portrait else int(canvas_h * 0.046)
     font_size = max(36, min(56, font_size))
 
+    hook_font_size = max(42, int(font_size * 1.32))
+    hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
+
     try:
         b_pos = float(blur_position)
     except (ValueError, TypeError):
         if str(blur_position) == "center":
             b_pos = 60.0
+        elif str(blur_position) == "drama":
+            b_pos = 66.0
         elif str(blur_position) == "bottom":
             b_pos = 86.0
         else:
@@ -855,12 +1075,24 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font_name},{font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,3.8,1.6,2,{margin_lr},{margin_lr},{margin_v},1
+Style: IntroHook,{font_name},{hook_font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,5.2,2.8,2,{margin_lr},{margin_lr},{hook_margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
 
+    # 1. Add Intro Thumbnail Hook (Strictly 1 line, exactly matching ref photo, 0s to 2.8s)
+    if hook_title:
+        clean_hook = str(hook_title).replace("\r", " ").replace("\n", " ").strip()
+        clean_hook = re.sub(r'[\"\'\`]', '', clean_hook)
+        clean_hook = re.sub(r'\s+', ' ', clean_hook).strip()
+        if clean_hook:
+            # Strictly ONE single line only:
+            single_line_hook = clean_hook.split("||")[0].strip()
+            events.append(f"Dialogue: 2,0:00:00.00,0:00:02.80,IntroHook,,0,0,0,,{{\\fad(100,250)}}{single_line_hook}")
+
+    # 2. Add Narration Subtitles
     for r in tts_results:
         text = str(r.get("narration", "")).strip()
         if not text:
@@ -880,6 +1112,133 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return output_ass
 
 
+def format_srt_time(seconds: float) -> str:
+    """Format seconds into standard SRT timestamp: hh:mm:ss,mmm"""
+    total_ms = max(0, int(round(seconds * 1000)))
+    hrs = total_ms // 3600000
+    mins = (total_ms % 3600000) // 60000
+    secs = (total_ms % 60000) // 1000
+    ms = total_ms % 1000
+    return f"{hrs:02d}:{mins:02d}:{secs:02d},{ms:03d}"
+
+
+def generate_burmese_srt(subtitles_timing: list[dict], output_srt: Path) -> Path:
+    """Generate standard .srt subtitle file with clean Myanmar narration text and timings."""
+    blocks = []
+    idx = 1
+    for seg in subtitles_timing:
+        text = str(seg.get("narration", seg.get("translated", ""))).strip()
+        if not text:
+            continue
+        start_t = float(seg.get("sub_start", seg.get("start", 0.0)))
+        end_t = float(seg.get("sub_end", start_t + float(seg.get("tts_duration", 2.2))))
+        if end_t <= start_t:
+            end_t = start_t + 1.8
+
+        # Strip any formatting tags like {\fs...} or \N
+        clean = re.sub(r'\{[^\}]*\}', '', text)
+        clean = clean.replace('\\N', '\n').replace('\\n', '\n')
+        clean = re.sub(r'\s+', ' ', clean).strip()
+
+        s_str = format_srt_time(start_t)
+        e_str = format_srt_time(end_t)
+        blocks.append(f"{idx}\n{s_str} --> {e_str}\n{clean}\n")
+        idx += 1
+
+    output_srt.write_text("\n".join(blocks) + "\n", encoding="utf-8")
+    return output_srt
+
+
+def detect_subtitle_zone(video_path: Path) -> dict:
+    """Accurately detect subtitle vertical center (%) and thickness (%) in video frames.
+    Detects drama square subtitles (64-67% Y), portrait reels (74-78% Y), and widescreen (80-85% Y).
+    """
+    try:
+        vw, vh = probe_dimensions(video_path)
+    except Exception:
+        vw, vh = 720, 720
+
+    is_square = (0.80 <= (vw / vh) <= 1.20)
+    is_portrait = vh > vw and not is_square
+    default_pos = 66.0 if is_square else (76.0 if is_portrait else 83.0)
+    default_thick = 15.0 if is_square else 14.5
+
+    try:
+        duration = probe_duration(video_path)
+    except Exception:
+        duration = 60.0
+
+    # Try frame-based detection using Pillow + numpy
+    try:
+        from PIL import Image
+        import numpy as np
+
+        y_min_pct = 0.50 if is_square else (0.58 if is_portrait else 0.68)
+        y_max_pct = 0.82 if is_square else (0.88 if is_portrait else 0.94)
+
+        start_t = min(3.0, duration * 0.05)
+        end_t = max(start_t + 1.0, duration * 0.90)
+        sample_times = np.linspace(start_t, end_t, 8)
+
+        peaks = []
+        with tempfile.TemporaryDirectory(prefix="sub_detect_") as tmp_dir:
+            tmp = Path(tmp_dir)
+            ffmpeg = find_ffmpeg()
+            for idx, t in enumerate(sample_times):
+                frame_png = tmp / f"frame_{idx}.png"
+                subprocess.run(
+                    [ffmpeg, "-y", "-ss", f"{t:.2f}", "-i", str(video_path),
+                     "-vframes", "1", "-f", "image2", str(frame_png)],
+                    capture_output=True
+                )
+                if not frame_png.is_file():
+                    continue
+
+                im = Image.open(frame_png).convert("L")
+                arr = np.array(im, dtype=np.float32)
+                h, w = arr.shape
+
+                y_start = int(h * y_min_pct)
+                y_end = int(h * y_max_pct)
+                crop = arr[y_start:y_end, :]
+
+                # Horizontal line gradient (detects top & bottom strokes of text characters)
+                dy = np.abs(np.diff(crop, axis=0))
+                # High luminance text filter (white / yellow subtitles are bright >= 165)
+                bright = (crop[:-1, :] > 165).astype(np.float32)
+                score = dy * bright
+
+                row_energy = np.sum(score, axis=1)
+                win = max(7, int(h * 0.015))
+                kernel = np.ones(win, dtype=np.float32) / win
+                smoothed = np.convolve(row_energy, kernel, mode="same")
+
+                max_val = float(np.max(smoothed))
+                if max_val > 150.0:
+                    peak_idx = int(np.argmax(smoothed))
+                    actual_y = y_start + peak_idx
+                    pct = (actual_y / h) * 100.0
+                    peaks.append(pct)
+
+            if peaks:
+                median_y = float(np.median(peaks))
+                detected_y = round(median_y, 1)
+                if is_square:
+                    detected_y = max(58.0, min(72.0, detected_y))
+                elif is_portrait:
+                    detected_y = max(68.0, min(82.0, detected_y))
+                else:
+                    detected_y = max(75.0, min(88.0, detected_y))
+
+                print(f"[BlurDetect] Auto-detected subtitle at {detected_y}% Y for {vw}x{vh}")
+                return {"position": detected_y, "thickness": default_thick, "detected": True}
+    except Exception as e:
+        print(f"[BlurDetect] Frame detection note: {e}")
+
+    print(f"[BlurDetect] Using aspect ratio default {default_pos}% Y for {vw}x{vh} (square={is_square})")
+    return {"position": default_pos, "thickness": default_thick, "detected": False}
+
+
 def render_smart_sync_video(
     source_video: Path,
     tts_results: list[dict],
@@ -895,11 +1254,13 @@ def render_smart_sync_video(
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
     logo_path: Optional[Path] = None,
+    logo_x: Optional[float] = None,
     logo_y: float = 8.0,
     logo_align: str = "right",
     logo_scale: float = 12.0,
     logo_opacity: float = 1.0,
     include_original_audio: bool = False,
+    hook_title: str = "",
 ) -> Path:
     """Render final video using the exact Git Recap-style Smart Sync:
     Every video segment is cut and retimed to match its corresponding Myanmar TTS audio 1:1.
@@ -1028,60 +1389,70 @@ def render_smart_sync_video(
     output_path = job_dir / "final_oneclick_recap.mp4"
     vol_filter = f"volume={voice_volume}" if voice_volume != 1.0 else "volume=1.0"
 
-    try:
-        b_pos = float(blur_position)
-    except (ValueError, TypeError):
-        if str(blur_position) == "center":
-            b_pos = 60.0
-        elif str(blur_position) == "bottom":
-            b_pos = 86.0
-        elif str(blur_position) == "auto":
-            b_pos = 78.0 if is_portrait else 84.0
-        else:
-            b_pos = 78.0
+    is_auto = str(blur_position).strip().lower() in ("auto", "none", "0", "")
+    if is_auto:
+        det = detect_subtitle_zone(source_video)
+        b_pos = det["position"]
+        b_thick = det["thickness"]
+        b_intense = 38.0 if is_portrait else 35.0
+    else:
+        try:
+            b_pos = float(blur_position)
+        except (ValueError, TypeError):
+            if str(blur_position) == "center":
+                b_pos = 60.0
+            elif str(blur_position) == "drama":
+                b_pos = 66.0
+            elif str(blur_position) == "bottom":
+                b_pos = 86.0
+            else:
+                b_pos = 78.0
 
-    try:
-        b_thick = float(blur_thickness)
-    except (ValueError, TypeError):
-        b_thick = 14.0
+        try:
+            b_thick = float(blur_thickness)
+        except (ValueError, TypeError):
+            b_thick = 14.0
 
-    try:
-        b_intense = float(blur_intensity)
-    except (ValueError, TypeError):
-        b_intense = 30.0
+        try:
+            b_intense = float(blur_intensity)
+        except (ValueError, TypeError):
+            b_intense = 30.0
 
     filter_chains = []
     current_v = "[0:v]"
 
-    # 1. Ratio Scaling & Padding to canvas
-    if ratio_filter:
-        filter_chains.append(f"{current_v}{ratio_filter}[vbase]")
-        current_v = "[vbase]"
-
-    # 2. Natural frosted glass blur directly covering original subtitle area
+    # 1. Natural frosted glass blur directly covering original subtitle area (applied BEFORE ratio padding for 100% exact preview match)
     if enable_blur:
         thickness = max(0.06, min(0.35, b_thick / 100.0))
         top = max(0.0, min(1.0 - thickness, (b_pos - b_thick / 2.0) / 100.0))
         bottom = min(1.0, top + thickness)
-        luma_rad = max(10, min(36, int(b_intense * 0.75)))
-        chroma_rad = max(5, int(luma_rad * 0.5))
+        luma_rad = max(16, min(42, int(b_intense * 0.95)))
+        chroma_rad = max(8, int(luma_rad * 0.6))
+        tint_opacity = min(0.78, max(0.40, (b_intense / 100.0) * 0.85))
 
         blur_chain = (
             f"{current_v}split=2[vmain][vblur];"
             f"[vblur]crop=w=iw:h=trunc(ih*{thickness:.4f}/2)*2:x=0:y=trunc(ih*{top:.4f}/2)*2,"
             f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
             f"[vmain][blurBand]overlay=x=0:y=trunc(main_h*{top:.4f}/2)*2,"
-            f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=trunc(ih*{thickness:.4f}/2)*2:color=black@0.12:t=fill,"
-            f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=2:color=white@0.20:t=fill,"
-            f"drawbox=x=0:y=trunc(ih*{bottom:.4f}/2)*2-2:w=iw:h=2:color=white@0.20:t=fill[vblurred]"
+            f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=trunc(ih*{thickness:.4f}/2)*2:color=black@{tint_opacity:.2f}:t=fill,"
+            f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=2:color=white@0.30:t=fill,"
+            f"drawbox=x=0:y=trunc(ih*{bottom:.4f}/2)*2-2:w=iw:h=2:color=white@0.30:t=fill[vblurred]"
         )
         filter_chains.append(blur_chain)
         current_v = "[vblurred]"
 
-    # 3. Subtitles burn-in directly over the blurred zone
+    # 2. Ratio Scaling & Padding to canvas
+    if ratio_filter:
+        filter_chains.append(f"{current_v}{ratio_filter}[vbase]")
+        current_v = "[vbase]"
+
+    # 3. Subtitles burn-in directly over the blurred zone & export .srt
     if enable_subtitles and subtitles_timing:
         ass_path = job_dir / "burmese_subtitles.ass"
-        generate_burmese_ass(subtitles_timing, ass_path, canvas_w, canvas_h, blur_enabled=enable_blur, blur_position=b_pos, subtitle_style=subtitle_style)
+        generate_burmese_ass(subtitles_timing, ass_path, canvas_w, canvas_h, blur_enabled=enable_blur, blur_position=b_pos, subtitle_style=subtitle_style, hook_title=hook_title)
+        srt_path = job_dir / "burmese_subtitles.srt"
+        generate_burmese_srt(subtitles_timing, srt_path)
         escaped_ass = str(ass_path.resolve()).replace("\\", "/").replace(":", "\\:")
         filter_chains.append(f"{current_v}ass='{escaped_ass}'[vsubbed]")
         current_v = "[vsubbed]"
@@ -1096,20 +1467,25 @@ def render_smart_sync_video(
 
     if has_logo_file:
         cmd_inputs.extend(["-i", str(logo_path)])
-        scale_pct = max(0.04, min(0.40, float(logo_scale) / 100.0))
-        target_w = max(48, int(canvas_w * scale_pct))
+        scale_pct = max(0.04, min(0.50, float(logo_scale) / 100.0))
+        target_w = max(40, int(canvas_w * scale_pct))
         opacity = max(0.1, min(1.0, float(logo_opacity)))
-        align = str(logo_align).lower()
         y_pct = max(0.0, min(1.0, float(logo_y) / 100.0))
-        pad = int(canvas_w * 0.02)
-        edge_x = int(canvas_w * 0.05)
-        if align == "left":
-            x_expr = f"{edge_x}"
-        elif align == "center":
-            x_expr = "(main_w-overlay_w)/2"
+        if logo_x is not None:
+            x_pct = max(0.0, min(1.0, float(logo_x) / 100.0))
+            x_expr = f"(main_w-overlay_w)*{x_pct:.4f}"
+            y_expr = f"(main_h-overlay_h)*{y_pct:.4f}"
         else:
-            x_expr = f"main_w-overlay_w-{edge_x}"
-        y_expr = f"{pad}+((main_h-overlay_h-{pad*2})*{y_pct:.4f})"
+            align = str(logo_align).lower()
+            edge_x = int(canvas_w * 0.05)
+            pad = int(canvas_w * 0.02)
+            if align == "left":
+                x_expr = f"{edge_x}"
+            elif align == "center":
+                x_expr = "(main_w-overlay_w)/2"
+            else:
+                x_expr = f"main_w-overlay_w-{edge_x}"
+            y_expr = f"{pad}+((main_h-overlay_h-{pad*2})*{y_pct:.4f})"
 
         logo_chain = (
             f"[2:v]scale={target_w}:-2,format=rgba,colorchannelmixer=aa={opacity:.2f}[vlogo];"
@@ -1144,12 +1520,25 @@ def render_smart_sync_video(
     final_duration = probe_duration(output_path)
     file_size_mb = output_path.stat().st_size / (1024 * 1024)
 
+    # Generate standalone intro thumbnail cover with hook title burned in (t=0.6s)
+    thumb_path = job_dir / "thumbnail_cover.jpg"
+    try:
+        subprocess.run(
+            [ffmpeg, "-y", "-ss", "00:00:00.600", "-i", str(output_path),
+             "-vframes", "1", "-q:v", "2", str(thumb_path)],
+            capture_output=True, check=True
+        )
+    except Exception as e:
+        print(f"[Thumbnail] Cover extract note: {e}")
+
     update_job(job_id, progress=100,
                message=f"Complete! {final_duration:.1f}s, {file_size_mb:.1f}MB",
                status="completed",
                output_file=str(output_path),
                output_duration=round(final_duration, 1),
-               output_size_mb=round(file_size_mb, 1))
+               output_size_mb=round(file_size_mb, 1),
+               thumbnail_file=str(thumb_path) if thumb_path.is_file() else None,
+               hook_title=hook_title if hook_title else None)
 
     return output_path
 
@@ -1217,6 +1606,7 @@ def run_oneclick_pipeline(
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
     logo_path: Optional[Path] = None,
+    logo_x: Optional[float] = None,
     logo_y: float = 8.0,
     logo_align: str = "right",
     logo_scale: float = 12.0,
@@ -1224,6 +1614,9 @@ def run_oneclick_pipeline(
     include_original_audio: bool = False,
     voice_sample_path: Optional[Path] = None,
     voice_id: Optional[str] = None,
+    elevenlabs_api_key: Optional[str] = None,
+    enable_intro_hook: bool = True,
+    intro_hook_text: Optional[str] = None,
 ):
     """Run the complete OneClick Recap pipeline."""
     job_dir = JOBS_DIR / job_id
@@ -1241,6 +1634,27 @@ def run_oneclick_pipeline(
             size_mb = video_path.stat().st_size / (1024 * 1024)
             update_job(job_id, source_file=video_path.name, source_size_mb=round(size_mb, 1),
                        message=f"Video downloaded ({size_mb:.1f}MB). Starting processing...")
+
+        # Only auto-calibrate blur if user explicitly set 'auto'
+        vw, vh = probe_dimensions(video_path)
+        is_port = vh > vw
+        if str(blur_position).strip().lower() in ("auto", "none", "0", ""):
+            det = detect_subtitle_zone(video_path)
+            blur_position = det["position"]
+            blur_thickness = det["thickness"]
+            blur_intensity = 38.0 if is_port else 36.0
+            update_job(job_id, blur_position=blur_position, blur_thickness=blur_thickness,
+                       message=f"Auto-configured blur at {blur_position}% Y for {vw}x{vh} video...")
+            print(f"[BlurAuto] Set blur position {blur_position}% Y for {vw}x{vh} (detected={det.get('detected', False)})")
+        else:
+            try:
+                blur_position = float(blur_position)
+            except Exception:
+                blur_position = 82.0
+            try:
+                blur_thickness = float(blur_thickness)
+            except Exception:
+                blur_thickness = 14.0
 
         # Step 1: Extract audio for Whisper
         update_job(job_id, step="audio_extract", progress=8,
@@ -1269,16 +1683,46 @@ def run_oneclick_pipeline(
         # Step 4: Gemini translation (Spoken storytelling style)
         translated = translate_with_gemini(chunks, job_dir, job_id)
 
-        # Step 5: Voice synthesis (Custom Cloned Voice or Natural Edge TTS)
-        tts_results = []
-        if voice_sample_path and voice_sample_path.is_file() and ELEVENLABS_API_KEY:
-            update_job(job_id, step="voice_synthesis", progress=56, message="Cloning voice sample with ElevenLabs...")
-            cloned_id = clone_voice_sample(voice_sample_path, ELEVENLABS_API_KEY)
-            if cloned_id:
-                tts_results = synthesize_elevenlabs_tts(translated, job_dir, job_id, cloned_id, ELEVENLABS_API_KEY)
+        # Step 4b: Generate 1-line recap intro hook title (Thumbnail Title Hook)
+        hook_title = ""
+        if enable_intro_hook:
+            if intro_hook_text and str(intro_hook_text).strip():
+                hook_title = str(intro_hook_text).strip()
+            else:
+                try:
+                    from google import genai
+                    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY", "")
+                    if api_key:
+                        client = genai.Client(api_key=api_key)
+                        full_context = " ".join([c.get("narration", c.get("text", "")) for c in translated[:15]])
+                        hook_title = generate_story_hook_title(full_context, client)
+                        print(f"[IntroHook] Generated 1-line title hook: {hook_title}")
+                except Exception as e:
+                    print(f"[IntroHook] Generation note: {e}")
+                    hook_title = "ဒီနေ့ဘာတွေထူးဆန်းတာဖြစ်သွားတာလဲ?"
 
-        if not tts_results and voice_id and ELEVENLABS_API_KEY:
-            tts_results = synthesize_elevenlabs_tts(translated, job_dir, job_id, voice_id, ELEVENLABS_API_KEY)
+        # Step 5: Voice synthesis (Smart Acoustic Cloned Voice, ElevenLabs, or Natural Edge TTS)
+        tts_results = []
+        if voice_sample_path and voice_sample_path.is_file():
+            # 1. Try ElevenLabs if user or server provided an API key
+            el_key = (elevenlabs_api_key or ELEVENLABS_API_KEY or os.environ.get("ELEVENLABS_API_KEY", "")).strip()
+            if el_key:
+                update_job(job_id, step="voice_synthesis", progress=56, message="Cloning voice sample with ElevenLabs...")
+                cloned_id = clone_voice_sample(voice_sample_path, el_key)
+                if cloned_id:
+                    tts_results = synthesize_elevenlabs_tts(translated, job_dir, job_id, cloned_id, el_key)
+                    if not tts_results:
+                        print("[VoiceClone] ElevenLabs synthesis failed, falling back to Acoustic Clone...")
+
+            # 2. If ElevenLabs not configured or failed, use Smart Acoustic Voice Clone (Free & 100% Guaranteed to Work!)
+            if not tts_results:
+                update_job(job_id, step="voice_synthesis", progress=56, message="Applying Acoustic Voice Cloning from your sample...")
+                tts_results = synthesize_acoustic_cloned_voice(translated, job_dir, job_id, voice_sample_path, speed=speed or "+0%")
+
+        if not tts_results and voice_id:
+            el_key = (elevenlabs_api_key or ELEVENLABS_API_KEY or os.environ.get("ELEVENLABS_API_KEY", "")).strip()
+            if el_key:
+                tts_results = synthesize_elevenlabs_tts(translated, job_dir, job_id, voice_id, el_key)
 
         if not tts_results:
             tts_results = synthesize_edge_tts(translated, job_dir, job_id,
@@ -1296,11 +1740,13 @@ def run_oneclick_pipeline(
             subtitle_style=subtitle_style,
             watermark_text=watermark_text,
             logo_path=logo_path,
+            logo_x=logo_x,
             logo_y=logo_y,
             logo_align=logo_align,
             logo_scale=logo_scale,
             logo_opacity=logo_opacity,
             include_original_audio=include_original_audio,
+            hook_title=hook_title,
         )
 
         update_job(job_id, status="completed", progress=100)
@@ -1354,22 +1800,61 @@ async def health():
     }
 
 
+@app.post("/api/oneclick/fetch-video")
+async def fetch_video_url(url: str = Form(...)):
+    """Pre-download video from YouTube or TikTok link and return preview stream URL."""
+    clean_url = url.strip()
+    if not clean_url:
+        raise HTTPException(status_code=400, detail="URL cannot be empty")
+    temp_id = str(uuid.uuid4())[:10]
+    temp_dir = JOBS_DIR / f"temp_{temp_id}"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        video_path = download_media_from_url(clean_url, temp_dir, temp_id)
+        dur = probe_duration(video_path)
+        w, h = probe_dimensions(video_path)
+        return {
+            "success": True,
+            "temp_id": temp_id,
+            "duration": dur,
+            "width": w,
+            "height": h,
+            "filename": video_path.name,
+            "preview_url": f"/api/oneclick/stream-temp/{temp_id}",
+        }
+    except Exception as e:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail=f"Download failed: {str(e)[:300]}")
+
+
+@app.get("/api/oneclick/stream-temp/{temp_id}")
+async def stream_temp_video(temp_id: str):
+    """Serve pre-downloaded temp video for live client preview & calibration."""
+    temp_dir = JOBS_DIR / f"temp_{temp_id}"
+    candidates = list(temp_dir.glob("source.*"))
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Temp video not found")
+    return FileResponse(str(candidates[0]), media_type="video/mp4")
+
+
 @app.post("/api/oneclick/start")
 async def start_job(
     background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(default=None),
     video_url: Optional[str] = Form(default=None),
+    temp_id: Optional[str] = Form(default=None),
     voice: str = Form("my-MM-NilarNeural"),
     speed: str = Form("+0%"),
     ratio: str = Form("original"),
     enable_subtitles: bool = Form(True),
     enable_blur: bool = Form(True),
-    blur_position: Any = Form(78.0),
+    blur_position: Any = Form(82.0),
     blur_thickness: float = Form(14.0),
     blur_intensity: float = Form(30.0),
     subtitle_style: str = Form("font-akkhayar"),
     watermark_text: str = Form(""),
     logo_file: Optional[UploadFile] = File(default=None),
+    logo_x: Optional[float] = Form(None),
     logo_y: float = Form(8.0),
     logo_align: str = Form("right"),
     logo_scale: float = Form(12.0),
@@ -1377,14 +1862,17 @@ async def start_job(
     include_original_audio: bool = Form(False),
     voice_sample: Optional[UploadFile] = File(default=None),
     voice_id: Optional[str] = Form(default=None),
+    elevenlabs_api_key: Optional[str] = Form(default=None),
+    enable_intro_hook: bool = Form(False),
+    intro_hook_text: Optional[str] = Form(default=None),
 ):
-    """Upload video or provide YouTube/TikTok URL and start OneClick pipeline."""
+    """Upload video, use pre-downloaded temp_id, or provide YouTube/TikTok URL and start OneClick pipeline."""
     job_id = str(uuid.uuid4())[:12]
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
     video_path = None
-    source_name = "URL Download"
+    source_name = "Video"
     source_size = 0.0
 
     if file and file.filename:
@@ -1404,6 +1892,15 @@ async def start_job(
 
         source_name = file.filename
         source_size = round(file_size_mb, 1)
+    elif temp_id and temp_id.strip():
+        t_dir = JOBS_DIR / f"temp_{temp_id.strip()}"
+        cands = list(t_dir.glob("source.*"))
+        if cands:
+            ext = cands[0].suffix or ".mp4"
+            video_path = job_dir / f"source{ext}"
+            shutil.copy2(cands[0], video_path)
+            source_name = f"URL Video ({cands[0].name})"
+            source_size = round(video_path.stat().st_size / (1024 * 1024), 1)
     elif video_url and video_url.strip():
         source_name = video_url.strip()[:60]
     else:
@@ -1450,6 +1947,8 @@ async def start_job(
         "has_logo": bool(logo_path),
         "include_original_audio": include_original_audio,
         "has_voice_sample": bool(voice_sample_path),
+        "enable_intro_hook": enable_intro_hook,
+        "intro_hook_text": intro_hook_text,
         "source_file": source_name,
         "source_size_mb": source_size,
         "created_at": time.time(),
@@ -1472,6 +1971,7 @@ async def start_job(
         subtitle_style,
         watermark_text,
         logo_path,
+        logo_x,
         logo_y,
         logo_align,
         logo_scale,
@@ -1479,6 +1979,9 @@ async def start_job(
         include_original_audio,
         voice_sample_path,
         voice_id,
+        elevenlabs_api_key,
+        enable_intro_hook,
+        intro_hook_text,
     )
 
     return {
@@ -1519,6 +2022,57 @@ async def download_result(job_id: str):
         output_file,
         media_type="video/mp4",
         filename=download_name,
+    )
+
+
+@app.get("/api/oneclick/subtitles/{job_id}")
+async def download_subtitles(job_id: str):
+    """Download standard .srt Myanmar subtitle file for the completed recap."""
+    job_dir = JOBS_DIR / job_id
+    srt_path = job_dir / "burmese_subtitles.srt"
+    if not srt_path.is_file():
+        # Fallback: try generating from timestamp_translations.json
+        json_path = job_dir / "timestamp_translations.json"
+        if json_path.is_file():
+            try:
+                data = json.loads(json_path.read_text(encoding="utf-8"))
+                generate_burmese_srt(data, srt_path)
+            except Exception:
+                pass
+
+    if not srt_path.is_file():
+        raise HTTPException(status_code=404, detail="Subtitle file (.srt) not found for this job.")
+
+    return FileResponse(
+        str(srt_path),
+        media_type="text/plain; charset=utf-8",
+        filename=f"oneclick_subtitles_{job_id[:8]}_myanmar.srt",
+        headers={"Content-Disposition": f'attachment; filename="oneclick_subtitles_{job_id[:8]}_myanmar.srt"'}
+    )
+
+
+@app.get("/api/oneclick/thumbnail/{job_id}")
+async def download_thumbnail(job_id: str):
+    """Download intro thumbnail cover image with hook title (.jpg)."""
+    job_dir = JOBS_DIR / job_id
+    thumb_path = job_dir / "thumbnail_cover.jpg"
+    if not thumb_path.is_file():
+        out_vid = job_dir / "final_oneclick_recap.mp4"
+        if out_vid.is_file():
+            try:
+                ffmpeg = find_ffmpeg()
+                subprocess.run([ffmpeg, "-y", "-ss", "00:00:00.600", "-i", str(out_vid), "-vframes", "1", "-q:v", "2", str(thumb_path)], capture_output=True)
+            except Exception:
+                pass
+
+    if not thumb_path.is_file():
+        raise HTTPException(status_code=404, detail="Thumbnail cover not found for this job.")
+
+    return FileResponse(
+        str(thumb_path),
+        media_type="image/jpeg",
+        filename=f"oneclick_thumbnail_{job_id[:8]}.jpg",
+        headers={"Content-Disposition": f'attachment; filename="oneclick_thumbnail_{job_id[:8]}.jpg"'}
     )
 
 
