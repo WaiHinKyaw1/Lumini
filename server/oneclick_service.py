@@ -1307,20 +1307,22 @@ def render_smart_sync_video(
     is_portrait = src_h > src_w
 
     # Layout dimensions
-    canvas_w, canvas_h = src_w, src_h
+    canvas_w, canvas_h = (src_w // 2) * 2, (src_h // 2) * 2
     ratio_filter = ""
     if ratio == "16:9":
         canvas_w, canvas_h = 1920, 1080
-        ratio_filter = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
+        ratio_filter = "scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
     elif ratio == "9:16":
         canvas_w, canvas_h = 1080, 1920
-        ratio_filter = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+        ratio_filter = "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
     elif ratio == "1:1":
         canvas_w, canvas_h = 1080, 1080
-        ratio_filter = "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"
+        ratio_filter = "scale=1080:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"
     elif ratio == "4:5":
         canvas_w, canvas_h = 1080, 1350
-        ratio_filter = "scale=1080:1350:force_original_aspect_ratio=decrease,pad=1080:1350:(ow-iw)/2:(oh-ih)/2:black"
+        ratio_filter = "scale=1080:1350:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1350:(ow-iw)/2:(oh-ih)/2:black"
+    elif canvas_w != src_w or canvas_h != src_h:
+        ratio_filter = f"scale={canvas_w}:{canvas_h}"
 
     # Step A: Render each video part retimed to its audio duration (Exact Git Sync)
     video_parts = []
@@ -1458,21 +1460,30 @@ def render_smart_sync_video(
 
     # 2. Natural frosted glass blur directly covering original subtitle area
     if enable_blur:
-        thickness = max(0.06, min(0.35, b_thick / 100.0))
-        top = max(0.0, min(1.0 - thickness, (b_pos - b_thick / 2.0) / 100.0))
-        bottom = min(1.0, top + thickness)
+        b_pos_f = float(b_pos)
+        b_thick_f = float(b_thick)
+        thickness_pct = max(0.04, min(0.40, b_thick_f / 100.0))
+        top_pct = max(0.0, min(1.0 - thickness_pct, (b_pos_f - b_thick_f / 2.0) / 100.0))
+
+        # Compute exact integer pixel coordinates directly from canvas dimensions
+        blur_y = int(round(canvas_h * top_pct / 2.0)) * 2
+        blur_h = max(8, int(round(canvas_h * thickness_pct / 2.0)) * 2)
+        if blur_y + blur_h > canvas_h:
+            blur_h = max(8, canvas_h - blur_y)
+        blur_bottom = blur_y + blur_h
+
         luma_rad = max(16, min(42, int(b_intense * 0.95)))
         chroma_rad = max(8, int(luma_rad * 0.6))
         tint_opacity = min(0.78, max(0.40, (b_intense / 100.0) * 0.85))
 
         blur_chain = (
             f"{current_v}split=2[vmain][vblur];"
-            f"[vblur]crop=w=iw:h=trunc(ih*{thickness:.4f}/2)*2:x=0:y=trunc(ih*{top:.4f}/2)*2,"
+            f"[vblur]crop=w={canvas_w}:h={blur_h}:x=0:y={blur_y},"
             f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
-            f"[vmain][blurBand]overlay=x=0:y=trunc(main_h*{top:.4f}/2)*2,"
-            f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=trunc(ih*{thickness:.4f}/2)*2:color=black@{tint_opacity:.2f}:t=fill,"
-            f"drawbox=x=0:y=trunc(ih*{top:.4f}/2)*2:w=iw:h=2:color=white@0.30:t=fill,"
-            f"drawbox=x=0:y=trunc(ih*{bottom:.4f}/2)*2-2:w=iw:h=2:color=white@0.30:t=fill[vblurred]"
+            f"[vmain][blurBand]overlay=x=0:y={blur_y},"
+            f"drawbox=x=0:y={blur_y}:w={canvas_w}:h={blur_h}:color=black@{tint_opacity:.2f}:t=fill,"
+            f"drawbox=x=0:y={blur_y}:w={canvas_w}:h=2:color=white@0.30:t=fill,"
+            f"drawbox=x=0:y={blur_bottom - 2}:w={canvas_w}:h=2:color=white@0.30:t=fill[vblurred]"
         )
         filter_chains.append(blur_chain)
         current_v = "[vblurred]"
@@ -1503,8 +1514,9 @@ def render_smart_sync_video(
         y_pct = max(0.0, min(1.0, float(logo_y) / 100.0))
         if logo_x is not None:
             x_pct = max(0.0, min(1.0, float(logo_x) / 100.0))
-            x_expr = f"(main_w-overlay_w)*{x_pct:.4f}"
-            y_expr = f"(main_h-overlay_h)*{y_pct:.4f}"
+            # Exact 1:1 match with CSS left: ${logoX}% and top: ${logoY}%
+            x_expr = f"min(main_w-overlay_w,max(0,main_w*{x_pct:.4f}))"
+            y_expr = f"min(main_h-overlay_h,max(0,main_h*{y_pct:.4f}))"
         else:
             align = str(logo_align).lower()
             edge_x = int(canvas_w * 0.05)
@@ -1515,7 +1527,7 @@ def render_smart_sync_video(
                 x_expr = "(main_w-overlay_w)/2"
             else:
                 x_expr = f"main_w-overlay_w-{edge_x}"
-            y_expr = f"{pad}+((main_h-overlay_h-{pad*2})*{y_pct:.4f})"
+            y_expr = f"min(main_h-overlay_h,max(0,main_h*{y_pct:.4f}))"
 
         logo_chain = (
             f"[2:v]scale={target_w}:-2,format=rgba,colorchannelmixer=aa={opacity:.2f}[vlogo];"
@@ -1526,7 +1538,15 @@ def render_smart_sync_video(
     elif watermark_text and watermark_text.strip():
         safe_wm = watermark_text.strip().replace("'", "").replace(":", "")
         wm_size = 32 if not is_portrait else 26
-        filter_chains.append(f"{current_v}drawtext=font='Akkhayar21':text='{safe_wm}':fontcolor=white@0.85:fontsize={wm_size}:x=w-tw-30:y=30[vout]")
+        if logo_x is not None:
+            x_pct = max(0.0, min(1.0, float(logo_x) / 100.0))
+            y_pct = max(0.0, min(1.0, float(logo_y) / 100.0))
+            x_pos = f"min(w-tw-20,max(20,w*{x_pct:.4f}))"
+            y_pos = f"min(h-th-20,max(20,h*{y_pct:.4f}))"
+        else:
+            x_pos = "w-tw-30"
+            y_pos = "30"
+        filter_chains.append(f"{current_v}drawtext=font='Akkhayar21':text='{safe_wm}':fontcolor=white@0.85:fontsize={wm_size}:x='{x_pos}':y='{y_pos}'[vout]")
         current_v = "[vout]"
     else:
         if current_v != "[vout]":

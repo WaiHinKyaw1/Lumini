@@ -119,6 +119,47 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     return Boolean(videoUrl && /youtube\.com\/shorts\//i.test(videoUrl));
   }, [videoUrl]);
 
+  // Target aspect ratio for canvas preview - 100% matches backend rendering canvas dimensions
+  const targetRatioValue = useMemo<number>(() => {
+    if (selectedRatio === '16:9') return 16 / 9;
+    if (selectedRatio === '9:16') return 9 / 16;
+    if (selectedRatio === '1:1') return 1.0;
+    if (selectedRatio === '4:5') return 4 / 5;
+    if (naturalAspect && Number.isFinite(naturalAspect) && naturalAspect > 0) {
+      return naturalAspect;
+    }
+    return (isTikTokUrl || isYouTubeShort) ? 9 / 16 : 16 / 9;
+  }, [selectedRatio, naturalAspect, isTikTokUrl, isYouTubeShort]);
+
+  // Intelligent blur positioning that accounts for canvas padding when video aspect ratio != canvas ratio
+  const getSmartBlurForRatio = useCallback((ratioId: string, vidAspect: number | null): { pos: number; thick: number } => {
+    const vAspect = vidAspect && vidAspect > 0 ? vidAspect : 16 / 9;
+    let cAspect = 16 / 9;
+    if (ratioId === '9:16') cAspect = 9 / 16;
+    else if (ratioId === '1:1') cAspect = 1.0;
+    else if (ratioId === '4:5') cAspect = 4 / 5;
+    else if (ratioId === '16:9') cAspect = 16 / 9;
+    else cAspect = vAspect;
+
+    // If video is letterboxed vertically (black bars top & bottom in output canvas):
+    if (vAspect > cAspect) {
+      const vHeightPct = cAspect / vAspect;
+      const topPadPct = (1.0 - vHeightPct) / 2.0;
+      // Position blur directly over subtitles at bottom of video
+      const subPosPct = topPadPct + 0.82 * vHeightPct;
+      const thickPct = Math.max(8, Math.min(22, Math.round(14 * vHeightPct)));
+      return { pos: Math.round(subPosPct * 100), thick: thickPct };
+    }
+    return { pos: 82, thick: 14 };
+  }, []);
+
+  const handleRatioSelect = (ratioId: string) => {
+    setSelectedRatio(ratioId);
+    const smart = getSmartBlurForRatio(ratioId, naturalAspect);
+    setBlurPosition(smart.pos);
+    setBlurThickness(smart.thick);
+  };
+
   // ElevenLabs Pro Key (Optional)
   const [elevenApiKey, setElevenApiKey] = useState<string>(() => {
     try {
@@ -339,21 +380,21 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     const deltaYPercent = (deltaY / rect.height) * 100;
 
     if (activeDrag === 'blur-move') {
-      const newPos = Math.round(Math.max(30, Math.min(95, dragStartValRef.current.pos + deltaYPercent)));
+      const newPos = Math.round(Math.max(8, Math.min(96, dragStartValRef.current.pos + deltaYPercent)));
       setBlurPosition(newPos);
     } else if (activeDrag === 'blur-resize-top') {
-      const newThick = Math.round(Math.max(6, Math.min(36, dragStartValRef.current.thick - deltaYPercent * 2)));
+      const newThick = Math.round(Math.max(4, Math.min(40, dragStartValRef.current.thick - deltaYPercent * 2)));
       setBlurThickness(newThick);
     } else if (activeDrag === 'blur-resize-bottom') {
-      const newThick = Math.round(Math.max(6, Math.min(36, dragStartValRef.current.thick + deltaYPercent * 2)));
+      const newThick = Math.round(Math.max(4, Math.min(40, dragStartValRef.current.thick + deltaYPercent * 2)));
       setBlurThickness(newThick);
     } else if (activeDrag === 'logo-move') {
       const newLogoX = Math.round(Math.max(0, Math.min(100 - logoScale, dragStartValRef.current.logoX + deltaXPercent)));
-      const newLogoY = Math.round(Math.max(0, Math.min(92, dragStartValRef.current.logoY + deltaYPercent)));
+      const newLogoY = Math.round(Math.max(0, Math.min(96, dragStartValRef.current.logoY + deltaYPercent)));
       setLogoX(newLogoX);
       setLogoY(newLogoY);
     } else if (activeDrag === 'logo-resize') {
-      const newScale = Math.round(Math.max(5, Math.min(45, dragStartValRef.current.logoScale + deltaXPercent)));
+      const newScale = Math.round(Math.max(4, Math.min(50, dragStartValRef.current.logoScale + deltaXPercent)));
       setLogoScale(newScale);
     }
   };
@@ -380,7 +421,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
       setUrlVideoMeta({ duration: res.duration, width: res.width, height: res.height });
       if (res.duration) setPreviewDuration(res.duration);
       if (res.width && res.height) {
-        setNaturalAspect(res.width / res.height);
+        const aspect = res.width / res.height;
+        setNaturalAspect(aspect);
+        const smart = getSmartBlurForRatio(selectedRatio, aspect);
+        setBlurPosition(smart.pos);
+        setBlurThickness(smart.thick);
       }
       setFilePreviewUrl(res.preview_url);
       setPreviewCurrentTime(0);
@@ -841,7 +886,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                   <button
                     key={r.id}
                     type="button"
-                    onClick={() => setSelectedRatio(r.id)}
+                    onClick={() => handleRatioSelect(r.id)}
                     className={`p-3 rounded-2xl border text-left transition-all ${selectedRatio === r.id
                       ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
                       : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
@@ -1378,31 +1423,19 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
-                className="relative w-full min-h-[260px] max-h-[440px] bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-black/40 touch-none select-none"
+                className="relative w-full h-[390px] sm:h-[430px] bg-zinc-950/90 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-2 touch-none select-none"
               >
                 {(filePreviewUrl || (inputMode === 'url' && videoUrl.trim())) ? (
                   <div
                     ref={previewBoxRef}
-                    className={`relative w-full h-full mx-auto flex items-center justify-center overflow-hidden max-h-[440px] transition-all duration-300 ${selectedRatio === '9:16'
-                      ? 'aspect-[9/16] h-[410px]'
-                      : selectedRatio === '1:1'
-                        ? 'aspect-square h-[350px]'
-                        : selectedRatio === '4:5'
-                          ? 'aspect-[4/5] h-[380px]'
-                          : selectedRatio === '16:9'
-                            ? 'aspect-video w-full'
-                            : naturalAspect
-                              ? naturalAspect < 0.85
-                                ? 'aspect-[9/16] h-[410px]'
-                                : naturalAspect < 1.15
-                                  ? 'aspect-square h-[350px]'
-                                  : naturalAspect < 1.4
-                                    ? 'aspect-[4/5] h-[380px]'
-                                    : 'aspect-video w-full'
-                              : (isTikTokUrl || isYouTubeShort)
-                                ? 'aspect-[9/16] h-[410px]'
-                                : 'aspect-video w-full'
-                      }`}
+                    style={{
+                      aspectRatio: `${targetRatioValue}`,
+                      maxHeight: '100%',
+                      maxWidth: '100%',
+                      height: targetRatioValue <= 1 ? '100%' : 'auto',
+                      width: targetRatioValue > 1 ? '100%' : 'auto',
+                    }}
+                    className="relative mx-auto flex items-center justify-center overflow-hidden bg-black rounded-xl border border-indigo-500/40 shadow-2xl transition-all duration-200 select-none"
                   >
                     {/* Source Player: Upload File, YouTube Embed, TikTok Embed, or Direct Video URL */}
                     {filePreviewUrl ? (
@@ -1415,7 +1448,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           if (v) {
                             setPreviewDuration(v.duration || 0);
                             if (v.videoWidth && v.videoHeight) {
-                              setNaturalAspect(v.videoWidth / v.videoHeight);
+                              const aspect = v.videoWidth / v.videoHeight;
+                              setNaturalAspect(aspect);
+                              const smart = getSmartBlurForRatio(selectedRatio, aspect);
+                              setBlurPosition(smart.pos);
+                              setBlurThickness(smart.thick);
                             }
                           }
                         }}
@@ -1425,7 +1462,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           if (previewVideoRef.current) setPreviewCurrentTime(previewVideoRef.current.currentTime);
                         }}
                         onPlay={() => setPreviewIsPlaying(true)}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain pointer-events-none"
                         playsInline
                       />
                     ) : youtubeId ? (
@@ -1467,7 +1504,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                         <span>🎯</span> Drag & Calibrate Live
                       </span>
                       <span className="px-2 py-0.5 rounded-lg bg-black/60 text-white text-[9px] font-mono backdrop-blur-md border border-white/10">
-                        Y: {blurPosition}%
+                        {selectedRatio === 'original' ? 'Original' : selectedRatio} • Blur Y: {blurPosition}%
                       </span>
                     </div>
 
@@ -1503,25 +1540,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                         />
 
                         {/* Centered Subtitle inside Blur Band (Matches Output Video Size & Width) */}
-                        {enableSubtitles && (
-                          <div className="relative z-10 px-2 text-center max-w-[94%] pointer-events-none">
-                            <p
-                              style={{
-                                color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFD700',
-                                textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
-                              }}
-                              className="text-xs sm:text-sm md:text-base font-black leading-snug tracking-wide"
-                            >
-                              အဲဒီနောက်မှာတော့ သူတို့အားလုံး အလွန်အံ့အားသင့်သွားကြပါတယ်...
-                            </p>
-                          </div>
-                        )}
 
-                        {/* Floating Drag Indicator Badge */}
-                        <div className="absolute top-1 right-2 z-10 text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/80 text-amber-300 font-bold border border-amber-400/50 flex items-center gap-1 shadow-lg pointer-events-none">
-                          <span>↕ Drag Y: {blurPosition}%</span>
-                          <span className="opacity-70">• H: {blurThickness}%</span>
-                        </div>
+
+
 
                         {/* Bottom Edge Resize Handle */}
                         <div
