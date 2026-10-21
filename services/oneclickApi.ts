@@ -264,6 +264,13 @@ export function getOneClickDownloadUrl(jobId: string): string {
 }
 
 /**
+ * Get direct streaming URL for video preview player (inline, smooth range streaming).
+ */
+export function getOneClickStreamUrl(jobId: string): string {
+  return `${getBaseUrl()}/api/oneclick/stream/${jobId}`;
+}
+
+/**
  * Get the direct download URL for the Myanmar subtitle (.srt) file.
  */
 export function getOneClickSrtDownloadUrl(jobId: string): string {
@@ -322,4 +329,16 @@ export async function pollOneClickJob(
   }
 
   throw new Error('Polling timeout: job took too long.');
+}
+
+/**
+ * Get direct audio stream URL for voice sample preview (Thiha, Zaw, Wunna, Nilar)
+ */
+export function getOneClickVoiceSampleUrl(voiceId: string): string {
+  let key = 'thiha';
+  const v = voiceId.toLowerCase();
+  if (v.includes('zaw')) key = 'zaw';
+  else if (v.includes('wun')) key = 'wunna';
+  else if (v.includes('nilar')) key = 'nilar';
+  return `${getBaseUrl()}/api/oneclick/voice-sample/${key}`;
 }

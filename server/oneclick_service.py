@@ -560,10 +560,10 @@ def normalize_edge_rate(speed_input: Any) -> str:
 
 
 
-async def _edge_tts_save(text: str, voice: str, rate: str, output_path: Path):
+async def _edge_tts_save(text: str, voice: str, rate: str, output_path: Path, pitch: str = "+0Hz"):
     """Async Edge TTS synthesis to MP3."""
     import edge_tts
-    communicate = edge_tts.Communicate(text, voice=voice, rate=rate)
+    communicate = edge_tts.Communicate(text, voice=voice, rate=rate, pitch=pitch)
     await communicate.save(str(output_path))
 
 
@@ -582,6 +582,50 @@ def synthesize_edge_tts(
 
     calibrated_rate = normalize_edge_rate(speed)
     print(f"[EdgeTTS] Speed input: {speed} -> Calibrated rate: {calibrated_rate}")
+
+    # Map voices and character presets (Thiha, Zaw, Wunna, Nilar)
+    v_norm = (voice or "").strip().lower()
+    actual_voice = "my-MM-ThihaNeural"
+    pitch_str = "+0Hz"
+    af_filters = []
+
+    if "nilar" in v_norm:
+        actual_voice = "my-MM-NilarNeural"
+        pitch_str = "+0Hz"
+    elif "zaw" in v_norm:
+        # Zaw (ဇော်) - Distinct Deep, Heavy, Mature Cinematic Movie Recap Voice
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "-18Hz"
+        # Audio acoustic morphing: -12% fundamental pitch drop & chest resonance boost
+        af_filters.extend([
+            "asetrate=24000*0.88",
+            "atempo=1.1364",
+            "equalizer=f=95:width_type=o:width=1.2:g=5.5",
+            "equalizer=f=260:width_type=o:width=1.5:g=-2.5",
+            "equalizer=f=2600:width_type=o:width=1.2:g=3.0",
+        ])
+    elif "wunna" in v_norm or "wun" in v_norm:
+        # Wunna (ဝဏ္ဏ) - Distinct Energetic, Youthful, Bright Viral Movie Recap Voice
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+22Hz"
+        # Audio acoustic morphing: +13% fundamental pitch rise & lively speech presence
+        af_filters.extend([
+            "asetrate=24000*1.13",
+            "atempo=0.8850",
+            "equalizer=f=160:width_type=o:width=1.2:g=-3.0",
+            "equalizer=f=1400:width_type=o:width=1.5:g=3.5",
+            "equalizer=f=3400:width_type=o:width=1.2:g=4.5",
+        ])
+    else:
+        # Default Thiha (သီဟ) - Natural Balanced Recap Tone
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+
+    silence_filter = "silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse"
+    if af_filters:
+        af_filter = f"{','.join(af_filters)},{silence_filter}"
+    else:
+        af_filter = silence_filter
 
     ffmpeg = find_ffmpeg()
     results = []
@@ -610,14 +654,14 @@ def synthesize_edge_tts(
         success = False
         for attempt in range(3):
             try:
-                asyncio.run(_edge_tts_save(clean, voice, calibrated_rate, mp3_path))
+                asyncio.run(_edge_tts_save(clean, actual_voice, calibrated_rate, mp3_path, pitch=pitch_str))
 
                 if mp3_path.is_file() and mp3_path.stat().st_size > 256:
-                    # Convert MP3 → WAV & remove awkward silence padding for tight, fast pacing
+                    # Convert MP3 → WAV & remove awkward silence padding for tight, fast pacing + apply voice character EQ
                     conv = subprocess.run(
                         [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
                          "-i", str(mp3_path),
-                         "-af", "silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse",
+                         "-af", af_filter,
                          "-ac", "1", "-ar", "24000",
                          "-c:a", "pcm_s16le", str(wav_path)],
                         capture_output=True, text=True,
@@ -1324,6 +1368,10 @@ def render_smart_sync_video(
     elif canvas_w != src_w or canvas_h != src_h:
         ratio_filter = f"scale={canvas_w}:{canvas_h}"
 
+    # Re-assign contiguous video boundaries across the exact active TTS results
+    src_total_dur = probe_duration(source_video)
+    tts_results = assign_midpoint_boundaries(tts_results, src_total_dur)
+
     # Step A: Render each video part retimed to its audio duration (Exact Git Sync)
     video_parts = []
     audio_parts = []
@@ -1336,7 +1384,7 @@ def render_smart_sync_video(
     for idx, seg in enumerate(tts_results, 1):
         v_start = float(seg.get("video_start", seg.get("start", 0.0)))
         v_end = float(seg.get("video_end", seg.get("end", v_start + 3.0)))
-        src_dur = max(0.1, v_end - v_start)
+        src_dur = max(0.05, v_end - v_start)
 
         audio_file = Path(seg.get("tts_audio", ""))
         if not audio_file.is_file():
@@ -1348,27 +1396,26 @@ def render_smart_sync_video(
 
         # Git EdgeSmartSync cumulative frame lock:
         # Each part gets round(audio_cursor * 30) - frames_done frames,
-        # ensuring absolute frame-perfect sync with zero micro-drift over many segments.
+        # ensuring absolute frame-perfect sync with zero micro-drift over hours of video.
         audio_cursor += audio_dur
         frame_count = max(1, int(round(audio_cursor * 30)) - frames_done)
         frames_done += frame_count
 
-        # Calculate applied speed factor (like Git EdgeSmartSync)
         applied = audio_dur / src_dur
         part_video = parts_dir / f"part_{idx:04d}.mp4"
 
-        # Retime video clip to match audio duration exactly with locked frame count
-        clip_vf = f"setpts={applied:.6f}*(PTS-STARTPTS),fps=30"
+        # Exact Git recap-en-to-mm filter chain & command:
+        clip_vf = f"trim=duration={src_dur:.6f},setpts={applied:.9f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=0.5"
         cmd_clip = [
             ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-            "-accurate_seek",
-            "-ss", f"{v_start:.4f}",
-            "-t", f"{src_dur:.4f}",
+            "-ss", f"{v_start:.6f}",
+            "-t", f"{src_dur:.6f}",
             "-i", str(source_video),
+            "-an",
             "-vf", clip_vf,
             "-frames:v", str(frame_count),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
-            "-an",
+            "-movflags", "+faststart",
             str(part_video),
         ]
         res = subprocess.run(cmd_clip, capture_output=True)
@@ -1559,8 +1606,14 @@ def render_smart_sync_video(
         *cmd_inputs,
         "-filter_complex", filter_complex,
         "-map", "[vout]", "-map", "[aout]",
+        "-r", "30",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-threads", "2",
+        "-pix_fmt", "yuv420p",
+        "-profile:v", "high",
+        "-level", "4.1",
         "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
+        "-max_muxing_queue_size", "1024",
         "-movflags", "+faststart",
         str(output_path),
     ]
@@ -2050,6 +2103,31 @@ async def get_status(job_id: str):
     return job
 
 
+@app.get("/api/oneclick/stream/{job_id}")
+async def stream_result(job_id: str):
+    """Stream the completed video directly for smooth in-browser playback on mobile & PC with HTTP Range support."""
+    job = _job_store.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+
+    if job.get("status") != "completed":
+        raise HTTPException(status_code=400, detail="Job is not completed yet.")
+
+    output_file = job.get("output_file")
+    if not output_file or not Path(output_file).is_file():
+        raise HTTPException(status_code=404, detail="Output file not found.")
+
+    return FileResponse(
+        output_file,
+        media_type="video/mp4",
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=7200",
+            "Content-Disposition": "inline",
+        },
+    )
+
+
 @app.get("/api/oneclick/download/{job_id}")
 async def download_result(job_id: str):
     """Download the completed video."""
@@ -2161,10 +2239,14 @@ async def list_voices():
     """List available Myanmar Edge TTS voices."""
     return {
         "voices": [
-            {"id": "my-MM-ThihaNeural", "name": "Thiha", "gender": "Male",
-             "description": "ယောက်ျားသံ — Movie recap narration ပုံစံ"},
-            {"id": "my-MM-NilarNeural", "name": "Nilar", "gender": "Female",
-             "description": "မိန်းမသံ — ညင်သာတဲ့ narration ပုံစံ"},
+            {"id": "my-MM-ThihaNeural", "name": "Thiha (သီဟ)", "gender": "Male",
+             "description": "ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ"},
+            {"id": "my-MM-ZawNeural", "name": "Zaw (ဇော်)", "gender": "Male",
+             "description": "တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic စတိုင်"},
+            {"id": "my-MM-WunnaNeural", "name": "Wunna (ဝဏ္ဏ)", "gender": "Male",
+             "description": "တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral စတိုင်"},
+            {"id": "my-MM-NilarNeural", "name": "Nilar (နီလာ)", "gender": "Female",
+             "description": "ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် narration ပုံစံ"},
         ],
         "speeds": [
             {"value": "-50%", "label": "Slow (0.5x)"},
@@ -2181,6 +2263,52 @@ async def list_voices():
             {"value": "1:1", "label": "Square (1:1)"},
         ],
     }
+
+
+@app.get("/api/oneclick/voice-sample/{voice_key}")
+async def get_voice_sample(voice_key: str):
+    """Return quick audio preview sample for Thiha, Zaw, Wunna, or Nilar."""
+    sample_dir = Path("/tmp/lumini_voice_samples")
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    v_norm = voice_key.lower()
+
+    if "zaw" in v_norm:
+        v_name = "zaw"
+    elif "wunna" in v_norm or "wun" in v_norm:
+        v_name = "wunna"
+    elif "nilar" in v_norm:
+        v_name = "nilar"
+    else:
+        v_name = "thiha"
+
+    sample_wav = sample_dir / f"sample_{v_name}.wav"
+    if not sample_wav.is_file():
+        import edge_tts
+        text = "ဒီနေ့မှာတော့ ကျွန်တော်တို့ ဇာတ်လမ်းလေးကို စတင်လိုက်ကြရအောင်"
+        mp3_tmp = sample_dir / f"tmp_{v_name}.mp3"
+        ffmpeg = find_ffmpeg()
+        if v_name == "nilar":
+            await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+15%").save(str(mp3_tmp))
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        elif v_name == "zaw":
+            af_zaw = "asetrate=24000*0.88,atempo=1.1364,equalizer=f=95:width_type=o:width=1.2:g=5.5,equalizer=f=260:width_type=o:width=1.5:g=-2.5,equalizer=f=2600:width_type=o:width=1.2:g=3.0"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%", pitch="-18Hz").save(str(mp3_tmp))
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_zaw, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        elif v_name == "wunna":
+            af_wunna = "asetrate=24000*1.13,atempo=0.8850,equalizer=f=160:width_type=o:width=1.2:g=-3.0,equalizer=f=1400:width_type=o:width=1.5:g=3.5,equalizer=f=3400:width_type=o:width=1.2:g=4.5"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+18%", pitch="+22Hz").save(str(mp3_tmp))
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_wunna, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        else:
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%").save(str(mp3_tmp))
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        mp3_tmp.unlink(missing_ok=True)
+
+    return FileResponse(
+        str(sample_wav),
+        media_type="audio/wav",
+        headers={"Content-Disposition": "inline", "Cache-Control": "public, max-age=86400"}
+    )
+
 
 
 # ─────────────────────────── Main ───────────────────────────

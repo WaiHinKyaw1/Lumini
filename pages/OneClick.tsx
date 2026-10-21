@@ -6,9 +6,11 @@ import {
   startOneClickJob,
   getOneClickJobStatus,
   getOneClickDownloadUrl,
+  getOneClickStreamUrl,
   getOneClickSrtDownloadUrl,
   getOneClickTranscript,
   fetchOneClickUrlVideo,
+  getOneClickVoiceSampleUrl,
   type OneClickVoice,
   type OneClickSpeed,
   type OneClickRatio,
@@ -33,6 +35,7 @@ import {
   Download,
   RotateCcw,
   FileText,
+  Volume2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -64,7 +67,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Settings
-  const [selectedVoice, setSelectedVoice] = useState('my-MM-NilarNeural');
+  const [selectedVoice, setSelectedVoice] = useState('my-MM-ThihaNeural');
   const [voiceMode, setVoiceMode] = useState<'preset' | 'custom-sample'>('preset');
   const [voiceSampleFile, setVoiceSampleFile] = useState<File | null>(null);
   const [voiceSampleUrl, setVoiceSampleUrl] = useState<string | null>(null);
@@ -239,8 +242,64 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
       if (voiceSampleUrl) URL.revokeObjectURL(voiceSampleUrl);
       if (logoUrl) URL.revokeObjectURL(logoUrl);
+      if (sampleAudioRef.current) {
+        sampleAudioRef.current.pause();
+        sampleAudioRef.current = null;
+      }
     };
   }, [filePreviewUrl, voiceSampleUrl, logoUrl]);
+
+  // Sample voice audio player
+  const [sampleAudioLoading, setSampleAudioLoading] = useState<string | null>(null);
+  const [sampleAudioPlaying, setSampleAudioPlaying] = useState<string | null>(null);
+  const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handlePlayVoiceSample = (e: React.MouseEvent, voiceId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (sampleAudioPlaying === voiceId) {
+      if (sampleAudioRef.current) {
+        sampleAudioRef.current.pause();
+      }
+      setSampleAudioPlaying(null);
+      return;
+    }
+
+    if (sampleAudioRef.current) {
+      sampleAudioRef.current.pause();
+      sampleAudioRef.current = null;
+    }
+
+    setSampleAudioLoading(voiceId);
+    try {
+      const audio = new Audio(getOneClickVoiceSampleUrl(voiceId));
+      sampleAudioRef.current = audio;
+
+      audio.onplay = () => {
+        setSampleAudioLoading(null);
+        setSampleAudioPlaying(voiceId);
+      };
+
+      audio.onended = () => {
+        setSampleAudioPlaying(null);
+      };
+
+      audio.onerror = () => {
+        setSampleAudioLoading(null);
+        setSampleAudioPlaying(null);
+        toast.error('အသံနမူနာ ဖွင့်မရသေးပါ — ခေတ္တစောင့်ပြီး ပြန်လည်စမ်းသပ်ပေးပါ');
+      };
+
+      audio.play().catch(() => {
+        setSampleAudioLoading(null);
+        setSampleAudioPlaying(null);
+      });
+    } catch {
+      setSampleAudioLoading(null);
+      setSampleAudioPlaying(null);
+    }
+  };
 
   const handleFileSelect = useCallback((selectedFile: File) => {
     const validExts = /\.(mp4|webm|avi|mov|mkv)$/i;
@@ -332,12 +391,22 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     }
   };
 
+  const seekRafRef = useRef<number | null>(null);
+
   const handlePreviewSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setPreviewCurrentTime(val);
-    if (previewVideoRef.current) {
-      previewVideoRef.current.currentTime = val;
-    }
+    if (seekRafRef.current) cancelAnimationFrame(seekRafRef.current);
+    seekRafRef.current = requestAnimationFrame(() => {
+      const v = previewVideoRef.current;
+      if (v) {
+        if ('fastSeek' in v && typeof (v as any).fastSeek === 'function') {
+          (v as any).fastSeek(val);
+        } else {
+          v.currentTime = val;
+        }
+      }
+    });
   };
 
   const formatTimeSimple = (sec: number): string => {
@@ -672,7 +741,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                   ref={videoPlayerRef}
                   controls
                   playsInline
-                  src={getOneClickDownloadUrl(jobId)}
+                  preload="metadata"
+                  src={getOneClickStreamUrl(jobId)}
                   className="w-full h-full object-contain"
                 />
               ) : null}
@@ -1230,27 +1300,42 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
               {voiceMode === 'preset' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {[
-                    { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ)', gender: 'Female', description: '' },
-                    { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: '' },
+                    { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ' },
+                    { id: 'my-MM-ZawNeural', name: 'Zaw (ဇော်)', gender: 'Male', description: 'တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic' },
+                    { id: 'my-MM-WunnaNeural', name: 'Wunna (ဝဏ္ဏ)', gender: 'Male', description: 'တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral' },
+                    { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ)', gender: 'Female', description: 'ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် စကားပြောစတိုင်' },
                   ].map((v) => (
-                    <button
+                    <div
                       key={v.id}
-                      type="button"
-                      onClick={() => setSelectedVoice(v.id)}
-                      disabled={isProcessing || isUploading}
-                      className={`p-3 rounded-2xl border text-left transition-all ${selectedVoice === v.id
+                      onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
                         ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
                         : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
                         }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-slate-900 dark:text-white">{v.name}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold">
-                          {v.gender}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => handlePlayVoiceSample(e, v.id)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all ${
+                              sampleAudioPlaying === v.id
+                                ? 'bg-indigo-600 text-white animate-pulse shadow-sm'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-zinc-700'
+                            }`}
+                            title="နမူနာအသံ နားထောင်မည်"
+                          >
+                            <Volume2 className="w-3 h-3" />
+                            <span>{sampleAudioPlaying === v.id ? 'ရပ်မည်' : sampleAudioLoading === v.id ? '...' : 'နားထောင်'}</span>
+                          </button>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold">
+                            {v.gender}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-snug">{v.description}</p>
-                    </button>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -1442,6 +1527,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                       <video
                         ref={previewVideoRef}
                         src={filePreviewUrl}
+                        preload="metadata"
                         onTimeUpdate={handleTimeUpdate}
                         onLoadedMetadata={() => {
                           const v = previewVideoRef.current;
@@ -1492,6 +1578,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                       <video
                         ref={previewVideoRef}
                         src={videoUrl.trim()}
+                        preload="metadata"
                         controls
                         playsInline
                         className="w-full h-full object-contain"
@@ -1514,6 +1601,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                         style={{
                           top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
                           height: `${blurThickness}%`,
+                          transform: 'translateZ(0)',
                         }}
                         onPointerDown={(e) => handlePointerDown('blur-move', e)}
                         className={`absolute left-0 right-0 z-10 flex flex-col items-center justify-center overflow-visible border-y-2 border-amber-400/80 shadow-2xl transition-shadow ${activeDrag === 'blur-move' ? 'cursor-grabbing ring-2 ring-amber-400' : 'cursor-grab hover:border-amber-300'
@@ -1535,6 +1623,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                             backdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
                             WebkitBackdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
                             backgroundColor: `rgba(0, 0, 0, ${Math.min(0.78, Math.max(0.40, (blurIntensity / 100) * 0.85))})`,
+                            transform: 'translateZ(0)',
+                            willChange: 'transform',
                           }}
                           className="absolute inset-0 pointer-events-none"
                         />

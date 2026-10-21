@@ -123,6 +123,13 @@ app.all('/api/oneclick/*', async (request, reply) => {
         }
       );
 
+      // Cleanly abort upstream request if browser cancels/seeks video range
+      request.raw.on('close', () => {
+        try {
+          proxyReq.destroy();
+        } catch { }
+      });
+
       proxyReq.on('error', (err) => {
         if (!reply.raw.headersSent) {
           reply.code(502).send({
