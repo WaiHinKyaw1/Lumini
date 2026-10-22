@@ -101,11 +101,13 @@ app.post('/api/voxcpm/synthesize', async (request, reply) => {
 const ONECLICK_INTERNAL_URL = process.env.ONECLICK_INTERNAL_URL || 'http://172.17.0.1:8090';
 
 app.all('/api/oneclick/*', async (request, reply) => {
+  reply.hijack();
   return new Promise((resolve) => {
     try {
       const targetUrl = new URL(request.raw.url, ONECLICK_INTERNAL_URL);
       const reqHeaders = { ...request.raw.headers };
       delete reqHeaders['host'];
+      delete reqHeaders['expect'];
       reqHeaders['host'] = targetUrl.host;
 
       const proxyReq = http.request(
@@ -132,12 +134,13 @@ app.all('/api/oneclick/*', async (request, reply) => {
 
       proxyReq.on('error', (err) => {
         if (!reply.raw.headersSent) {
-          reply.code(502).send({
+          reply.raw.writeHead(502, { 'Content-Type': 'application/json' });
+          reply.raw.end(JSON.stringify({
             online: false,
             ready: false,
             service: 'OneClick Recap EN→MM',
             error: `OneClick Service Unavailable: ${err.message}`,
-          });
+          }));
         }
         resolve();
       });
@@ -145,7 +148,8 @@ app.all('/api/oneclick/*', async (request, reply) => {
       request.raw.pipe(proxyReq);
     } catch (err) {
       if (!reply.raw.headersSent) {
-        reply.code(500).send({ error: err.message });
+        reply.raw.writeHead(500, { 'Content-Type': 'application/json' });
+        reply.raw.end(JSON.stringify({ error: err.message }));
       }
       resolve();
     }
