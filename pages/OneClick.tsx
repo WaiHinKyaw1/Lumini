@@ -1347,11 +1347,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           <button
                             type="button"
                             onClick={(e) => handlePlayVoiceSample(e, v.id)}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all ${
-                              sampleAudioPlaying === v.id
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all ${sampleAudioPlaying === v.id
                                 ? 'bg-indigo-600 text-white animate-pulse shadow-sm'
                                 : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-zinc-700'
-                            }`}
+                              }`}
                             title="နမူနာအသံ နားထောင်မည်"
                           >
                             <Volume2 className="w-3 h-3" />
@@ -1782,7 +1781,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                         </>
                       ) : isProcessing ? (
                         <>
-                          <LoadingSpinner size="sm" showLabel={false} />
                           {STEP_LABELS[jobStatus?.step || ''] || jobStatus?.message || 'Processing on AWS...'}
                         </>
                       ) : (
