@@ -284,6 +284,11 @@ def segment_for_narration(segments: list[dict], max_chunk_sec: float = 3.0, hard
             current_end = float(seg["end"])
             continue
 
+        # Prevent repetitive hallucination loops (identical repeated text)
+        if current_text and seg_text.lower() == current_text.lower():
+            current_end = float(seg["end"])
+            continue
+
         gap = float(seg["start"]) - current_end
         combined_dur = float(seg["end"]) - current_start
 
@@ -398,13 +403,27 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
 
                 translations = json.loads(json_match.group())
 
+                batch_translated = []
                 for t in translations:
-                    idx = int(t["id"]) - 1
+                    raw_id = int(t.get("id", 0))
+                    # Support both absolute ID (e.g. batch_start + 1..) and 1-based relative ID (1..len(batch))
+                    if raw_id >= (batch_start + 1) and (raw_id - 1) < batch_end:
+                        idx = raw_id - 1
+                    elif 1 <= raw_id <= len(batch):
+                        idx = batch_start + raw_id - 1
+                    else:
+                        idx = raw_id - 1
+
                     if 0 <= idx < len(chunks):
-                        translated_chunks.append({
+                        batch_translated.append({
                             **chunks[idx],
-                            "narration": t["mm"],
+                            "narration": t.get("mm", "").strip(),
                         })
+
+                # Deduplicate entries by timestamp
+                for bt in batch_translated:
+                    if not any(tc["start"] == bt["start"] for tc in translated_chunks):
+                        translated_chunks.append(bt)
                 last_error = None
                 break
             except Exception as e:
@@ -594,27 +613,23 @@ def synthesize_edge_tts(
         pitch_str = "+0Hz"
     elif "zaw" in v_norm:
         # Zaw (ဇော်) - Distinct Deep, Heavy, Mature Cinematic Movie Recap Voice
+        # Uses native neural pitch reduction (-14Hz) + warm chest resonance EQ (no metallic asetrate)
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "-18Hz"
-        # Audio acoustic morphing: -12% fundamental pitch drop & chest resonance boost
+        pitch_str = "-14Hz"
         af_filters.extend([
-            "asetrate=24000*0.88",
-            "atempo=1.1364",
-            "equalizer=f=95:width_type=o:width=1.2:g=5.5",
-            "equalizer=f=260:width_type=o:width=1.5:g=-2.5",
-            "equalizer=f=2600:width_type=o:width=1.2:g=3.0",
+            "equalizer=f=120:width_type=o:width=1.2:g=3.5",
+            "equalizer=f=260:width_type=o:width=1.5:g=-1.5",
+            "equalizer=f=2400:width_type=o:width=1.2:g=2.0",
         ])
     elif "wunna" in v_norm or "wun" in v_norm:
         # Wunna (ဝဏ္ဏ) - Distinct Energetic, Youthful, Bright Viral Movie Recap Voice
+        # Uses native neural pitch rise (+14Hz) + lively presence EQ (no metallic asetrate)
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "+22Hz"
-        # Audio acoustic morphing: +13% fundamental pitch rise & lively speech presence
+        pitch_str = "+14Hz"
         af_filters.extend([
-            "asetrate=24000*1.13",
-            "atempo=0.8850",
-            "equalizer=f=160:width_type=o:width=1.2:g=-3.0",
-            "equalizer=f=1400:width_type=o:width=1.5:g=3.5",
-            "equalizer=f=3400:width_type=o:width=1.2:g=4.5",
+            "equalizer=f=160:width_type=o:width=1.2:g=-2.0",
+            "equalizer=f=1200:width_type=o:width=1.5:g=2.5",
+            "equalizer=f=3200:width_type=o:width=1.2:g=3.0",
         ])
     else:
         # Default Thiha (သီဟ) - Natural Balanced Recap Tone
@@ -1404,15 +1419,17 @@ def render_smart_sync_video(
         applied = audio_dur / src_dur
         part_video = parts_dir / f"part_{idx:04d}.mp4"
 
-        # Exact Git recap-en-to-mm filter chain & command:
-        clip_vf = f"trim=duration={src_dur:.6f},setpts={applied:.9f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=0.5"
+        # Frame-accurate clip extraction and retiming to audio:
+        # -ss before -i with -accurate_seek seeks to exact timestamp without keyframe truncation
+        # -t as output option ensures exactly src_dur seconds from v_start are decoded
         cmd_clip = [
             ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
             "-ss", f"{v_start:.6f}",
-            "-t", f"{src_dur:.6f}",
+            "-accurate_seek",
             "-i", str(source_video),
+            "-t", f"{src_dur:.6f}",
             "-an",
-            "-vf", clip_vf,
+            "-vf", f"setpts={applied:.9f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=1.0",
             "-frames:v", str(frame_count),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
             "-movflags", "+faststart",
@@ -2284,19 +2301,19 @@ async def get_voice_sample(voice_key: str):
     sample_wav = sample_dir / f"sample_{v_name}.wav"
     if not sample_wav.is_file():
         import edge_tts
-        text = "ဒီနေ့မှာတော့ ကျွန်တော်တို့ ဇာတ်လမ်းလေးကို စတင်လိုက်ကြရအောင်"
+        text = "ကိုယ့်ရဲ့စိတ်ထဲမှာ ခံစားချက်တစ်ခုရှိနေပြီဆိုရင် အဲ့ဒီခံစားချက်ကို စာအဖြစ်ပြောင်းပြီးတော့ မျှဝေလိုက်ပါ"
         mp3_tmp = sample_dir / f"tmp_{v_name}.mp3"
         ffmpeg = find_ffmpeg()
         if v_name == "nilar":
             await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+15%").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         elif v_name == "zaw":
-            af_zaw = "asetrate=24000*0.88,atempo=1.1364,equalizer=f=95:width_type=o:width=1.2:g=5.5,equalizer=f=260:width_type=o:width=1.5:g=-2.5,equalizer=f=2600:width_type=o:width=1.2:g=3.0"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%", pitch="-18Hz").save(str(mp3_tmp))
+            af_zaw = "equalizer=f=120:width_type=o:width=1.2:g=3.5,equalizer=f=260:width_type=o:width=1.5:g=-1.5,equalizer=f=2400:width_type=o:width=1.2:g=2.0"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+12%", pitch="-14Hz").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_zaw, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         elif v_name == "wunna":
-            af_wunna = "asetrate=24000*1.13,atempo=0.8850,equalizer=f=160:width_type=o:width=1.2:g=-3.0,equalizer=f=1400:width_type=o:width=1.5:g=3.5,equalizer=f=3400:width_type=o:width=1.2:g=4.5"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+18%", pitch="+22Hz").save(str(mp3_tmp))
+            af_wunna = "equalizer=f=160:width_type=o:width=1.2:g=-2.0,equalizer=f=1200:width_type=o:width=1.5:g=2.5,equalizer=f=3200:width_type=o:width=1.2:g=3.0"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+18%", pitch="+14Hz").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_wunna, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         else:
             await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%").save(str(mp3_tmp))

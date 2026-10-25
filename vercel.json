@@ -3,6 +3,10 @@
     {
       "source": "/worker/:path*",
       "destination": "http://16.170.108.153:8080/:path*"
+    },
+    {
+      "source": "/api/oneclick/:path*",
+      "destination": "http://16.170.108.153:8080/api/oneclick/:path*"
     }
   ],
   "headers": [

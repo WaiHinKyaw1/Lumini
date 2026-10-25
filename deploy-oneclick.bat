@@ -18,8 +18,7 @@ ssh -i "%KEY_PATH%" -o StrictHostKeyChecking=no %SERVER% "sudo apt-get update -q
 echo.
 
 echo [3/5] Setting up OneClick service directory and venv...
-ssh -i "%KEY_PATH%" -o StrictHostKeyChecking=no %SERVER% "sudo mkdir -p /opt/lumini-oneclick && sudo cp /tmp/oneclick_service.py /opt/lumini-oneclick/ && sudo cp /tmp/oneclick_requirements.txt /opt/lumini-oneclick/ && cd /opt/lumini-oneclick && sudo python3 -
- venv venv 2>/dev/null; sudo /opt/lumini-oneclick/venv/bin/pip install --upgrade pip && sudo /opt/lumini-oneclick/venv/bin/pip install -r oneclick_requirements.txt"
+ssh -i "%KEY_PATH%" -o StrictHostKeyChecking=no %SERVER% "sudo mkdir -p /opt/lumini-oneclick && sudo cp /tmp/oneclick_service.py /opt/lumini-oneclick/ && sudo cp /tmp/oneclick_requirements.txt /opt/lumini-oneclick/ && cd /opt/lumini-oneclick && sudo python3 -m venv venv 2>/dev/null; sudo /opt/lumini-oneclick/venv/bin/pip install --upgrade pip && sudo /opt/lumini-oneclick/venv/bin/pip install -r oneclick_requirements.txt"
 echo.
 
 echo [4/5] Creating systemd service for auto-start...

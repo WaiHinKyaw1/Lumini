@@ -6,6 +6,14 @@
  */
 
 const getBaseUrl = (): string => {
+  // If running in browser over HTTPS (e.g. Vercel deployment)
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    const dedicated = import.meta.env.VITE_ONECLICK_URL || '';
+    if (dedicated.startsWith('https://')) return dedicated.replace(/\/$/, '');
+    // When backend is HTTP IP, route through same-origin rewrite to avoid Mixed Content block:
+    return '';
+  }
+
   const dedicated = import.meta.env.VITE_ONECLICK_URL;
   if (dedicated) return dedicated.replace(/\/$/, '');
 

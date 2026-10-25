@@ -510,9 +510,20 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   };
 
   const handleStart = async () => {
-    if (inputMode === 'upload' && !file) {
-      setError('ဗီဒီယိုဖိုင် ရွေးချယ်ပေးပါ');
-      return;
+    if (inputMode === 'upload') {
+      if (!file) {
+        setError('ဗီဒီယိုဖိုင် ရွေးချယ်ပေးပါ');
+        return;
+      }
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      const hasDirectHttps = (import.meta.env.VITE_ONECLICK_URL || '').startsWith('https://');
+      if (isHttps && !hasDirectHttps && file.size > 4.5 * 1024 * 1024) {
+        const mb = (file.size / (1024 * 1024)).toFixed(1);
+        const limitMsg = `Vercel serverless proxy ကန့်သတ်ချက် (4.5MB) ကြောင့် ${mb}MB ရှိသောဖိုင်ကို တိုက်ရိုက် Upload မတင်နိုင်ပါ။ အပေါ်ရှိ "YouTube / TikTok Link" Mode ကို အသုံးပြုပါ (သို့မဟုတ်) local တွင် run ပေးပါ။`;
+        setError(limitMsg);
+        toast.error('Vercel 4.5MB Limit: YouTube/TikTok Link mode ကို အသုံးပြုပေးပါ');
+        return;
+      }
     }
     if (inputMode === 'url' && !videoUrl.trim() && !downloadedTempId) {
       setError('YouTube သို့မဟုတ် TikTok Link ထည့်သွင်းပေးပါ');
