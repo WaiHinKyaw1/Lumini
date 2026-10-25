@@ -6,21 +6,13 @@
  */
 
 const getBaseUrl = (): string => {
-  // If running in browser over HTTPS (e.g. Vercel deployment)
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    const dedicated = import.meta.env.VITE_ONECLICK_URL || '';
-    if (dedicated.startsWith('https://')) return dedicated.replace(/\/$/, '');
-    // When backend is HTTP IP, route through same-origin rewrite to avoid Mixed Content block:
-    return '';
-  }
-
   const dedicated = import.meta.env.VITE_ONECLICK_URL;
   if (dedicated) return dedicated.replace(/\/$/, '');
 
   const mediaWorker = import.meta.env.VITE_MEDIA_WORKER_URL || '';
   if (mediaWorker) return mediaWorker.replace(/\/$/, '');
 
-  return 'http://localhost:8080';
+  return 'http://16.170.108.153:8080';
 };
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -90,24 +82,85 @@ export interface OneClickTranscript {
  * Check if the OneClick service is online and all dependencies are ready.
  */
 export async function checkOneClickHealth(): Promise<OneClickHealthResponse> {
-  const res = await fetch(`${getBaseUrl()}/api/oneclick/health`, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' },
-  });
-  if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
-  return res.json();
+  const urlsToTry: string[] = [];
+  const primary = getBaseUrl();
+  if (primary) urlsToTry.push(`${primary}/api/oneclick/health`);
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    urlsToTry.push('/api/oneclick/health');
+    urlsToTry.push('/worker/api/oneclick/health');
+  }
+
+  let lastError: any = null;
+  for (const url of urlsToTry) {
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        const text = await res.text();
+        const data = JSON.parse(text);
+        if (data && typeof data === 'object' && data.online !== undefined) {
+          return data as OneClickHealthResponse;
+        }
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  throw new Error(lastError?.message || 'Health check failed: Worker Offline');
 }
 
 /**
  * Get available voices, speeds, and aspect ratios.
  */
 export async function getOneClickVoices(): Promise<OneClickVoicesResponse> {
-  const res = await fetch(`${getBaseUrl()}/api/oneclick/voices`, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' },
-  });
-  if (!res.ok) throw new Error(`Failed to fetch voices: ${res.status}`);
-  return res.json();
+  const urlsToTry: string[] = [];
+  const primary = getBaseUrl();
+  if (primary) urlsToTry.push(`${primary}/api/oneclick/voices`);
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    urlsToTry.push('/api/oneclick/voices');
+    urlsToTry.push('/worker/api/oneclick/voices');
+  }
+
+  for (const url of urlsToTry) {
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        const text = await res.text();
+        const data = JSON.parse(text);
+        if (data && Array.isArray(data.voices)) {
+          return data as OneClickVoicesResponse;
+        }
+      }
+    } catch { }
+  }
+
+  return {
+    voices: [
+      { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ' },
+      { id: 'my-MM-ZawNeural', name: 'Zaw (ဇော်)', gender: 'Male', description: 'တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic' },
+      { id: 'my-MM-WunnaNeural', name: 'Wunna (ဝဏ္ဏ)', gender: 'Male', description: 'တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral' },
+      { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ)', gender: 'Female', description: 'ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် စကားပြောစတိုင်' },
+    ],
+    speeds: [
+      { value: '-50%', label: 'Slow (0.5x)' },
+      { value: '-25%', label: 'Slightly Slow (0.75x)' },
+      { value: '+0%', label: 'Normal (1x)' },
+      { value: '+25%', label: 'Slightly Fast (1.25x)' },
+      { value: '+50%', label: 'Fast (1.5x)' },
+    ],
+    ratios: [
+      { value: 'original', label: 'Original' },
+      { value: '16:9', label: 'Landscape (16:9)' },
+      { value: '9:16', label: 'Portrait (9:16)' },
+      { value: '1:1', label: 'Square (1:1)' },
+    ],
+  };
 }
 
 export interface OneClickJobOptions {

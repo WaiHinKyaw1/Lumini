@@ -34,6 +34,7 @@ import {
   ExternalLink,
   Download,
   RotateCcw,
+  RefreshCw,
   FileText,
   Volume2,
 } from 'lucide-react';
@@ -217,23 +218,33 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   // Determine if video source has been provided
   const hasVideo = (inputMode === 'url' && (Boolean(downloadedTempId) || Boolean(videoUrl.trim()))) || (inputMode === 'upload' && Boolean(file));
 
-  // Load server status
-  useEffect(() => {
-    const init = async () => {
-      setIsCheckingServer(true);
-      try {
-        const [health] = await Promise.all([
-          checkOneClickHealth().catch(() => null),
-          getOneClickVoices().catch(() => null),
-        ]);
-        setServerStatus(health);
-      } catch {
-        setServerStatus(null);
+  // Load and monitor server status
+  const checkServer = useCallback(async (silent = false) => {
+    if (!silent) setIsCheckingServer(true);
+    try {
+      const [health] = await Promise.all([
+        checkOneClickHealth().catch(() => null),
+        getOneClickVoices().catch(() => null),
+      ]);
+      setServerStatus(health);
+      if (!silent && health?.online) {
+        toast.success('AWS EC2 Worker Online!');
       }
-      setIsCheckingServer(false);
-    };
-    init();
+    } catch {
+      setServerStatus(null);
+    } finally {
+      if (!silent) setIsCheckingServer(false);
+    }
   }, []);
+
+  useEffect(() => {
+    checkServer();
+    // Auto-poll every 8 seconds if worker is offline or restarting
+    const interval = setInterval(() => {
+      checkServer(true);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [checkServer]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -652,13 +663,19 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
             </p>
           </div>
 
-          {/* Server Status Pill */}
-          <div className="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/60">
+          {/* Server Status Pill (Click to re-check) */}
+          <button
+            type="button"
+            onClick={() => checkServer(false)}
+            title="Click to re-check worker status"
+            className="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800/90 transition-colors cursor-pointer group"
+          >
             <span className={`w-2 h-2 rounded-full ${serverStatus?.online ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
             <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
               {isCheckingServer ? 'Checking Server...' : serverStatus?.online ? 'AWS EC2 Python Worker Online' : 'Worker Offline'}
             </span>
-          </div>
+            <RefreshCw className={`w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-zinc-200 transition-transform ${isCheckingServer ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         {/* MODE SELECTOR TABS: Upload UI (Movie Recap Style) vs URL Mode */}
