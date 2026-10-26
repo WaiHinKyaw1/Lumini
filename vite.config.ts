@@ -8,6 +8,21 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/api/oneclick': {
+            target: 'http://16.170.108.153:8080',
+            changeOrigin: true,
+          },
+          '/api/media': {
+            target: 'http://16.170.108.153:8080',
+            changeOrigin: true,
+          },
+          '/worker': {
+            target: 'http://16.170.108.153:8080',
+            changeOrigin: true,
+            rewrite: (p) => p.replace(/^\/worker/, ''),
+          },
+        },
       },
       plugins: [react()],
       define: {

@@ -5,7 +5,11 @@
  * Handles: upload, status polling, download, cleanup.
  */
 
+let activeOneClickUrl: string | null = null;
+
 const getBaseUrl = (): string => {
+  if (activeOneClickUrl !== null) return activeOneClickUrl;
+
   const dedicated = import.meta.env.VITE_ONECLICK_URL;
   if (dedicated) return dedicated.replace(/\/$/, '');
 
@@ -85,9 +89,10 @@ export async function checkOneClickHealth(): Promise<OneClickHealthResponse> {
   const urlsToTry: string[] = [];
   const primary = getBaseUrl();
   if (primary) urlsToTry.push(`${primary}/api/oneclick/health`);
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    urlsToTry.push('/api/oneclick/health');
-    urlsToTry.push('/worker/api/oneclick/health');
+  urlsToTry.push('/api/oneclick/health');
+  urlsToTry.push('/worker/api/oneclick/health');
+  if (primary !== 'http://16.170.108.153:8080') {
+    urlsToTry.push('http://16.170.108.153:8080/api/oneclick/health');
   }
 
   let lastError: any = null;
@@ -101,6 +106,7 @@ export async function checkOneClickHealth(): Promise<OneClickHealthResponse> {
         const text = await res.text();
         const data = JSON.parse(text);
         if (data && typeof data === 'object' && data.online !== undefined) {
+          activeOneClickUrl = url.replace(/\/api\/oneclick\/health$/, '');
           return data as OneClickHealthResponse;
         }
       }
@@ -119,9 +125,10 @@ export async function getOneClickVoices(): Promise<OneClickVoicesResponse> {
   const urlsToTry: string[] = [];
   const primary = getBaseUrl();
   if (primary) urlsToTry.push(`${primary}/api/oneclick/voices`);
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    urlsToTry.push('/api/oneclick/voices');
-    urlsToTry.push('/worker/api/oneclick/voices');
+  urlsToTry.push('/api/oneclick/voices');
+  urlsToTry.push('/worker/api/oneclick/voices');
+  if (primary !== 'http://16.170.108.153:8080') {
+    urlsToTry.push('http://16.170.108.153:8080/api/oneclick/voices');
   }
 
   for (const url of urlsToTry) {
@@ -134,6 +141,7 @@ export async function getOneClickVoices(): Promise<OneClickVoicesResponse> {
         const text = await res.text();
         const data = JSON.parse(text);
         if (data && Array.isArray(data.voices)) {
+          activeOneClickUrl = url.replace(/\/api\/oneclick\/voices$/, '');
           return data as OneClickVoicesResponse;
         }
       }

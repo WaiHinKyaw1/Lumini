@@ -110,6 +110,21 @@ const ONECLICK_INTERNAL_URL = process.env.ONECLICK_INTERNAL_URL || 'http://172.1
 
 app.all('/api/oneclick/*', async (request, reply) => {
   reply.hijack();
+  const origin = request.raw.headers['origin'] || '*';
+
+  // Handle CORS Preflight (OPTIONS)
+  if (request.raw.method === 'OPTIONS') {
+    reply.raw.writeHead(204, {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Max-Age': '86400',
+    });
+    reply.raw.end();
+    return;
+  }
+
   return new Promise((resolve) => {
     try {
       const targetUrl = new URL(request.raw.url, ONECLICK_INTERNAL_URL);
@@ -127,14 +142,19 @@ app.all('/api/oneclick/*', async (request, reply) => {
           headers: reqHeaders,
         },
         (proxyRes) => {
-          reply.raw.writeHead(proxyRes.statusCode, proxyRes.headers);
+          const resHeaders = { ...proxyRes.headers };
+          resHeaders['access-control-allow-origin'] = origin;
+          resHeaders['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD';
+          resHeaders['access-control-allow-headers'] = '*';
+          resHeaders['access-control-allow-credentials'] = 'true';
+          reply.raw.writeHead(proxyRes.statusCode, resHeaders);
           proxyRes.pipe(reply.raw);
           proxyRes.on('end', () => resolve());
         }
       );
 
-      // Cleanly abort upstream request if browser cancels/seeks video range
-      request.raw.on('close', () => {
+      // Cleanly abort upstream request ONLY if client prematurely aborted
+      request.raw.on('aborted', () => {
         try {
           proxyReq.destroy();
         } catch { }
@@ -142,7 +162,13 @@ app.all('/api/oneclick/*', async (request, reply) => {
 
       proxyReq.on('error', (err) => {
         if (!reply.raw.headersSent) {
-          reply.raw.writeHead(502, { 'Content-Type': 'application/json' });
+          reply.raw.writeHead(502, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Allow-Credentials': 'true',
+          });
           reply.raw.end(JSON.stringify({
             online: false,
             ready: false,
@@ -153,10 +179,19 @@ app.all('/api/oneclick/*', async (request, reply) => {
         resolve();
       });
 
-      request.raw.pipe(proxyReq);
+      if (['GET', 'HEAD'].includes(request.raw.method?.toUpperCase())) {
+        proxyReq.end();
+      } else if (request.raw.readable) {
+        request.raw.pipe(proxyReq);
+      } else {
+        proxyReq.end();
+      }
     } catch (err) {
       if (!reply.raw.headersSent) {
-        reply.raw.writeHead(500, { 'Content-Type': 'application/json' });
+        reply.raw.writeHead(500, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': origin,
+        });
         reply.raw.end(JSON.stringify({ error: err.message }));
       }
       resolve();
