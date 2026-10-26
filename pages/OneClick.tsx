@@ -658,9 +658,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
               One Click English-to-Myanmar Recap
             </h1>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-              English ဗီဒီယိုတင်ရုံဖြင့် အင်္ဂလိပ်စာတန်းကို Frosted Blur ဖျောက်ပြီး မြန်မာအသံ၊ စာတန်းထိုးနှင့် Logo ကို 1-Click အလိုအလျောက် ပေါင်းစပ်ထုတ်လုပ်ပေးပါသည်။
-            </p>
           </div>
 
           {/* Server Status Pill (Click to re-check) */}
@@ -1024,7 +1021,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                 <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">မြန်မာစာတန်းထိုးမည်</p>
-                    <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">Akkhayar21 အဝါရောင် ရုပ်ရှင်စံနှုန်း</p>
+
                   </div>
                   <button
                     type="button"
@@ -1038,7 +1035,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                 <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-100 dark:border-zinc-800 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">မူရင်းအသံ ပိတ်မည် (Clean Audio)</p>
-                    <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">အင်္ဂလိပ်စကားသံ လုံးဝမပါစေရန်</p>
+
                   </div>
                   <button
                     type="button"
@@ -1270,13 +1267,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           ))}
                         </div>
                       </div>
-
-                      <div className="p-3 rounded-xl bg-white/80 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-[11px] text-slate-600 dark:text-zinc-300 flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <span>💡</span>
-                          <span>Logo ကို <strong>Preview ဗီဒီယိုပေါ်တွင် ဘယ်/ညာ/အပေါ်/အောက် ကြိုက်ရာသို့ ဆွဲရွှေ့နိုင်ပြီး ထောင့်စွန်း (⤡) မှ ဆွဲ၍လည်း ဆိုဒ်ချိန်နိုင်ပါသည်</strong></span>
-                        </span>
-                      </div>
                     </div>
                   )}
 
@@ -1348,8 +1338,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                             type="button"
                             onClick={(e) => handlePlayVoiceSample(e, v.id)}
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all ${sampleAudioPlaying === v.id
-                                ? 'bg-indigo-600 text-white animate-pulse shadow-sm'
-                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-zinc-700'
+                              ? 'bg-indigo-600 text-white animate-pulse shadow-sm'
+                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-zinc-700'
                               }`}
                             title="နမူနာအသံ နားထောင်မည်"
                           >
