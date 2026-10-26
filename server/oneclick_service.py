@@ -1442,171 +1442,110 @@ def render_smart_sync_video(
     if not active_tts:
         raise RuntimeError("No synchronized speech clips available for render.")
 
-    # Step 1: Concatenate Audio into Master PCM WAV Track
-    audio_concat_txt = job_dir / "audio_concat.txt"
-    audio_lines = [f"file '{str(Path(s['tts_audio']).resolve()).replace('\\', '/').replace('\'', '\'\\\'\'')}'" for s in active_tts]
-    audio_concat_txt.write_text("\n".join(audio_lines) + "\n", encoding="utf-8")
+    # Step 1: Probe source video duration
+    vTotal = max(0.1, probe_duration(source_video))
+    render_dir = job_dir / "render"
+    render_dir.mkdir(parents=True, exist_ok=True)
+    dub_dir = render_dir / "dubbed_parts"
+    dub_dir.mkdir(parents=True, exist_ok=True)
 
+    # Step 2: Schedule each speech clip at its scene timestamp (TeamAlpha style: Zero hard cuts)
+    N = len(active_tts)
+    scheduled = []
+    curr_time = 0.0
+
+    update_job(job_id, progress=82, message="Synchronizing audio timeline and scene cues...")
+
+    for i in range(N):
+        seg = active_tts[i]
+        orig_start = float(seg.get("start", curr_time))
+        next_start = float(active_tts[i + 1].get("start", vTotal)) if i < N - 1 else vTotal
+
+        # Available time window before next scene speech
+        avail_window = max(0.8, next_start - orig_start - 0.10)
+        dur = float(seg.get("tts_duration", 0.0))
+        if dur <= 0:
+            dur = probe_duration(Path(seg["tts_audio"]))
+
+        adjusted_wav = Path(seg["tts_audio"])
+        if dur > avail_window:
+            speedup = min(1.35, dur / avail_window)
+            if speedup > 1.05:
+                fast_wav = dub_dir / f"fast_{i+1:04d}.wav"
+                cmd_speed = [
+                    ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", str(adjusted_wav),
+                    "-filter:a", f"atempo={speedup:.4f}",
+                    "-ac", "1", "-ar", "24000",
+                    str(fast_wav),
+                ]
+                res = subprocess.run(cmd_speed)
+                if res.returncode == 0 and fast_wav.is_file():
+                    adjusted_wav = fast_wav
+                    dur = dur / speedup
+
+        play_start = max(curr_time, orig_start)
+        play_end = play_start + dur
+        curr_time = play_end + 0.08
+
+        scheduled.append({
+            **seg,
+            "play_start": round(play_start, 3),
+            "play_end": round(play_end, 3),
+            "wav": str(adjusted_wav),
+            "dur": round(dur, 3),
+            "sub_start": round(play_start, 3),
+            "sub_end": round(play_end, 3),
+        })
+
+    subtitles_timing = scheduled
+
+    # Step 3: Build Master Voice Track with exact silence gaps
+    audio_concat_txt = dub_dir / "dub_concat.txt"
+    lines = []
+    curr_cursor = 0.0
+
+    for i, item in enumerate(scheduled):
+        gap = item["play_start"] - curr_cursor
+        if gap > 0.02:
+            gap_wav = dub_dir / f"gap_{i:04d}.wav"
+            subprocess.run(
+                [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                 "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
+                 "-t", f"{gap:.4f}", "-c:a", "pcm_s16le", str(gap_wav)],
+                check=True
+            )
+            lines.append(f"file '{str(gap_wav.resolve()).replace('\\', '/').replace('\'', '\'\\\'\'')}'")
+            curr_cursor += gap
+
+        lines.append(f"file '{str(Path(item['wav']).resolve()).replace('\\', '/').replace('\'', '\'\\\'\'')}'")
+        curr_cursor += item["dur"]
+
+    audio_concat_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
     full_audio = job_dir / "master_audio.wav"
     subprocess.run(
         [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
          "-f", "concat", "-safe", "0", "-i", str(audio_concat_txt),
          "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(full_audio)],
-        capture_output=True, check=True
+        check=True
     )
-    aTotal = max(0.1, probe_duration(full_audio))
-    total_narration_frames = max(1, int(round(aTotal * 30.0)))
+    voice_dur = max(0.1, probe_duration(full_audio))
 
-    # Step 2: Establish Frame-Perfect Subtitle Timing matching Master Audio
-    subtitles_timing = []
-    cum_timeline = 0.0
-    for seg in active_tts:
-        dur = float(seg["tts_duration"])
-        subtitles_timing.append({
-            **seg,
-            "sub_start": round(cum_timeline, 3),
-            "sub_end": round(cum_timeline + dur, 3),
-        })
-        cum_timeline += dur
-
-    # Generate ASS & SRT
+    # Step 4: Generate Subtitles locked to speech timestamps
     ass_path = job_dir / "burmese_subtitles.ass"
     b_pos = float(blur_position) if str(blur_position).replace('.', '', 1).isdigit() else 78.0
     generate_burmese_ass(subtitles_timing, ass_path, canvas_w, canvas_h, blur_enabled=enable_blur, blur_position=b_pos, subtitle_style=subtitle_style, hook_title=hook_title)
     srt_path = job_dir / "burmese_subtitles.srt"
     generate_burmese_srt(subtitles_timing, srt_path)
 
-    # Step 3: Professional Recap Smart Sync Timeline Mapping (Matching MovieRecap & index.mjs)
-    # 1. Probe source video duration and extract active non-silent movie intervals
-    vTotal = max(0.1, probe_duration(source_video))
-    try:
-        silences = detect_silence_intervals(source_video)
-        active_intervals = get_active_video_intervals(vTotal, silences)
-        total_active_dur = max(0.1, sum(c["end"] - c["start"] for c in active_intervals))
-        # Keep full video if silence detection eliminated >50% of the movie
-        if total_active_dur < 0.5 * vTotal:
-            active_intervals = [{"start": 0.0, "end": vTotal}]
-            total_active_dur = vTotal
-    except Exception as e:
-        print(f"[SmartSync] Silence detection note: {e}")
-        active_intervals = [{"start": 0.0, "end": vTotal}]
-        total_active_dur = vTotal
+    update_job(job_id, progress=88, message="Single-pass encoding continuous recap video with audio crossfade...")
 
-    # 2. Continuous Audio Narrative Windows (Midpoints between audio cues)
-    N = len(active_tts)
-    midpoints = []
-    for i in range(N - 1):
-        cur_end = subtitles_timing[i]["sub_end"]
-        next_start = subtitles_timing[i + 1]["sub_start"]
-        m = (cur_end + next_start) / 2.0 if next_start >= cur_end else cur_end
-        midpoints.append(m)
+    # Step 5: Continuous Video Retiming (Zero hard cuts) & Downstream Chains
+    pts_mult = voice_dur / vTotal
 
-    audio_windows = []
-    for i in range(N):
-        start = 0.0 if i == 0 else midpoints[i - 1]
-        end = aTotal if i == N - 1 else midpoints[i]
-        audio_windows.append({"start": start, "end": max(start + 0.05, end)})
-
-    # 3. 30 fps Frame Allocation Locked to Cumulative Audio Timeline
-    target_frames = []
-    prev_cum_frames = 0
-    for i in range(N):
-        cum_audio_time = aTotal if i == N - 1 else audio_windows[i]["end"]
-        cum_target_frames = int(round(cum_audio_time * 30.0))
-        seg_frames = max(1, cum_target_frames - prev_cum_frames)
-        target_frames.append(seg_frames)
-        prev_cum_frames = cum_target_frames
-
-    # Lock exact total frames to total_narration_frames (eliminates drift completely)
-    cur_sum = sum(target_frames)
-    frame_diff = total_narration_frames - cur_sum
-    target_frames[-1] = max(1, target_frames[-1] + frame_diff)
-
-    # 4. Memory-Safe Scene-Accurate Video Retiming (Zero OOM, Zero Audio/Video Drift)
-    render_dir = job_dir / "render"
-    render_dir.mkdir(parents=True, exist_ok=True)
-    parts_dir = render_dir / "parts"
-    parts_dir.mkdir(parents=True, exist_ok=True)
-
-    video_parts = []
-    for i in range(N):
-        # 1. Exact Scene Video Boundaries from Whisper/Gemini Segmentation
-        v_start = float(active_tts[i].get("video_start", active_tts[i].get("start", -1.0)))
-        v_end = float(active_tts[i].get("video_end", active_tts[i].get("end", -1.0)))
-
-        if v_start >= 0.0 and v_end > v_start:
-            v_trim_start = max(0.0, min(vTotal - 0.05, v_start))
-            v_trim_end = max(v_trim_start + 0.05, min(vTotal, v_end))
-        else:
-            story_start_ratio = audio_windows[i]["start"] / aTotal
-            story_end_ratio = 1.0 if i == N - 1 else (audio_windows[i]["end"] / aTotal)
-            active_start = story_start_ratio * total_active_dur
-            active_end = story_end_ratio * total_active_dur
-            v_trim_start = map_active_offset_to_video_time(active_start, active_intervals)
-            v_trim_end = max(v_trim_start + 0.05, map_active_offset_to_video_time(active_end, active_intervals))
-
-        actual_src_dur = max(0.05, v_trim_end - v_trim_start)
-        f_count = target_frames[i]
-        target_dur = f_count / 30.0
-        pts_mult = target_dur / actual_src_dur
-        part_video = parts_dir / f"part_{i:04d}.mp4"
-
-        # Input -t limits the source clip read; -frames:v guarantees EXACT target frame count without truncation
-        cmd_clip = [
-            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-            "-ss", f"{v_trim_start:.6f}",
-            "-t", f"{actual_src_dur:.6f}",
-            "-accurate_seek",
-            "-i", str(source_video),
-            "-an",
-            "-vf", f"setpts={pts_mult:.6f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=5.0",
-            "-frames:v", str(f_count),
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
-            "-threads", "1",
-            "-movflags", "+faststart",
-            str(part_video),
-        ]
-        res = subprocess.run(cmd_clip, capture_output=True)
-        if res.returncode != 0 or not part_video.is_file():
-            # Robust fallback: generate exact f_count blank/fallback frames so timeline never drifts
-            cmd_fallback = [
-                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                "-f", "lavfi", "-i", f"color=c=black:s={src_w}x{src_h}:r=30",
-                "-frames:v", str(f_count),
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
-                "-threads", "1",
-                "-movflags", "+faststart",
-                str(part_video),
-            ]
-            subprocess.run(cmd_fallback, capture_output=True)
-
-        if part_video.is_file():
-            video_parts.append(part_video)
-
-        pct = 80 + int((i / max(1, N)) * 12)
-        update_job(job_id, progress=pct, message=f"Syncing scene {i + 1}/{N}...")
-
-    if not video_parts:
-        raise RuntimeError("No synchronized video parts could be rendered.")
-
-    # Concat all video parts safely using concat demuxer (Instant, zero RAM)
-    video_concat_txt = render_dir / "video_concat.txt"
-    video_lines = [f"file '{str(p.resolve()).replace('\\', '/').replace('\'', '\'\\\'\'')}'" for p in video_parts]
-    video_concat_txt.write_text("\n".join(video_lines) + "\n", encoding="utf-8")
-
-    full_video = render_dir / "merged_video.mp4"
-    subprocess.run(
-        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-         "-f", "concat", "-safe", "0", "-i", str(video_concat_txt),
-         "-c", "copy", str(full_video)],
-        capture_output=True, check=True
-    )
-
-    update_job(job_id, progress=93, message="Applying blur, subtitles and logo overlay...")
-
-    # Downstream video chains on merged video: Scale -> Blur -> Subtitles -> Logo
     filter_parts = []
-    current_v = "[0:v]"
+    filter_parts.append(f"[0:v]setpts={pts_mult:.6f}*PTS,fps=30[vraw]")
+    current_v = "[vraw]"
     if ratio_filter:
         filter_parts.append(f"{current_v}{ratio_filter}[vbase]")
         current_v = "[vbase]"
@@ -1648,7 +1587,7 @@ def render_smart_sync_video(
     has_logo_file = bool(logo_path and Path(logo_path).is_file())
     cmd_inputs = [
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(full_video),
+        "-i", str(source_video),
         "-i", str(full_audio),
     ]
 
