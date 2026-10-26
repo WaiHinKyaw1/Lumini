@@ -39,7 +39,15 @@ await fs.mkdir(FONTS_DIR, { recursive: true });
 const jsonError = (reply, status, message) => reply.code(status).send({ error: message });
 const safeName = (name) => path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
 
-app.get('/health', async () => ({ ok: true, service: 'lumini-media-worker' }));
+app.get('/health', async () => {
+  let tunnelUrl = process.env.TUNNEL_URL || '';
+  try {
+    const raw = await fs.readFile(path.join(DATA_DIR, 'tunnel_url.txt'), 'utf8');
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('https://')) tunnelUrl = trimmed;
+  } catch {}
+  return { ok: true, service: 'lumini-media-worker', tunnelUrl: tunnelUrl || undefined };
+});
 
 app.get('/api/voice-clones/status', async () => ({ configured: Boolean(ELEVENLABS_API_KEY) }));
 

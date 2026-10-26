@@ -7,6 +7,22 @@
     {
       "source": "/api/oneclick/:path*",
       "destination": "http://16.170.108.153:8080/api/oneclick/:path*"
+    },
+    {
+      "source": "/api/media/:path*",
+      "destination": "http://16.170.108.153:8080/api/media/:path*"
+    },
+    {
+      "source": "/api/sync/:path*",
+      "destination": "http://16.170.108.153:8080/api/sync/:path*"
+    },
+    {
+      "source": "/api/jobs/:path*",
+      "destination": "http://16.170.108.153:8080/api/jobs/:path*"
+    },
+    {
+      "source": "/api/files/:path*",
+      "destination": "http://16.170.108.153:8080/api/files/:path*"
     }
   ],
   "headers": [
