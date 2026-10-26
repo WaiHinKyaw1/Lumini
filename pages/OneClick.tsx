@@ -583,9 +583,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
       // Start polling
       if (pollRef.current) clearInterval(pollRef.current);
+      let consecutivePollErrors = 0;
       pollRef.current = setInterval(async () => {
         try {
           const status = await getOneClickJobStatus(resp.job_id);
+          consecutivePollErrors = 0;
           setJobStatus(status);
 
           if (status.status === 'completed' || status.status === 'failed') {
@@ -600,6 +602,12 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
           }
         } catch (err: unknown) {
           console.error('Polling error:', err);
+          consecutivePollErrors++;
+          if (consecutivePollErrors >= 6) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setError('ဗီဒီယို ပြုလုပ်ခြင်း ရပ်တန့်သွားပါသည် (Connection lost). ကျေးဇူးပြု၍ ဗီဒီယိုဖိုင် အသစ်ဖြင့် ပြန်လည် စတင်ပေးပါ။');
+          }
         }
       }, 2000);
     } catch (err: unknown) {

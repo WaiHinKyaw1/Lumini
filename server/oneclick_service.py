@@ -1522,9 +1522,13 @@ def render_smart_sync_video(
     frame_diff = total_narration_frames - cur_sum
     target_frames[-1] = max(1, target_frames[-1] + frame_diff)
 
-    # 4. Proportional Monotonic Video Retiming (Zero duplicate scenes, zero drift)
-    filter_parts = []
-    seg_labels = []
+    # 4. Memory-Safe Proportional Monotonic Video Retiming (Zero OOM, Zero memory spike)
+    render_dir = job_dir / "render"
+    render_dir.mkdir(parents=True, exist_ok=True)
+    parts_dir = render_dir / "parts"
+    parts_dir.mkdir(parents=True, exist_ok=True)
+
+    video_parts = []
     for i in range(N):
         story_start_ratio = audio_windows[i]["start"] / aTotal
         story_end_ratio = 1.0 if i == N - 1 else (audio_windows[i]["end"] / aTotal)
@@ -1539,35 +1543,50 @@ def render_smart_sync_video(
         f_count = target_frames[i]
         target_dur = f_count / 30.0
         pts_mult = target_dur / actual_kept
+        part_video = parts_dir / f"part_{i:04d}.mp4"
 
-        label = f"vseg{i}"
-        seg_labels.append(f"[{label}]")
-        filter_parts.append(
-            f"[0:v]trim=start={v_trim_start:.4f}:end={v_trim_end:.4f},"
-            f"setpts=PTS-STARTPTS,"
-            f"setpts={pts_mult:.6f}*PTS,"
-            f"fps=30,"
-            f"trim=start_frame=0:end_frame={f_count},"
-            f"setpts=PTS-STARTPTS[{label}]"
-        )
+        cmd_clip = [
+            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+            "-ss", f"{v_trim_start:.6f}",
+            "-accurate_seek",
+            "-i", str(source_video),
+            "-t", f"{actual_kept:.6f}",
+            "-an",
+            "-vf", f"setpts={pts_mult:.6f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=1.0",
+            "-frames:v", str(f_count),
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
+            "-threads", "1",
+            "-movflags", "+faststart",
+            str(part_video),
+        ]
+        res = subprocess.run(cmd_clip, capture_output=True)
+        if res.returncode == 0 and part_video.is_file():
+            video_parts.append(part_video)
 
-    # Concat all video segments into [vcat]
-    BATCH_SIZE = 40
-    if N > BATCH_SIZE:
-        batch_labels = []
-        batch_idx = 0
-        for i in range(0, N, BATCH_SIZE):
-            slice_segs = seg_labels[i:i + BATCH_SIZE]
-            b_label = f"vbatch{batch_idx}"
-            batch_idx += 1
-            filter_parts.append(f"{''.join(slice_segs)}concat=n={len(slice_segs)}:v=1:a=0[{b_label}]")
-            batch_labels.append(f"[{b_label}]")
-        filter_parts.append(f"{''.join(batch_labels)}concat=n={len(batch_labels)}:v=1:a=0[vcat]")
-    else:
-        filter_parts.append(f"{''.join(seg_labels)}concat=n={N}:v=1:a=0[vcat]")
+        pct = 80 + int((i / max(1, N)) * 12)
+        update_job(job_id, progress=pct, message=f"Syncing scene {i + 1}/{N}...")
 
-    # Downstream video chains: Scale -> Blur -> Subtitles -> Logo
-    current_v = "[vcat]"
+    if not video_parts:
+        raise RuntimeError("No synchronized video parts could be rendered.")
+
+    # Concat all video parts safely using concat demuxer (Instant, zero RAM)
+    video_concat_txt = render_dir / "video_concat.txt"
+    video_lines = [f"file '{str(p.resolve()).replace('\\', '/').replace('\'', '\'\\\'\'')}'" for p in video_parts]
+    video_concat_txt.write_text("\n".join(video_lines) + "\n", encoding="utf-8")
+
+    full_video = render_dir / "merged_video.mp4"
+    subprocess.run(
+        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+         "-f", "concat", "-safe", "0", "-i", str(video_concat_txt),
+         "-c", "copy", str(full_video)],
+        capture_output=True, check=True
+    )
+
+    update_job(job_id, progress=93, message="Applying blur, subtitles and logo overlay...")
+
+    # Downstream video chains on merged video: Scale -> Blur -> Subtitles -> Logo
+    filter_parts = []
+    current_v = "[0:v]"
     if ratio_filter:
         filter_parts.append(f"{current_v}{ratio_filter}[vbase]")
         current_v = "[vbase]"
@@ -1608,8 +1627,8 @@ def render_smart_sync_video(
 
     has_logo_file = bool(logo_path and Path(logo_path).is_file())
     cmd_inputs = [
-        ffmpeg, "-y", "-hide_banner", "-loglevel", "warning",
-        "-i", str(source_video),
+        ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(full_video),
         "-i", str(full_audio),
     ]
 
@@ -1666,16 +1685,11 @@ def render_smart_sync_video(
         filter_parts.append(f"[1:a]{vol_filter}[aout]")
 
     filter_complex_str = ";\n".join(filter_parts)
-    filter_script_path = job_dir / "render_filter.txt"
-    filter_script_path.write_text(filter_complex_str, encoding="utf-8")
-
     output_path = job_dir / "final_oneclick_recap.mp4"
-    update_job(job_id, progress=88, message="Single-pass encoding final movie recap video...")
 
-    escaped_script = str(filter_script_path.resolve()).replace("\\", "/")
     cmd_final = [
         *cmd_inputs,
-        "-filter_complex_script", escaped_script,
+        "-filter_complex", filter_complex_str,
         "-map", "[vout]", "-map", "[aout]",
         "-r", "30",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-threads", "2",
