@@ -1522,7 +1522,7 @@ def render_smart_sync_video(
     frame_diff = total_narration_frames - cur_sum
     target_frames[-1] = max(1, target_frames[-1] + frame_diff)
 
-    # 4. Memory-Safe Proportional Monotonic Video Retiming (Zero OOM, Zero memory spike)
+    # 4. Memory-Safe Scene-Accurate Video Retiming (Zero OOM, Zero Audio/Video Drift)
     render_dir = job_dir / "render"
     render_dir.mkdir(parents=True, exist_ok=True)
     parts_dir = render_dir / "parts"
@@ -1530,29 +1530,36 @@ def render_smart_sync_video(
 
     video_parts = []
     for i in range(N):
-        story_start_ratio = audio_windows[i]["start"] / aTotal
-        story_end_ratio = 1.0 if i == N - 1 else (audio_windows[i]["end"] / aTotal)
+        # 1. Exact Scene Video Boundaries from Whisper/Gemini Segmentation
+        v_start = float(active_tts[i].get("video_start", active_tts[i].get("start", -1.0)))
+        v_end = float(active_tts[i].get("video_end", active_tts[i].get("end", -1.0)))
 
-        active_start = story_start_ratio * total_active_dur
-        active_end = story_end_ratio * total_active_dur
+        if v_start >= 0.0 and v_end > v_start:
+            v_trim_start = max(0.0, min(vTotal - 0.05, v_start))
+            v_trim_end = max(v_trim_start + 0.05, min(vTotal, v_end))
+        else:
+            story_start_ratio = audio_windows[i]["start"] / aTotal
+            story_end_ratio = 1.0 if i == N - 1 else (audio_windows[i]["end"] / aTotal)
+            active_start = story_start_ratio * total_active_dur
+            active_end = story_end_ratio * total_active_dur
+            v_trim_start = map_active_offset_to_video_time(active_start, active_intervals)
+            v_trim_end = max(v_trim_start + 0.05, map_active_offset_to_video_time(active_end, active_intervals))
 
-        v_trim_start = map_active_offset_to_video_time(active_start, active_intervals)
-        v_trim_end = max(v_trim_start + 0.05, map_active_offset_to_video_time(active_end, active_intervals))
-        actual_kept = max(0.01, v_trim_end - v_trim_start)
-
+        actual_src_dur = max(0.05, v_trim_end - v_trim_start)
         f_count = target_frames[i]
         target_dur = f_count / 30.0
-        pts_mult = target_dur / actual_kept
+        pts_mult = target_dur / actual_src_dur
         part_video = parts_dir / f"part_{i:04d}.mp4"
 
+        # Input -t limits the source clip read; -frames:v guarantees EXACT target frame count without truncation
         cmd_clip = [
             ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
             "-ss", f"{v_trim_start:.6f}",
+            "-t", f"{actual_src_dur:.6f}",
             "-accurate_seek",
             "-i", str(source_video),
-            "-t", f"{actual_kept:.6f}",
             "-an",
-            "-vf", f"setpts={pts_mult:.6f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=1.0",
+            "-vf", f"setpts={pts_mult:.6f}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=5.0",
             "-frames:v", str(f_count),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
             "-threads", "1",
@@ -1560,7 +1567,20 @@ def render_smart_sync_video(
             str(part_video),
         ]
         res = subprocess.run(cmd_clip, capture_output=True)
-        if res.returncode == 0 and part_video.is_file():
+        if res.returncode != 0 or not part_video.is_file():
+            # Robust fallback: generate exact f_count blank/fallback frames so timeline never drifts
+            cmd_fallback = [
+                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", f"color=c=black:s={src_w}x{src_h}:r=30",
+                "-frames:v", str(f_count),
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
+                "-threads", "1",
+                "-movflags", "+faststart",
+                str(part_video),
+            ]
+            subprocess.run(cmd_fallback, capture_output=True)
+
+        if part_video.is_file():
             video_parts.append(part_video)
 
         pct = 80 + int((i / max(1, N)) * 12)
@@ -1677,10 +1697,17 @@ def render_smart_sync_video(
             filter_parts.append(f"{current_v}null[vout]")
             current_v = "[vout]"
 
+    src_audio_path = job_dir / "source_audio.wav"
+    has_orig_audio = bool(include_original_audio and src_audio_path.is_file())
+    orig_audio_idx = -1
+    if has_orig_audio:
+        orig_audio_idx = len(cmd_inputs) // 2
+        cmd_inputs.extend(["-i", str(src_audio_path)])
+
     # Audio mixing chain
     vol_filter = f"volume={voice_volume}" if voice_volume != 1.0 else "volume=1.0"
-    if include_original_audio:
-        filter_parts.append(f"[0:a]volume=0.12[abg];[1:a]{vol_filter}[avoice];[abg][avoice]amix=inputs=2:duration=first[aout]")
+    if has_orig_audio and orig_audio_idx > 0:
+        filter_parts.append(f"[{orig_audio_idx}:a]volume=0.12,apad[abg];[1:a]{vol_filter}[avoice];[avoice][abg]amix=inputs=2:duration=first[aout]")
     else:
         filter_parts.append(f"[1:a]{vol_filter}[aout]")
 
