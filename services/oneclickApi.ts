@@ -181,6 +181,8 @@ export interface OneClickJobOptions {
   blurPosition?: number | string;
   blurThickness?: number;
   blurIntensity?: number;
+  blurWidth?: number;
+  blurX?: number;
   subtitleStyle?: string;
   watermarkText?: string;
   logoFile?: File | null;
@@ -261,6 +263,12 @@ export async function startOneClickJob(
   }
   if (options.blurIntensity !== undefined) {
     formData.append('blur_intensity', String(options.blurIntensity));
+  }
+  if (options.blurWidth !== undefined) {
+    formData.append('blur_width', String(options.blurWidth));
+  }
+  if (options.blurX !== undefined) {
+    formData.append('blur_x', String(options.blurX));
   }
   if (options.subtitleStyle) {
     formData.append('subtitle_style', options.subtitleStyle);

@@ -77,10 +77,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   const [enableSubtitles, setEnableSubtitles] = useState(true);
   const [subtitleStyle, setSubtitleStyle] = useState('font-akkhayar');
 
-  // Frosted Glass Blur Settings
+  // Frosted Glass Blur Settings (Team Alpha Style 2D Box)
   const [enableBlur, setEnableBlur] = useState(true);
   const [blurPosition, setBlurPosition] = useState<number>(82);
   const [blurThickness, setBlurThickness] = useState<number>(14);
+  const [blurWidth, setBlurWidth] = useState<number>(100);
   const [blurIntensity, setBlurIntensity] = useState<number>(35);
 
   // URL mode auto blur setting & Video aspect ratio detection
@@ -89,12 +90,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
   // Direct Drag Calibrator State on Video Canvas
   const previewBoxRef = useRef<HTMLDivElement>(null);
-  const [activeDrag, setActiveDrag] = useState<'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'logo-move' | 'logo-resize' | null>(null);
+  const [activeDrag, setActiveDrag] = useState<'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'logo-move' | 'logo-resize' | null>(null);
   const dragStartXRef = useRef<number>(0);
   const dragStartYRef = useRef<number>(0);
-  const dragStartValRef = useRef<{ pos: number; thick: number; logoX: number; logoY: number; logoScale: number }>({
+  const dragStartValRef = useRef<{ pos: number; thick: number; width: number; logoX: number; logoY: number; logoScale: number }>({
     pos: 82,
     thick: 14,
+    width: 100,
     logoX: 80,
     logoY: 6,
     logoScale: 14,
@@ -429,7 +431,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
   // Canvas Direct Drag Calibration Handlers (Mouse & Touch for live adjustment on video)
   const handlePointerDown = (
-    type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'logo-move' | 'logo-resize',
+    type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'logo-move' | 'logo-resize',
     e: React.PointerEvent
   ) => {
     e.preventDefault();
@@ -440,6 +442,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     dragStartValRef.current = {
       pos: blurPosition,
       thick: blurThickness,
+      width: blurWidth,
       logoX,
       logoY,
       logoScale,
@@ -468,6 +471,12 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     } else if (activeDrag === 'blur-resize-bottom') {
       const newThick = Math.round(Math.max(4, Math.min(40, dragStartValRef.current.thick + deltaYPercent * 2)));
       setBlurThickness(newThick);
+    } else if (activeDrag === 'blur-resize-left') {
+      const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
+      setBlurWidth(newWidth);
+    } else if (activeDrag === 'blur-resize-right') {
+      const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
+      setBlurWidth(newWidth);
     } else if (activeDrag === 'logo-move') {
       const newLogoX = Math.round(Math.max(0, Math.min(100 - logoScale, dragStartValRef.current.logoX + deltaXPercent)));
       const newLogoY = Math.round(Math.max(0, Math.min(96, dragStartValRef.current.logoY + deltaYPercent)));
@@ -562,6 +571,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
           enableBlur,
           blurPosition,
           blurThickness,
+          blurWidth,
           blurIntensity,
           subtitleStyle,
           watermarkText: watermarkText.trim(),
@@ -1084,31 +1094,32 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                 </div>
               )}
 
-              {/* Precision Presets without Cluttered Slider Bars */}
+              {/* Precision Presets & 2D Geometry Controls (Team Alpha Style) */}
               {enableBlur && (
-                <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 space-y-3">
+                <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 space-y-3.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-700 dark:text-zinc-300">⚡ နေရာ အမြန်ရွေးချယ်မှု (Presets)</span>
+                    <span className="font-bold text-slate-700 dark:text-zinc-300">⚡ Team Alpha စတိုင် အမြန်ရွေးချယ်မှု (Presets)</span>
                     <span className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-bold bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                      Y: {blurPosition}% • H: {blurThickness}%
+                      W: {blurWidth}% • H: {blurThickness}% • Y: {blurPosition}%
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { label: 'Drama (66%) ✨', pos: 66, thick: 15 },
-                      { label: 'TikTok (76%)', pos: 76, thick: 16 },
-                      { label: 'YouTube (83%)', pos: 83, thick: 14 },
-                      { label: 'Bottom (88%)', pos: 88, thick: 15 },
+                      { label: 'Full Width (100%)', width: 100, thick: 14, pos: 82 },
+                      { label: 'Team Alpha Pill (85%) ✨', width: 85, thick: 15, pos: 82 },
+                      { label: 'TikTok (76% Y)', width: 80, thick: 16, pos: 76 },
+                      { label: 'Drama (66% Y)', width: 70, thick: 16, pos: 66 },
                     ].map((p, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => {
-                          setBlurPosition(p.pos);
+                          setBlurWidth(p.width);
                           setBlurThickness(p.thick);
+                          setBlurPosition(p.pos);
                         }}
-                        className={`p-2.5 rounded-xl border text-center transition-all ${blurPosition === p.pos
+                        className={`p-2.5 rounded-xl border text-center transition-all ${blurWidth === p.width && blurPosition === p.pos
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold'
                           : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-indigo-300'
                           }`}
@@ -1116,6 +1127,61 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                         <span className="block text-xs font-bold">{p.label}</span>
                       </button>
                     ))}
+                  </div>
+
+                  {/* 2D Dimensions: Width & Height/Thickness Sliders */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
+                    {/* Width Slider */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">
+                          Blur Width (အကျယ်)
+                        </span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[11px] bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                          {blurWidth}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={30}
+                        max={100}
+                        step={1}
+                        value={blurWidth}
+                        onChange={(e) => setBlurWidth(Number(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 dark:text-zinc-500">
+                        <span>Pill (30%)</span>
+                        <span>Team Alpha (85%)</span>
+                        <span>Full (100%)</span>
+                      </div>
+                    </div>
+
+                    {/* Height / Thickness Slider */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">
+                          Blur Height (အမြင့်/အထူ)
+                        </span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[11px] bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                          {blurThickness}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={6}
+                        max={35}
+                        step={1}
+                        value={blurThickness}
+                        onChange={(e) => setBlurThickness(Number(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 dark:text-zinc-500">
+                        <span>ပါးပါး (6%)</span>
+                        <span>စံနှုန်း (14%)</span>
+                        <span>ထူထူ (35%)</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Blur Intensity Slider Bar */}
@@ -1616,30 +1682,63 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                         <span>🎯</span> Drag & Calibrate Live
                       </span>
                       <span className="px-2 py-0.5 rounded-lg bg-black/60 text-white text-[9px] font-mono backdrop-blur-md border border-white/10">
-                        {selectedRatio === 'original' ? 'Original' : selectedRatio} • Blur Y: {blurPosition}%
+                        {selectedRatio === 'original' ? 'Original' : selectedRatio} • W: {blurWidth}% • H: {blurThickness}% • Y: {blurPosition}%
                       </span>
                     </div>
 
-                    {/* LIVE INTERACTIVE FROSTED GLASS BLUR BAND (Direct Drag & Resize on Video) */}
+                    {/* LIVE INTERACTIVE FROSTED GLASS BLUR BOX (Team Alpha Style - Direct Drag & 2D Resize on Video) */}
                     {enableBlur && (
                       <div
                         style={{
                           top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
                           height: `${blurThickness}%`,
+                          left: blurWidth >= 100 ? '0%' : `${Math.max(0, Math.min(100 - blurWidth, (100 - blurWidth) / 2))}%`,
+                          width: `${Math.min(100, Math.max(25, blurWidth))}%`,
+                          borderRadius: blurWidth < 98 ? '16px' : '0px',
                           transform: 'translateZ(0)',
                         }}
                         onPointerDown={(e) => handlePointerDown('blur-move', e)}
-                        className={`absolute left-0 right-0 z-10 flex flex-col items-center justify-center overflow-visible border-y-2 border-amber-400/80 shadow-2xl transition-shadow ${activeDrag === 'blur-move' ? 'cursor-grabbing ring-2 ring-amber-400' : 'cursor-grab hover:border-amber-300'
-                          }`}
-                        title="Click & drag up/down to reposition blur band on video"
+                        className={`absolute z-10 flex flex-col items-center justify-center overflow-visible shadow-2xl transition-shadow ${
+                          blurWidth >= 98
+                            ? 'border-y-2 border-amber-400/80'
+                            : 'border-2 border-amber-400/90 shadow-amber-500/10'
+                        } ${activeDrag === 'blur-move' ? 'cursor-grabbing ring-2 ring-amber-400' : 'cursor-grab hover:border-amber-300'}`}
+                        title="Click & drag to reposition blur box on video"
                       >
                         {/* Top Edge Resize Handle */}
                         <div
                           onPointerDown={(e) => handlePointerDown('blur-resize-top', e)}
-                          className="absolute -top-3 left-0 right-0 h-6 cursor-ns-resize flex items-center justify-center z-30 group"
-                          title="Drag up/down to resize thickness"
+                          className="absolute -top-3 left-6 right-6 h-6 cursor-ns-resize flex items-center justify-center z-30 group"
+                          title="Drag up/down to resize thickness/height"
                         >
                           <div className="w-14 h-1.5 rounded-full bg-amber-400 shadow-md group-hover:scale-125 transition-transform" />
+                        </div>
+
+                        {/* Bottom Edge Resize Handle */}
+                        <div
+                          onPointerDown={(e) => handlePointerDown('blur-resize-bottom', e)}
+                          className="absolute -bottom-3 left-6 right-6 h-6 cursor-ns-resize flex items-center justify-center z-30 group"
+                          title="Drag up/down to resize thickness/height"
+                        >
+                          <div className="w-14 h-1.5 rounded-full bg-amber-400 shadow-md group-hover:scale-125 transition-transform" />
+                        </div>
+
+                        {/* Left Edge Resize Handle */}
+                        <div
+                          onPointerDown={(e) => handlePointerDown('blur-resize-left', e)}
+                          className="absolute top-2 bottom-2 -left-3 w-6 cursor-ew-resize flex items-center justify-center z-30 group"
+                          title="Drag left/right to resize width"
+                        >
+                          <div className="h-10 w-1.5 rounded-full bg-amber-400 shadow-md group-hover:scale-125 transition-transform" />
+                        </div>
+
+                        {/* Right Edge Resize Handle */}
+                        <div
+                          onPointerDown={(e) => handlePointerDown('blur-resize-right', e)}
+                          className="absolute top-2 bottom-2 -right-3 w-6 cursor-ew-resize flex items-center justify-center z-30 group"
+                          title="Drag left/right to resize width"
+                        >
+                          <div className="h-10 w-1.5 rounded-full bg-amber-400 shadow-md group-hover:scale-125 transition-transform" />
                         </div>
 
                         {/* Frosted Glass Background */}
@@ -1648,25 +1747,27 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                             backdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
                             WebkitBackdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
                             backgroundColor: `rgba(0, 0, 0, ${Math.min(0.78, Math.max(0.40, (blurIntensity / 100) * 0.85))})`,
+                            borderRadius: blurWidth < 98 ? '14px' : '0px',
                             transform: 'translateZ(0)',
                             willChange: 'transform',
                           }}
                           className="absolute inset-0 pointer-events-none"
                         />
 
-                        {/* Centered Subtitle inside Blur Band (Matches Output Video Size & Width) */}
-
-
-
-
-                        {/* Bottom Edge Resize Handle */}
-                        <div
-                          onPointerDown={(e) => handlePointerDown('blur-resize-bottom', e)}
-                          className="absolute -bottom-3 left-0 right-0 h-6 cursor-ns-resize flex items-center justify-center z-30 group"
-                          title="Drag up/down to resize thickness"
-                        >
-                          <div className="w-14 h-1.5 rounded-full bg-amber-400 shadow-md group-hover:scale-125 transition-transform" />
-                        </div>
+                        {/* Centered Preview Subtitle inside Blur Band (Matches Output Video Size & Width) */}
+                        {enableSubtitles && (
+                          <div className="relative z-10 px-3 text-center pointer-events-none select-none max-w-full overflow-hidden">
+                            <p
+                              style={{
+                                color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFD700',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
+                              }}
+                              className="text-[11px] sm:text-xs font-bold leading-tight truncate"
+                            >
+                              မွေးစားဖခင်ဖြစ်သူကလည်း အမြဲတမ်း နောက်ပြောင်ပြီး ညည်းတွားတတ်ပါတယ်။
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 

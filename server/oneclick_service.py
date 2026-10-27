@@ -604,7 +604,7 @@ def synthesize_edge_tts(
     calibrated_rate = normalize_edge_rate(speed)
     print(f"[EdgeTTS] Speed input: {speed} -> Calibrated rate: {calibrated_rate}")
 
-    # Map voices and character presets (Thiha, Zaw, Wunna, Nilar)
+    # Map voices and character presets (Thiha, Zaw, Wunna, Nilar - Team Alpha Style)
     v_norm = (voice or "").strip().lower()
     actual_voice = "my-MM-ThihaNeural"
     pitch_str = "+0Hz"
@@ -613,30 +613,41 @@ def synthesize_edge_tts(
     if "nilar" in v_norm:
         actual_voice = "my-MM-NilarNeural"
         pitch_str = "+0Hz"
-    elif "zaw" in v_norm:
-        # Zaw (ဇော်) - Distinct Deep, Heavy, Mature Cinematic Movie Recap Voice
-        # Uses native neural pitch reduction (-14Hz) + warm chest resonance EQ (no metallic asetrate)
-        actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "-14Hz"
         af_filters.extend([
-            "equalizer=f=120:width_type=o:width=1.2:g=3.5",
-            "equalizer=f=260:width_type=o:width=1.5:g=-1.5",
-            "equalizer=f=2400:width_type=o:width=1.2:g=2.0",
+            "highpass=f=80",
+            "loudnorm=I=-16:TP=-1.5:LRA=10",
+        ])
+    elif "zaw" in v_norm:
+        # Zaw (ဇော်) - Team Alpha Deep Cinematic Voice
+        # Zero artificial pitch distortion (+0Hz native neural) + broadcast chest warmth & studio compressor
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "highpass=f=75",
+            "lowshelf=g=2.5:f=160",
+            "highshelf=g=-1.0:f=4200",
+            "acompressor=threshold=-18dB:ratio=3:attack=5:release=50",
+            "loudnorm=I=-16:TP=-1.5:LRA=10",
         ])
     elif "wunna" in v_norm or "wun" in v_norm:
-        # Wunna (ဝဏ္ဏ) - Distinct Energetic, Youthful, Bright Viral Movie Recap Voice
-        # Uses native neural pitch rise (+14Hz) + lively presence EQ (no metallic asetrate)
+        # Wunna (ဝဏ္ဏ) - Team Alpha Fast Viral Street Recap Voice
+        # Zero pitch distortion (+0Hz native neural) + snappy cadence & broadcast presence
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "+14Hz"
+        pitch_str = "+0Hz"
         af_filters.extend([
-            "equalizer=f=160:width_type=o:width=1.2:g=-2.0",
-            "equalizer=f=1200:width_type=o:width=1.5:g=2.5",
-            "equalizer=f=3200:width_type=o:width=1.2:g=3.0",
+            "highpass=f=85",
+            "highshelf=g=1.8:f=3200",
+            "acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40",
+            "loudnorm=I=-16:TP=-1.5:LRA=9",
         ])
     else:
         # Default Thiha (သီဟ) - Natural Balanced Recap Tone
         actual_voice = "my-MM-ThihaNeural"
         pitch_str = "+0Hz"
+        af_filters.extend([
+            "highpass=f=75",
+            "loudnorm=I=-16:TP=-1.5:LRA=11",
+        ])
 
     silence_filter = "silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse,silenceremove=start_periods=1:start_duration=0.03:start_threshold=-40dB:detection=peak,areverse"
     if af_filters:
@@ -1388,6 +1399,8 @@ def render_smart_sync_video(
     blur_position: Any = 78.0,
     blur_thickness: float = 14.0,
     blur_intensity: float = 30.0,
+    blur_width: float = 100.0,
+    blur_x: Optional[float] = None,
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
     logo_path: Optional[Path] = None,
@@ -1554,8 +1567,11 @@ def render_smart_sync_video(
         b_pos_f = float(b_pos)
         b_thick_f = float(blur_thickness) if str(blur_thickness).replace('.', '', 1).isdigit() else 14.0
         b_intense_f = float(blur_intensity) if str(blur_intensity).replace('.', '', 1).isdigit() else 30.0
+        b_width_f = float(blur_width) if str(blur_width).replace('.', '', 1).isdigit() else 100.0
+
         thickness_pct = max(0.04, min(0.40, b_thick_f / 100.0))
         top_pct = max(0.0, min(1.0 - thickness_pct, (b_pos_f - b_thick_f / 2.0) / 100.0))
+        width_pct = max(0.20, min(1.0, b_width_f / 100.0))
 
         blur_y = int(round(canvas_h * top_pct / 2.0)) * 2
         blur_h = max(8, int(round(canvas_h * thickness_pct / 2.0)) * 2)
@@ -1563,19 +1579,41 @@ def render_smart_sync_video(
             blur_h = max(8, canvas_h - blur_y)
         blur_bottom = blur_y + blur_h
 
+        blur_w = max(40, int(round(canvas_w * width_pct / 2.0)) * 2)
+        if blur_x is not None and str(blur_x).replace('.', '', 1).isdigit():
+            blur_x_f = float(blur_x)
+            blur_x_pos = max(0, min(canvas_w - blur_w, int(round(canvas_w * blur_x_f / 100.0 / 2.0)) * 2))
+        else:
+            # Auto-center horizontally matching preview
+            blur_x_pos = int(round((canvas_w - blur_w) / 2.0 / 2.0)) * 2
+        blur_right = blur_x_pos + blur_w
+
         luma_rad = max(16, min(42, int(b_intense_f * 0.95)))
         chroma_rad = max(8, int(luma_rad * 0.6))
         tint_opacity = min(0.78, max(0.40, (b_intense_f / 100.0) * 0.85))
 
-        blur_chain = (
-            f"{current_v}split=2[vmain][vblur];"
-            f"[vblur]crop=w={canvas_w}:h={blur_h}:x=0:y={blur_y},"
-            f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
-            f"[vmain][blurBand]overlay=x=0:y={blur_y},"
-            f"drawbox=x=0:y={blur_y}:w={canvas_w}:h={blur_h}:color=black@{tint_opacity:.2f}:t=fill,"
-            f"drawbox=x=0:y={blur_y}:w={canvas_w}:h=2:color=white@0.30:t=fill,"
-            f"drawbox=x=0:y={blur_bottom - 2}:w={canvas_w}:h=2:color=white@0.30:t=fill[vblurred]"
-        )
+        if width_pct >= 0.98:
+            blur_chain = (
+                f"{current_v}split=2[vmain][vblur];"
+                f"[vblur]crop=w={canvas_w}:h={blur_h}:x=0:y={blur_y},"
+                f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
+                f"[vmain][blurBand]overlay=x=0:y={blur_y},"
+                f"drawbox=x=0:y={blur_y}:w={canvas_w}:h={blur_h}:color=black@{tint_opacity:.2f}:t=fill,"
+                f"drawbox=x=0:y={blur_y}:w={canvas_w}:h=2:color=white@0.30:t=fill,"
+                f"drawbox=x=0:y={blur_bottom - 2}:w={canvas_w}:h=2:color=white@0.30:t=fill[vblurred]"
+            )
+        else:
+            blur_chain = (
+                f"{current_v}split=2[vmain][vblur];"
+                f"[vblur]crop=w={blur_w}:h={blur_h}:x={blur_x_pos}:y={blur_y},"
+                f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
+                f"[vmain][blurBand]overlay=x={blur_x_pos}:y={blur_y},"
+                f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h={blur_h}:color=black@{tint_opacity:.2f}:t=fill,"
+                f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h=2:color=white@0.35:t=fill,"
+                f"drawbox=x={blur_x_pos}:y={blur_bottom - 2}:w={blur_w}:h=2:color=white@0.35:t=fill,"
+                f"drawbox=x={blur_x_pos}:y={blur_y}:w=2:h={blur_h}:color=white@0.35:t=fill,"
+                f"drawbox=x={blur_right - 2}:y={blur_y}:w=2:h={blur_h}:color=white@0.35:t=fill[vblurred]"
+            )
         filter_parts.append(blur_chain)
         current_v = "[vblurred]"
 
@@ -1757,6 +1795,8 @@ def run_oneclick_pipeline(
     blur_position: Any = 78.0,
     blur_thickness: float = 14.0,
     blur_intensity: float = 30.0,
+    blur_width: float = 100.0,
+    blur_x: Optional[float] = None,
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
     logo_path: Optional[Path] = None,
@@ -1891,6 +1931,8 @@ def run_oneclick_pipeline(
             blur_position=blur_position,
             blur_thickness=blur_thickness,
             blur_intensity=blur_intensity,
+            blur_width=blur_width,
+            blur_x=blur_x,
             subtitle_style=subtitle_style,
             watermark_text=watermark_text,
             logo_path=logo_path,
@@ -2005,6 +2047,8 @@ async def start_job(
     blur_position: Any = Form(82.0),
     blur_thickness: float = Form(14.0),
     blur_intensity: float = Form(30.0),
+    blur_width: float = Form(100.0),
+    blur_x: Optional[float] = Form(None),
     subtitle_style: str = Form("font-akkhayar"),
     watermark_text: str = Form(""),
     logo_file: Optional[UploadFile] = File(default=None),
@@ -2122,6 +2166,8 @@ async def start_job(
         blur_position,
         blur_thickness,
         blur_intensity,
+        blur_width,
+        blur_x,
         subtitle_style,
         watermark_text,
         logo_path,
@@ -2340,18 +2386,20 @@ async def get_voice_sample(voice_key: str):
         ffmpeg = find_ffmpeg()
         if v_name == "nilar":
             await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+15%").save(str(mp3_tmp))
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+            af_nilar = "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=10"
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_nilar, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         elif v_name == "zaw":
-            af_zaw = "equalizer=f=120:width_type=o:width=1.2:g=3.5,equalizer=f=260:width_type=o:width=1.5:g=-1.5,equalizer=f=2400:width_type=o:width=1.2:g=2.0"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+12%", pitch="-14Hz").save(str(mp3_tmp))
+            af_zaw = "highpass=f=75,lowshelf=g=2.5:f=160,highshelf=g=-1.0:f=4200,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_zaw, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         elif v_name == "wunna":
-            af_wunna = "equalizer=f=160:width_type=o:width=1.2:g=-2.0,equalizer=f=1200:width_type=o:width=1.5:g=2.5,equalizer=f=3200:width_type=o:width=1.2:g=3.0"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+18%", pitch="+14Hz").save(str(mp3_tmp))
+            af_wunna = "highpass=f=85,highshelf=g=1.8:f=3200,acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+26%").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_wunna, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         else:
             await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%").save(str(mp3_tmp))
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+            af_thiha = "highpass=f=75,loudnorm=I=-16:TP=-1.5:LRA=11"
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_thiha, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         mp3_tmp.unlink(missing_ok=True)
 
     return FileResponse(
