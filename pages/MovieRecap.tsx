@@ -843,7 +843,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       }
 
       if (!isAvailable) {
-        throw new Error('AWS Cloud Media Worker ချိတ်ဆက်ထားခြင်း မရှိသေးပါ။ Local စက်တွင် ဝန်မပိစေရန် ဗီဒီယို processing ကို AWS Cloud Server ပေါ်တွင်သာ အပြည့်အဝ လုပ်ဆောင်ပါမည်။ ကျေးဇူးပြု၍ AWS Server ကို စတင်ပေးပါ။');
+        throw new Error('AWS Cloud Media Worker ချိတ်ဆက်ထားခြင်း မရှိသေးပါ။');
       }
 
       // ==========================================
@@ -855,7 +855,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
       const hasAudio = !!audioFile;
       const videoRatioWeight = hasAudio ? 0.35 : 0.45;
 
-      setStatusMessage('ဗီဒီယို ဖိုင်ကို AWS ဆာဗာသို့ တင်နေပါသည်... (Uploading video)');
+      setStatusMessage('ဗီဒီယို ဖိုင်ကို AWS ဆာဗာသို့ တင်နေပါသည်');
       const uploadedVideo = await uploadMedia(
         videoFile,
         (val) => {
@@ -868,7 +868,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
       let uploadedAudio;
       if (audioFile) {
-        setStatusMessage('အသံ ဖိုင်ကို AWS ဆာဗာသို့ တင်နေပါသည်... (Uploading voiceover)');
+        setStatusMessage('အသံ ဖိုင်ကို AWS ဆာဗာသို့ တင်နေပါသည်');
         uploadedAudio = await uploadMedia(
           normalizeVoiceoverFile(audioFile),
           (val) => {
@@ -882,7 +882,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
       let uploadedLogo;
       if (logoFile) {
-        setStatusMessage('လိုဂို ပုံရိပ်ကို ဆာဗာသို့ တင်နေပါသည်... (Uploading logo)');
+        setStatusMessage('လိုဂို ပုံရိပ်ကို ဆာဗာသို့ တင်နေပါသည်');
         uploadedLogo = await uploadMedia(
           logoFile,
           (val) => {
@@ -895,7 +895,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
       setProcessingStage('sync');
       setProgress(52);
-      setStatusMessage('ဆာဗာတွင် Recap အလုပ် စတင်နေပါသည်... (Starting sync job)');
+      setStatusMessage('ဆာဗာတွင် Recap အလုပ် စတင်နေပါသည်');
 
       const job = await createSyncJob(
         uploadedVideo.fileId,
@@ -928,8 +928,8 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
 
       setStatusMessage(
         syncMode === 'smart'
-          ? 'ဆာဗာတွင် Smart Sync (1.25x speed cap + 30fps lock) တွက်ချက်နေပါသည်... (Processing Smart Sync)'
-          : 'AWS Cloud ဆာဗာတွင် FFmpeg ဖြင့် ဗီဒီယို ပေါင်းစပ်နေပါသည်... (Processing on AWS)'
+          ? 'ဆာဗာတွင် Smart Sync တွက်ချက်နေပါသည်'
+          : 'AWS Cloud ဆာဗာတွင် FFmpeg ဖြင့် ဗီဒီယို ပေါင်းစပ်နေပါသည်'
       );
 
       const completed = await waitForSyncJob(
@@ -1273,7 +1273,7 @@ const MovieRecap: React.FC<MovieRecapProps> = ({ onSpendCredits }) => {
                 <div className="rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
                   <div className="flex items-center gap-2">
                     <Video className="w-4 h-4 text-slate-400 dark:text-zinc-500" />
-                    <span>စာတန်းမပါ (Clean Video) ထုတ်လုပ်ပါမည်</span>
+                    <span>စာတန်းမပါ ထုတ်လုပ်ပါမည်</span>
                   </div>
                   {subtitleText.includes('-->') && (
                     <button

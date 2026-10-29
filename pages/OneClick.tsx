@@ -11,6 +11,7 @@ import {
   getOneClickTranscript,
   fetchOneClickUrlVideo,
   getOneClickVoiceSampleUrl,
+  extractCleanUrl,
   type OneClickVoice,
   type OneClickSpeed,
   type OneClickRatio,
@@ -68,7 +69,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Settings
-  const [selectedVoice, setSelectedVoice] = useState('my-MM-ThihaNeural');
+  const [selectedVoice, setSelectedVoice] = useState('my-MM-KingBurma');
   const [voiceMode, setVoiceMode] = useState<'preset' | 'custom-sample'>('preset');
   const [voiceSampleFile, setVoiceSampleFile] = useState<File | null>(null);
   const [voiceSampleUrl, setVoiceSampleUrl] = useState<string | null>(null);
@@ -121,6 +122,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     return /tiktok\.com/i.test(videoUrl.trim());
   }, [inputMode, videoUrl]);
 
+  const isRednoteUrl = useMemo(() => {
+    if (inputMode !== 'url' || !videoUrl.trim()) return false;
+    return /xhslink\.com|xiaohongshu\.com|rednote/i.test(videoUrl.trim());
+  }, [inputMode, videoUrl]);
+
   const isYouTubeShort = useMemo(() => {
     return Boolean(videoUrl && /youtube\.com\/shorts\//i.test(videoUrl));
   }, [videoUrl]);
@@ -134,8 +140,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     if (naturalAspect && Number.isFinite(naturalAspect) && naturalAspect > 0) {
       return naturalAspect;
     }
-    return (isTikTokUrl || isYouTubeShort) ? 9 / 16 : 16 / 9;
-  }, [selectedRatio, naturalAspect, isTikTokUrl, isYouTubeShort]);
+    return (isTikTokUrl || isYouTubeShort || isRednoteUrl) ? 9 / 16 : 16 / 9;
+  }, [selectedRatio, naturalAspect, isTikTokUrl, isYouTubeShort, isRednoteUrl]);
 
   // Intelligent blur positioning that accounts for canvas padding when video aspect ratio != canvas ratio
   const getSmartBlurForRatio = useCallback((ratioId: string, vidAspect: number | null): { pos: number; thick: number } => {
@@ -498,14 +504,15 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   };
 
   const handleFetchUrlVideo = async () => {
-    if (!videoUrl.trim()) {
-      setError('YouTube သို့မဟုတ် TikTok Link ထည့်သွင်းပေးပါ');
+    const cleanUrl = extractCleanUrl(videoUrl);
+    if (!cleanUrl) {
+      setError('YouTube, TikTok သို့မဟုတ် Rednote (Xiaohongshu) Link ထည့်သွင်းပေးပါ');
       return;
     }
     setError(null);
     setIsDownloadingUrl(true);
     try {
-      const res = await fetchOneClickUrlVideo(videoUrl.trim());
+      const res = await fetchOneClickUrlVideo(cleanUrl);
       setDownloadedTempId(res.temp_id);
       setUrlVideoMeta({ duration: res.duration, width: res.width, height: res.height });
       if (res.duration) setPreviewDuration(res.duration);
@@ -539,14 +546,15 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
       const hasDirectHttps = (import.meta.env.VITE_ONECLICK_URL || '').startsWith('https://');
       if (isHttps && !hasDirectHttps && file.size > 4.5 * 1024 * 1024) {
         const mb = (file.size / (1024 * 1024)).toFixed(1);
-        const limitMsg = `Vercel serverless proxy ကန့်သတ်ချက် (4.5MB) ကြောင့် ${mb}MB ရှိသောဖိုင်ကို တိုက်ရိုက် Upload မတင်နိုင်ပါ။ အပေါ်ရှိ "YouTube / TikTok Link" Mode ကို အသုံးပြုပါ (သို့မဟုတ်) local တွင် run ပေးပါ။`;
+        const limitMsg = `Vercel serverless proxy ကန့်သတ်ချက် (4.5MB) ကြောင့် ${mb}MB ရှိသောဖိုင်ကို တိုက်ရိုက် Upload မတင်နိုင်ပါ။ အပေါ်ရှိ "YouTube / TikTok / Rednote Link" Mode ကို အသုံးပြုပါ (သို့မဟုတ်) local တွင် run ပေးပါ။`;
         setError(limitMsg);
-        toast.error('Vercel 4.5MB Limit: YouTube/TikTok Link mode ကို အသုံးပြုပေးပါ');
+        toast.error('Vercel 4.5MB Limit: YouTube/TikTok/Rednote Link mode ကို အသုံးပြုပေးပါ');
         return;
       }
     }
-    if (inputMode === 'url' && !videoUrl.trim() && !downloadedTempId) {
-      setError('YouTube သို့မဟုတ် TikTok Link ထည့်သွင်းပေးပါ');
+    const cleanUrl = extractCleanUrl(videoUrl);
+    if (inputMode === 'url' && !cleanUrl && !downloadedTempId) {
+      setError('YouTube, TikTok သို့မဟုတ် Rednote (Xiaohongshu) Link ထည့်သွင်းပေးပါ');
       return;
     }
     if (!onSpendCredits(15)) return;
@@ -910,8 +918,20 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                     <input
                       type="url"
                       value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="Paste TikTok, YouTube Shorts သို့မဟုတ် Video Direct Link (https://...)"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const cleaned = extractCleanUrl(raw);
+                        setVideoUrl(cleaned || raw);
+                      }}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData('text');
+                        const cleaned = extractCleanUrl(pasted);
+                        if (cleaned && cleaned !== pasted) {
+                          e.preventDefault();
+                          setVideoUrl(cleaned);
+                        }
+                      }}
+                      placeholder="Paste YouTube, TikTok သို့မဟုတ် Rednote (Xiaohongshu) Link (https://...)"
                       disabled={isProcessing || isUploading}
                       className="w-full px-4 py-3.5 pr-10 rounded-2xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
@@ -1759,12 +1779,12 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           <div className="relative z-10 px-3 text-center pointer-events-none select-none max-w-full overflow-hidden">
                             <p
                               style={{
-                                color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFD700',
-                                textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
+                                color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFDE00',
+                                textShadow: '0 0 3px #000, 0 0 6px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
                               }}
-                              className="text-[11px] sm:text-xs font-bold leading-tight truncate"
+                              className="text-[12px] sm:text-[13px] font-black leading-none whitespace-nowrap tracking-wide select-none"
                             >
-                              မွေးစားဖခင်ဖြစ်သူကလည်း အမြဲတမ်း နောက်ပြောင်ပြီး ညည်းတွားတတ်ပါတယ်။
+                              မင်းတို့အားလုံး ပုန်းနေကြ ငါ
                             </p>
                           </div>
                         )}
@@ -1773,15 +1793,15 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
                     {/* Subtitle when blur is disabled */}
                     {enableSubtitles && !enableBlur && (
-                      <div className="absolute bottom-6 left-0 right-0 pointer-events-none z-10 px-4 text-center">
+                      <div className="absolute bottom-6 left-0 right-0 pointer-events-none z-10 px-4 text-center overflow-hidden">
                         <p
                           style={{
-                            color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFD700',
-                            textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000',
+                            color: subtitleStyle === 'font-padauk' ? '#FFFFFF' : '#FFDE00',
+                            textShadow: '0 0 3px #000, 0 0 6px #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
                           }}
-                          className="text-xs sm:text-sm font-bold leading-tight"
+                          className="text-xs sm:text-sm font-black leading-none whitespace-nowrap tracking-wide select-none"
                         >
-                          မွေးစားဖခင်ဖြစ်သူကလည်း အမြဲတမ်း နောက်ပြောင်ပြီး ညည်းတွားတတ်ပါတယ်။
+                          မင်းတို့အားလုံး ပုန်းနေကြ ငါ
                         </p>
                       </div>
                     )}
@@ -1883,18 +1903,31 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                           {STEP_LABELS[jobStatus?.step || ''] || jobStatus?.message || 'Processing on AWS...'}
                         </>
                       ) : (
-                        <span className="text-red-500">လုပ်ဆောင်မှု မအောင်မြင်ပါ</span>
+                        <span className="text-red-500 flex items-center gap-1.5 font-bold">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          လုပ်ဆောင်မှု မအောင်မြင်ပါ
+                        </span>
                       )}
                     </span>
                     <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold">
-                      {jobStatus?.progress ? `${Math.max(0, jobStatus.progress)}%` : isUploading ? '...' : ''}
+                      {isFailed ? 'Error' : jobStatus?.progress ? `${Math.max(0, jobStatus.progress)}%` : isUploading ? '...' : ''}
                     </span>
                   </div>
 
+                  {isFailed && (jobStatus?.message || jobStatus?.error || error) && (
+                    <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] leading-relaxed break-words font-medium">
+                      {jobStatus?.message || jobStatus?.error || error}
+                    </div>
+                  )}
+
                   <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300"
-                      style={{ width: `${Math.max(5, Math.min(100, jobStatus?.progress || (isUploading ? 12 : 0)))}%` }}
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        isFailed
+                          ? 'bg-red-500 w-full'
+                          : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'
+                      }`}
+                      style={{ width: isFailed ? '100%' : `${Math.max(5, Math.min(100, jobStatus?.progress || (isUploading ? 12 : 0)))}%` }}
                     />
                   </div>
                 </div>

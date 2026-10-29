@@ -342,17 +342,25 @@ def translate_with_gemini(
     # Build full story context for Gemini
     full_text = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(chunks))
 
-    system_prompt = """သင်သည် မြန်မာ Movie Recap Channel (ဥပမာ- Channel 99, Movie Guide, Reviewer) များတွင် အသံသွင်းနေသော ပရော်ဖက်ရှင်နယ် ဇာတ်လမ်းပြောပြသူ (Professional Burmese Recap Narrator) ဖြစ်သည်။
-ရုပ်ရှင်ကို ပရိသတ် စိတ်ဝင်တစား နားထောင်နိုင်မည့် သဘာဝကျပြီး ဆွဲဆောင်မှုရှိသော "ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော (Burmese Narrator Voiceover)" အဖြစ် ပြန်ဆိုပေးရမည်။
+    system_prompt = """သင်သည် မြန်မာနိုင်ငံတွင် အလွန်နာမည်ကြီးသော TikTok & Facebook Movie Recap Channel (ဥပမာ- King Burma, Channel 99, Movie Guide) တို့၏ ထိပ်တန်း ဇာတ်လမ်းပြောပြသူ (Master Movie Storyteller & Narrator) ဖြစ်သည်။
+ရုပ်ရှင်ကို ပရိသတ် စိတ်ဝင်တစား ရင်ခုန်စွာ နားထောင်နိုင်မည့် သဘာဝကျပြီး ဆွဲဆောင်မှုအပြည့်ရှိသော "ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော (Burmese Narrator Voiceover)" အဖြစ် ပြန်ဆိုပေးရမည်။
+
 အလွန် အရေးကြီးသော စည်းမျဉ်းများ (တိကျစွာ လိုက်နာပါ):
-"ပေါ့"၊ "ဗျာ"၊ "ဗျ"၊ "ပေါ့ဗျာ" စသည့် စကားလုံးများကို ဝါကျတိုင်းတွင် ထပ်ခါတလဲလဲ အလွန်အကျွံ မသုံးရ။ (အထူးသတိပြုပါ - နားထောင်ရ ရိုးအီစေသောကြောင့် မလိုအပ်ဘဲ လုံးဝမထည့်ပါနှင့်)။
-စာအုပ်ကြီး စာစကားများဖြစ်သော "သည်"၊ "၏"၊ "၌"၊ "၍"၊ "သောကြောင့်"၊ "ဖြစ်သည်"၊ "လျက်ရှိသည်"၊ "ရာတွင်"၊ "ခဲ့သည်" များကို လုံးဝ (လုံးဝ) မသုံးရ။
-စက်ရုပ်ဆန်ဆန် စကားတိုများ ဖြတ်ပြောသလို မဖြစ်စေရ။ သဘာဝကျပြီး စီးဆင်းမှုရှိသော (smooth flow) လူစစ်စစ် ပြောနေသည့်ဟန်ဖြင့် ရေးပါ။ ဝါကျများ ဆက်စပ်မှုရှိစေရန် "အဲဒီနောက်"၊ "ဒါပေမဲ့"၊ "ရုတ်တရက်" စသည့် စကားဆက်များနှင့် "တော့"၊ "ပါတော့တယ်"၊ "လိုက်ပါတယ်" စသည့် အဆုံးသတ်များကို သဘာဝကျကျ ထည့်သုံးပါ။
-ဥပမာကောင်း: "အဲဒီအချိန်မှာ ဂျွန်တစ်ယောက် အခန်းထဲ ဝင်လာခဲ့ပါတယ်။ သူ့သူငယ်ချင်းကို မြင်လိုက်ရတဲ့အခါမှာတော့ သူ အရမ်းကို အံ့ဩသွားခဲ့ပါတယ်။"
-ဥပမာကောင်း: "ရဲအရာရှိလည်း အခြေအနေကို ရိပ်မိသွားပြီး သေနတ်ကို ချက်ချင်း ဆွဲထုတ်လိုက်ပါတော့တယ်။"
-အလွန်အရေးကြီးသည်- စကားပြော သဘာဝကျရမည်ဆိုသော်လည်း ဝါကျကို မလိုအပ်ဘဲ မဆွဲဆန့်ရ။ စာတန်းထိုး ၂ ကြောင်းထက် လုံးဝ ပိုမရှည်စေရန် အပိုင်းတစ်ပိုင်းစီအတွက် စာလုံးရေ ၂၀ မှ ၃၀ အထိသာ အတိအကျ ကွက်တိရေးရမည် (၃ ကြောင်း ၄ ကြောင်း လုံးဝ မဖြစ်စေရ)။
-ဇာတ်ကောင်အမည်များကို မြန်မာလို အသံထွက်မှန်အတိုင်း သုံးပါ။
-Output format: Return ONLY a valid JSON array of objects: [{"id": 1, "mm": "တိုရှင်း လိုရင်း မြန်မာစကားပြော စာသား"}, ...]"""
+၁။ King Burma စကားပြောဟန် (Natural Movie Recap Flow):
+   - စာအုပ်ကြီး စာစကားများဖြစ်သော "သည်"၊ "၏"၊ "၌"၊ "၍"၊ "သောကြောင့်"၊ "ဖြစ်သည်"၊ "လျက်ရှိသည်"၊ "ရာတွင်"၊ "ခဲ့သည်" များကို လုံးဝ (လုံးဝ) မသုံးရ။
+   - စက်ရုပ်ဆန်ဆန် စကားတိုများ ဖြတ်ပြောသလို မဖြစ်စေရ။ သဘာဝကျပြီး စီးဆင်းမှုရှိသော (smooth flow) လူစစ်စစ် ပြောနေသည့်ဟန်ဖြင့် ရေးပါ။
+   - ဇာတ်လမ်း ဆက်စပ်မှုရှိစေရန် "အဲဒီနောက်မှာတော့"၊ "ဒီတစ်ခါမှာတော့"၊ "ဒါပေမဲ့လည်း"၊ "ရုတ်တရက်ဆိုသလိုပဲ"၊ "တကယ်တော့"၊ "သူ မထင်မှတ်ထားတာက" စသည့် စကားဆက်များနှင့် "...လိုက်ပါတော့တယ်"၊ "...ဖြစ်သွားခဲ့ပါတယ်"၊ "...တွေ့လိုက်ရတာပါ"၊ "...စတင်ခဲ့ရပါတော့တယ်" စသည့် အဆုံးသတ်များကို သဘာဝကျကျ ထည့်သုံးပါ။
+   - "ပေါ့"၊ "ဗျာ"၊ "ဗျ"၊ "ပေါ့ဗျာ" စသည့် စကားလုံးများကို ဝါကျတိုင်းတွင် ထပ်ခါတလဲလဲ အလွန်အကျွံ မသုံးရ။
+   - ဥပမာကောင်း: "အဲဒီနောက်မှာတော့ ဂျွန်တစ်ယောက် အခန်းထဲ ဝင်လာခဲ့ပါတယ်။ သူ့သူငယ်ချင်းကို မြင်လိုက်ရတဲ့အခါမှာတော့ သူ အရမ်းကို အံ့ဩသွားခဲ့ရတာပါ။"
+   - ဥပမာကောင်း: "ရဲအရာရှိလည်း အခြေအနေကို ရိပ်မိသွားပြီး သေနတ်ကို ချက်ချင်း ဆွဲထုတ်လိုက်ပါတော့တယ်။"
+
+၂။ စာတန်းထိုး ၁ ကြောင်းတည်း ကွက်တိဆန့်မှု (STRICTLY ONE SINGLE LINE):
+   - စကားပြော သဘာဝကျရမည်ဖြစ်ပြီး စာတန်းထိုးကို အတိအကျ ၁ ကြောင်းတည်း (STRICTLY ONE SINGLE LINE) သာ ဖြစ်စေရမည် (လုံးဝ ၂ ကြောင်း မခွဲရ)။
+   - အပိုင်းတစ်ပိုင်းစီအတွက် မြန်မာစာလုံးရေ ၁၂ လုံးမှ ၂၂ လုံးခန့်သာ တိုတိုရှင်းရှင်း ထိထိမိမိ ကွက်တိရေးရမည် (စာလုံးရေ ၂၅ လုံးထက် လုံးဝ မပိုစေရ)။
+
+၃။ ဇာတ်ကောင်အမည်များနှင့် နာမ်စားများ:
+   - ဇာတ်ကောင်အမည်များကို မြန်မာလို အသံထွက်မှန်အတိုင်း သုံးပါ။ နာမ်စားများကို "သူ"၊ "သူ့သူငယ်ချင်း"၊ "ဒီလူကြီး" စသည်ဖြင့် သဘာဝကျကျ သုံးပါ။
+Output format: Return ONLY a valid JSON array of objects: [{"id": 1, "mm": "တိုရှင်း လိုရင်း သဘာဝကျသော မြန်မာစကားပြော စာသား"}, ...]"""
 
     translated_chunks = []
 
@@ -604,7 +612,7 @@ def synthesize_edge_tts(
     calibrated_rate = normalize_edge_rate(speed)
     print(f"[EdgeTTS] Speed input: {speed} -> Calibrated rate: {calibrated_rate}")
 
-    # Map voices and character presets (Thiha, Zaw, Wunna, Nilar - Team Alpha Style)
+    # Map voices and character presets (Thiha, Zaw, Wunna/Wanna, Nilar - Team Alpha Style)
     v_norm = (voice or "").strip().lower()
     actual_voice = "my-MM-ThihaNeural"
     pitch_str = "+0Hz"
@@ -617,26 +625,43 @@ def synthesize_edge_tts(
             "highpass=f=80",
             "loudnorm=I=-16:TP=-1.5:LRA=10",
         ])
+    elif "king" in v_norm or "burma" in v_norm:
+        # King Burma (မင်းမြန်မာ) - Viral TikTok Movie Recap Voice
+        # Baritone pitch (-12Hz) with chest resonance, crisp vocal clarity & radio compressor
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "-12Hz"
+        af_filters.extend([
+            "highpass=f=70",
+            "lowshelf=g=4.0:f=160",
+            "equalizer=f=350:width_type=o:width=1.2:g=-1.8",
+            "equalizer=f=2400:width_type=o:width=1.4:g=2.6",
+            "highshelf=g=1.8:f=4000",
+            "acompressor=threshold=-17dB:ratio=3.5:attack=4:release=45",
+            "loudnorm=I=-15.5:TP=-1.5:LRA=9",
+        ])
     elif "zaw" in v_norm:
         # Zaw (ဇော်) - Team Alpha Deep Cinematic Voice
-        # Zero artificial pitch distortion (+0Hz native neural) + broadcast chest warmth & studio compressor
+        # Rich neural bass pitch (-18Hz) + chest resonance, low-end warmth & studio compressor
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "+0Hz"
+        pitch_str = "-18Hz"
         af_filters.extend([
-            "highpass=f=75",
-            "lowshelf=g=2.5:f=160",
-            "highshelf=g=-1.0:f=4200",
+            "highpass=f=65",
+            "lowshelf=g=3.5:f=150",
+            "equalizer=f=260:width_type=o:width=1.5:g=-1.5",
+            "highshelf=g=1.2:f=3600",
             "acompressor=threshold=-18dB:ratio=3:attack=5:release=50",
             "loudnorm=I=-16:TP=-1.5:LRA=10",
         ])
-    elif "wunna" in v_norm or "wun" in v_norm:
-        # Wunna (ဝဏ္ဏ) - Team Alpha Fast Viral Street Recap Voice
-        # Zero pitch distortion (+0Hz native neural) + snappy cadence & broadcast presence
+    elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm:
+        # Wunna / Wanna (ဝဏ္ဏ) - Team Alpha Fast Viral Street Recap Voice
+        # Energetic neural pitch (+18Hz) + crisp vocal presence & snappy broadcast compressor
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "+0Hz"
+        pitch_str = "+18Hz"
         af_filters.extend([
             "highpass=f=85",
-            "highshelf=g=1.8:f=3200",
+            "equalizer=f=160:width_type=o:width=1.2:g=-2.0",
+            "equalizer=f=1400:width_type=o:width=1.5:g=2.5",
+            "highshelf=g=2.5:f=3200",
             "acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40",
             "loudnorm=I=-16:TP=-1.5:LRA=9",
         ])
@@ -1045,12 +1070,11 @@ def assign_midpoint_boundaries(units: list[dict], video_duration: float) -> list
     return out
 
 
-def format_burmese_two_lines(raw_text: str, base_font_size: int, is_portrait: bool) -> tuple[str, int]:
-    """Format Burmese subtitle text strictly into AT MOST 2 balanced lines.
-    - Strips all existing breaks (\\r, \\n, \\N).
-    - If short enough, keeps as 1 line.
-    - If longer, splits once at natural midpoint boundary (punctuation, space, or consonant).
-    - Dynamically scales font size to guarantee that libass NEVER wraps into a 3rd or 4th line!
+def format_burmese_single_line(raw_text: str, base_font_size: int, is_portrait: bool) -> tuple[str, int]:
+    """Format Burmese subtitle text strictly into ONE SINGLE LINE (matching user reference photo).
+    - Removes all breaks (\\r, \\n, \\N).
+    - Strips extra spaces.
+    - Dynamically scales font size down so libass strictly NEVER breaks or auto-wraps into a 2nd line!
     Returns: (formatted_ass_text, scaled_font_size)
     """
     clean_text = raw_text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").replace("\\N", " ").replace("\\n", " ")
@@ -1058,64 +1082,30 @@ def format_burmese_two_lines(raw_text: str, base_font_size: int, is_portrait: bo
     if not clean_text:
         return "", base_font_size
 
-    # Target safe line length (characters) before requiring font scaling (wider for movie recap flow)
-    safe_max_chars = 26 if is_portrait else 34
-    single_line_threshold = 20 if is_portrait else 28
+    # In portrait (9:16), screen is narrower; safe chars for base size is ~22.
+    # In landscape (16:9), safe chars for base size is ~36.
+    safe_max_chars = 22 if is_portrait else 36
 
-    # If already short enough, keep as 1 single line
-    if len(clean_text) <= single_line_threshold:
-        return clean_text, base_font_size
-
-    # Find the best split index near the midpoint for EXACTLY 2 lines
-    half = len(clean_text) // 2
-    split_idx = -1
-
-    # 1. Look for Burmese punctuation (၊ or ။) near middle (30% to 70%)
-    puncts = [i + 1 for i in range(int(len(clean_text) * 0.30), int(len(clean_text) * 0.70) + 1) if clean_text[i] in ("၊", "။")]
-    if puncts:
-        split_idx = min(puncts, key=lambda p: abs(p - half))
-    else:
-        # 2. Look for space near middle (30% to 70%)
-        spaces = [i for i in range(int(len(clean_text) * 0.30), int(len(clean_text) * 0.70) + 1) if clean_text[i] == " "]
-        if spaces:
-            split_idx = min(spaces, key=lambda s: abs(s - half))
-        else:
-            # 3. Look for consonant / syllable start (avoid splitting medial/vowel marks)
-            burmese_consonants = set("ကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအ")
-            consonant_indices = [
-                i for i in range(int(len(clean_text) * 0.35), int(len(clean_text) * 0.65) + 1)
-                if clean_text[i] in burmese_consonants
-            ]
-            if consonant_indices:
-                split_idx = min(consonant_indices, key=lambda c: abs(c - half))
-            else:
-                split_idx = half
-
-    line1 = clean_text[:split_idx].strip()
-    line2 = clean_text[split_idx:].strip()
-
-    # Re-verify that neither line contains any stray break
-    line1 = line1.replace("\\N", "").replace("\n", "").strip()
-    line2 = line2.replace("\\N", "").replace("\n", "").strip()
-
-    if not line2:
-        return line1, base_font_size
-
-    # Check max line length to calculate dynamic font scale
-    max_line_len = max(len(line1), len(line2))
+    text_len = len(clean_text)
     scaled_font_size = base_font_size
 
-    if max_line_len > safe_max_chars:
-        # Scale font down proportionally so libass will NEVER auto-wrap into a 3rd line
-        ratio = safe_max_chars / max_line_len
-        scaled_font_size = max(30, int(base_font_size * ratio))
+    if text_len > safe_max_chars:
+        # Scale font down proportionally to strictly fit on 1 single line without overflow
+        ratio = safe_max_chars / float(text_len)
+        min_fs = max(26, int(base_font_size * 0.60))
+        scaled_font_size = max(min_fs, int(base_font_size * ratio))
 
     if scaled_font_size < base_font_size:
-        formatted = f"{{\\fs{scaled_font_size}}}{line1}\\N{line2}"
+        formatted = f"{{\\fs{scaled_font_size}}}{clean_text}"
     else:
-        formatted = f"{line1}\\N{line2}"
+        formatted = clean_text
 
     return formatted, scaled_font_size
+
+
+def format_burmese_two_lines(raw_text: str, base_font_size: int, is_portrait: bool) -> tuple[str, int]:
+    """Single-line subtitle formatter (guarantees strictly 1 line matching movie recap style)."""
+    return format_burmese_single_line(raw_text, base_font_size, is_portrait)
 
 
 def generate_burmese_ass(
@@ -1125,11 +1115,14 @@ def generate_burmese_ass(
     canvas_h: int = 1080,
     blur_enabled: bool = False,
     blur_position: float = 78.0,
+    blur_thickness: float = 14.0,
+    blur_width: float = 100.0,
+    blur_x: Optional[float] = None,
     subtitle_style: str = "font-akkhayar",
     hook_title: str = "",
 ) -> Path:
     """Generate ASS subtitle file with Akkhayar21 font in clean Movie Recap style.
-    Supports 1-line captivating intro thumbnail hook at video start (0s-2.8s) matching user's ref photo.
+    When blur is enabled, uses \\an5\\pos to center subtitles precisely in the 2D blur box (both vertically and horizontally).
     """
     font_name = "Akkhayar21"
     if subtitle_style in ("font-kunheing", "kunheing"):
@@ -1147,20 +1140,42 @@ def generate_burmese_ass(
     hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
 
     try:
-        b_pos = float(blur_position)
+        b_pos_f = float(blur_position)
     except (ValueError, TypeError):
         if str(blur_position) == "center":
-            b_pos = 60.0
+            b_pos_f = 60.0
         elif str(blur_position) == "drama":
-            b_pos = 66.0
+            b_pos_f = 66.0
         elif str(blur_position) == "bottom":
-            b_pos = 86.0
+            b_pos_f = 86.0
         else:
-            b_pos = 78.0
+            b_pos_f = 82.0
+
+    center_x = canvas_w // 2
+    center_y = int(canvas_h * (b_pos_f / 100.0))
 
     if blur_enabled:
-        strip_center_from_bottom = ((100.0 - b_pos) / 100.0) * canvas_h
-        margin_v = max(10, int(strip_center_from_bottom - (font_size * 1.05)))
+        b_thick_f = float(blur_thickness) if str(blur_thickness).replace('.', '', 1).isdigit() else 14.0
+        b_width_f = float(blur_width) if str(blur_width).replace('.', '', 1).isdigit() else 100.0
+        thickness_pct = max(0.04, min(0.40, b_thick_f / 100.0))
+        top_pct = max(0.0, min(1.0 - thickness_pct, (b_pos_f - b_thick_f / 2.0) / 100.0))
+        width_pct = max(0.20, min(1.0, b_width_f / 100.0))
+
+        blur_y = int(round(canvas_h * top_pct / 2.0)) * 2
+        blur_h = max(8, int(round(canvas_h * thickness_pct / 2.0)) * 2)
+        if blur_y + blur_h > canvas_h:
+            blur_h = max(8, canvas_h - blur_y)
+
+        blur_w = max(40, int(round(canvas_w * width_pct / 2.0)) * 2)
+        if blur_x is not None and str(blur_x).replace('.', '', 1).isdigit():
+            blur_x_f = float(blur_x)
+            blur_x_pos = max(0, min(canvas_w - blur_w, int(round(canvas_w * blur_x_f / 100.0 / 2.0)) * 2))
+        else:
+            blur_x_pos = int(round((canvas_w - blur_w) / 2.0 / 2.0)) * 2
+
+        center_x = blur_x_pos + (blur_w // 2)
+        center_y = blur_y + (blur_h // 2)
+        margin_v = 0
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
 
@@ -1176,8 +1191,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,4.2,1.8,2,{margin_lr},{margin_lr},{margin_v},1
-Style: IntroHook,{font_name},{hook_font_size},&H0015CCFA,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,5.5,2.8,2,{margin_lr},{margin_lr},{hook_margin_v},1
+Style: Default,{font_name},{font_size},&H0000E6FF,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,4.5,1.5,2,{margin_lr},{margin_lr},{margin_v},1
+Style: IntroHook,{font_name},{hook_font_size},&H0000E6FF,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,5.5,2.5,2,{margin_lr},{margin_lr},{hook_margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -1205,10 +1220,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         s_str = format_ass_time(start_time)
         e_str = format_ass_time(end_time)
 
-        # Format strictly to at most 2 lines with dynamic font scaling
-        formatted_dialogue, _ = format_burmese_two_lines(text, font_size, is_portrait)
+        # Format strictly to 1 single line with dynamic font scaling (User reference photo style)
+        formatted_dialogue, _ = format_burmese_single_line(text, font_size, is_portrait)
         if formatted_dialogue:
-            events.append(f"Dialogue: 0,{s_str},{e_str},Default,,0,0,{margin_v},,{formatted_dialogue}")
+            if blur_enabled:
+                if formatted_dialogue.startswith("{\\fs"):
+                    cue_text = formatted_dialogue.replace("{\\fs", f"{{\\an5\\pos({center_x},{center_y})\\fs", 1)
+                else:
+                    cue_text = f"{{\\an5\\pos({center_x},{center_y})}}{formatted_dialogue}"
+                events.append(f"Dialogue: 0,{s_str},{e_str},Default,,0,0,0,,{cue_text}")
+            else:
+                events.append(f"Dialogue: 0,{s_str},{e_str},Default,,0,0,{margin_v},,{formatted_dialogue}")
 
     output_ass.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
     return output_ass
@@ -1239,7 +1261,7 @@ def generate_burmese_srt(subtitles_timing: list[dict], output_srt: Path) -> Path
 
         # Strip any formatting tags like {\fs...} or \N
         clean = re.sub(r'\{[^\}]*\}', '', text)
-        clean = clean.replace('\\N', '\n').replace('\\n', '\n')
+        clean = clean.replace('\\N', ' ').replace('\\n', ' ').replace('\n', ' ')
         clean = re.sub(r'\s+', ' ', clean).strip()
 
         s_str = format_srt_time(start_t)
@@ -1547,7 +1569,19 @@ def render_smart_sync_video(
     # Step 4: Generate Subtitles locked to speech timestamps
     ass_path = job_dir / "burmese_subtitles.ass"
     b_pos = float(blur_position) if str(blur_position).replace('.', '', 1).isdigit() else 78.0
-    generate_burmese_ass(subtitles_timing, ass_path, canvas_w, canvas_h, blur_enabled=enable_blur, blur_position=b_pos, subtitle_style=subtitle_style, hook_title=hook_title)
+    generate_burmese_ass(
+        subtitles_timing,
+        ass_path,
+        canvas_w,
+        canvas_h,
+        blur_enabled=enable_blur,
+        blur_position=b_pos,
+        blur_thickness=blur_thickness,
+        blur_width=blur_width,
+        blur_x=blur_x,
+        subtitle_style=subtitle_style,
+        hook_title=hook_title,
+    )
     srt_path = job_dir / "burmese_subtitles.srt"
     generate_burmese_srt(subtitles_timing, srt_path)
 
@@ -1737,10 +1771,100 @@ def render_smart_sync_video(
 
 # ─────────────────────────── Full Pipeline ───────────────────────────
 
+def extract_clean_url(raw_text: str) -> str:
+    """Extract clean HTTP/HTTPS URL from any text (e.g. mobile share text with Chinese/emojis/titles)."""
+    if not raw_text:
+        return ""
+    m = re.search(r'https?://[^\s<>"\']+', str(raw_text))
+    if m:
+        u = m.group(0).strip()
+        # Clean trailing punctuation, Chinese, and Burmese symbols attached from copy-pastes
+        u = re.sub(r'[\s.,;!?)]}。，！？】」）]+$', '', u)
+        return u
+    return str(raw_text).strip()
+
+
+def resolve_media_url(url: str) -> str:
+    """Resolve redirect for shortlinks like xhslink.com (Rednote), vt.tiktok.com, youtu.be."""
+    clean_url = extract_clean_url(url)
+    if "xhslink.com" in clean_url or "vt.tiktok.com" in clean_url:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                clean_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                }
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                final_url = resp.geturl()
+                if final_url:
+                    return final_url
+        except Exception as e:
+            print(f"[ResolveMediaUrl] Warning: {e}")
+    return clean_url
+
+
+def download_rednote_fallback(url: str, output_path: Path) -> bool:
+    """Direct scraper fallback for Xiaohongshu / Rednote video."""
+    try:
+        import urllib.request
+        import json
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+
+        video_url = None
+        # Try finding __INITIAL_STATE__
+        state_match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.+?\})\s*</script>', html)
+        if state_match:
+            try:
+                state_json = json.loads(state_match.group(1).replace("undefined", "null"))
+                note_map = state_json.get("note", {}).get("noteDetailMap", {})
+                for note in note_map.values():
+                    n = note.get("note", {})
+                    v = n.get("video", {})
+                    media = v.get("media", {})
+                    streams = media.get("stream", {})
+                    h264 = streams.get("h264", [])
+                    if h264 and isinstance(h264, list) and h264[0].get("masterUrl"):
+                        video_url = h264[0]["masterUrl"]
+                        break
+            except Exception:
+                pass
+
+        if not video_url:
+            v_matches = re.findall(r'(https?:\\?/\\?/[a-zA-Z0-9.-]*xhscdn\.com\\?/[^\s"\'<>]+\.mp4[^\s"\'<>]*)', html)
+            if v_matches:
+                video_url = v_matches[0].replace('\\/', '/')
+
+        if video_url:
+            v_req = urllib.request.Request(video_url, headers=headers)
+            with urllib.request.urlopen(v_req, timeout=60) as v_resp, open(output_path, "wb") as f_out:
+                f_out.write(v_resp.read())
+            return output_path.is_file() and output_path.stat().st_size > 10240
+    except Exception as e:
+        print(f"[RednoteFallback] Error: {e}")
+    return False
+
+
 def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
-    """Download video from YouTube, TikTok, Facebook or direct URL using yt-dlp."""
+    """Download video from YouTube, TikTok, Rednote (Xiaohongshu), Facebook or direct URL."""
+    clean_url = extract_clean_url(url)
+    resolved_url = resolve_media_url(clean_url)
+
+    is_rednote = any(d in resolved_url.lower() for d in ["xhslink.com", "xiaohongshu.com", "rednote"])
+    platform_name = "Rednote (小红书)" if is_rednote else ("TikTok" if "tiktok.com" in resolved_url else "YouTube / Web")
+
     update_job(job_id, step="download", progress=3,
-               message="Downloading video from link (YouTube / TikTok)...")
+               message=f"Downloading video from {platform_name} link...")
 
     ffmpeg_bin = find_ffmpeg()
     ffmpeg_dir = str(Path(ffmpeg_bin).parent)
@@ -1754,33 +1878,38 @@ def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
     cmd = [
         ytdlp_bin,
         "--no-warnings",
+        "--no-check-certificates",
+        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "--ffmpeg-location", ffmpeg_dir,
         "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "--merge-output-format", "mp4",
         "--max-filesize", "500M",
         "-o", str(out_template),
-        url.strip(),
+        resolved_url,
     ]
 
     result = subprocess.run(
         cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
     )
 
-    if result.returncode != 0:
-        err = (result.stderr or result.stdout or "Download failed").strip()
-        raise RuntimeError(f"Video download failed: {err[-600:]}")
-
     # Check for downloaded file
     mp4_path = job_dir / "source.mp4"
-    if mp4_path.is_file():
+    if mp4_path.is_file() and mp4_path.stat().st_size > 1024:
         return mp4_path
 
     candidates = list(job_dir.glob("source.*"))
     for c in candidates:
-        if c.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov"]:
+        if c.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov"] and c.stat().st_size > 1024:
             return c
 
-    raise FileNotFoundError("Downloaded video file not found in job directory.")
+    # If Rednote, try direct fallback scraper
+    if is_rednote:
+        print("[Rednote] Attempting direct Rednote video stream extraction fallback...")
+        if download_rednote_fallback(resolved_url, mp4_path):
+            return mp4_path
+
+    err = (result.stderr or result.stdout or "Download failed").strip()
+    raise RuntimeError(f"Video download failed ({platform_name}): {err[-500:]}")
 
 
 def run_oneclick_pipeline(
@@ -1857,12 +1986,14 @@ def run_oneclick_pipeline(
         ffmpeg = find_ffmpeg()
         audio_path = job_dir / "source_audio.wav"
 
-        subprocess.run(
+        extract_res = subprocess.run(
             [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
              "-i", str(video_path), "-vn", "-ac", "1", "-ar", "16000",
              "-c:a", "pcm_s16le", str(audio_path)],
-            capture_output=True, check=True,
+            capture_output=True, text=True,
         )
+        if extract_res.returncode != 0 or not audio_path.is_file() or audio_path.stat().st_size < 100:
+            raise RuntimeError("ဗီဒီယိုဖိုင်တွင် အသံလိုင်း (Audio track) မပါရှိပါ သို့မဟုတ် ဖတ်မရပါ။ စကားပြောပါဝင်သော အသံပါသည့် ဗီဒီယိုကို အသုံးပြုပေးပါ။")
 
         # Step 2: Whisper transcription
         segments = transcribe_with_whisper(audio_path, job_dir, job_id)
@@ -2100,11 +2231,11 @@ async def start_job(
             source_name = f"URL Video ({cands[0].name})"
             source_size = round(video_path.stat().st_size / (1024 * 1024), 1)
     elif video_url and video_url.strip():
-        source_name = video_url.strip()[:60]
+        source_name = extract_clean_url(video_url)[:60]
     else:
         raise HTTPException(
             status_code=400,
-            detail="ဗီဒီယိုဖိုင် သို့မဟုတ် YouTube / TikTok Link တစ်ခုခု ထည့်သွင်းပေးပါ",
+            detail="ဗီဒီယိုဖိုင် သို့မဟုတ် YouTube / TikTok / Rednote (Xiaohongshu) Link တစ်ခုခု ထည့်သွင်းပေးပါ",
         )
 
     voice_sample_path = None
@@ -2336,13 +2467,15 @@ async def list_voices():
     """List available Myanmar Edge TTS voices."""
     return {
         "voices": [
+            {"id": "my-MM-KingBurma", "name": "King Burma (မင်းမြန်မာ)", "gender": "Male",
+             "description": "TikTok & FB နာမည်ကြီး King Burma စတိုင် — ညို့ဓာတ်ပါသော အသံနက်၊ ဆွဲဆောင်မှုပြည့် ဇာတ်လမ်းပြောဟန်"},
             {"id": "my-MM-ThihaNeural", "name": "Thiha (သီဟ)", "gender": "Male",
              "description": "ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ"},
             {"id": "my-MM-ZawNeural", "name": "Zaw (ဇော်)", "gender": "Male",
              "description": "တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic စတိုင်"},
             {"id": "my-MM-WunnaNeural", "name": "Wunna (ဝဏ္ဏ)", "gender": "Male",
              "description": "တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral စတိုင်"},
-            {"id": "my-MM-NilarNeural", "name": "Nilar (နီလာ)", "gender": "Female",
+            {"id": "my-MM-NilarNeural", "name": "Nilar (နီတာ)", "gender": "Female",
              "description": "ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် narration ပုံစံ"},
         ],
         "speeds": [
@@ -2369,35 +2502,41 @@ async def get_voice_sample(voice_key: str):
     sample_dir.mkdir(parents=True, exist_ok=True)
     v_norm = voice_key.lower()
 
-    if "zaw" in v_norm:
+    if "king" in v_norm or "burma" in v_norm:
+        v_name = "kingburma"
+    elif "zaw" in v_norm:
         v_name = "zaw"
-    elif "wunna" in v_norm or "wun" in v_norm:
+    elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm:
         v_name = "wunna"
     elif "nilar" in v_norm:
         v_name = "nilar"
     else:
         v_name = "thiha"
 
-    sample_wav = sample_dir / f"sample_{v_name}.wav"
+    sample_wav = sample_dir / f"sample_alpha_v4_{v_name}.wav"
     if not sample_wav.is_file():
         import edge_tts
         text = "ကိုယ့်ရဲ့စိတ်ထဲမှာ ခံစားချက်တစ်ခုရှိနေပြီဆိုရင် အဲ့ဒီခံစားချက်ကို စာအဖြစ်ပြောင်းပြီးတော့ မျှဝေလိုက်ပါ"
         mp3_tmp = sample_dir / f"tmp_{v_name}.mp3"
         ffmpeg = find_ffmpeg()
-        if v_name == "nilar":
+        if v_name == "kingburma":
+            af_king = "highpass=f=70,lowshelf=g=4.0:f=160,equalizer=f=350:width_type=o:width=1.2:g=-1.8,equalizer=f=2400:width_type=o:width=1.4:g=2.6,highshelf=g=1.8:f=4000,acompressor=threshold=-17dB:ratio=3.5:attack=4:release=45,loudnorm=I=-15.5:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+12%", pitch="-12Hz").save(str(mp3_tmp))
+            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_king, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        elif v_name == "nilar":
             await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+15%").save(str(mp3_tmp))
             af_nilar = "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=10"
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_nilar, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         elif v_name == "zaw":
-            af_zaw = "highpass=f=75,lowshelf=g=2.5:f=160,highshelf=g=-1.0:f=4200,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%").save(str(mp3_tmp))
+            af_zaw = "highpass=f=65,lowshelf=g=3.5:f=150,equalizer=f=260:width_type=o:width=1.5:g=-1.5,highshelf=g=1.2:f=3600,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%", pitch="-18Hz").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_zaw, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         elif v_name == "wunna":
-            af_wunna = "highpass=f=85,highshelf=g=1.8:f=3200,acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+26%").save(str(mp3_tmp))
+            af_wunna = "highpass=f=85,equalizer=f=160:width_type=o:width=1.2:g=-2.0,equalizer=f=1400:width_type=o:width=1.5:g=2.5,highshelf=g=2.5:f=3200,acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+22%", pitch="+18Hz").save(str(mp3_tmp))
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_wunna, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         else:
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%").save(str(mp3_tmp))
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%", pitch="+0Hz").save(str(mp3_tmp))
             af_thiha = "highpass=f=75,loudnorm=I=-16:TP=-1.5:LRA=11"
             subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_thiha, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         mp3_tmp.unlink(missing_ok=True)

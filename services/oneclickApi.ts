@@ -150,6 +150,7 @@ export async function getOneClickVoices(): Promise<OneClickVoicesResponse> {
 
   return {
     voices: [
+      { id: 'my-MM-KingBurma', name: 'King Burma (မင်းမြန်မာ)', gender: 'Male', description: 'TikTok & FB နာမည်ကြီး King Burma စတိုင် — ညို့ဓာတ်ပါသော အသံနက်၊ ဆွဲဆောင်မှုပြည့် ဇာတ်လမ်းပြောဟန်' },
       { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ' },
       { id: 'my-MM-ZawNeural', name: 'Zaw (ဇော်)', gender: 'Male', description: 'တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic' },
       { id: 'my-MM-WunnaNeural', name: 'Wunna (ဝဏ္ဏ)', gender: 'Male', description: 'တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral' },
@@ -199,8 +200,17 @@ export interface OneClickJobOptions {
   introHookText?: string;
 }
 
+export const extractCleanUrl = (raw: string): string => {
+  if (!raw) return '';
+  const match = raw.match(/https?:\/\/[^\s<>"']+/i);
+  if (match) {
+    return match[0].replace(/[\s.,;!?)]}。，！？】」）]+$/, '');
+  }
+  return raw.trim();
+};
+
 /**
- * Pre-download YouTube or TikTok video so it displays in live preview player before processing.
+ * Pre-download YouTube, TikTok, or Rednote video so it displays in live preview player before processing.
  */
 export async function fetchOneClickUrlVideo(url: string): Promise<{
   success: boolean;
@@ -211,8 +221,9 @@ export async function fetchOneClickUrlVideo(url: string): Promise<{
   filename: string;
   preview_url: string;
 }> {
+  const cleanUrl = extractCleanUrl(url);
   const form = new FormData();
-  form.append('url', url.trim());
+  form.append('url', cleanUrl);
   const res = await fetch(`${getBaseUrl()}/api/oneclick/fetch-video`, {
     method: 'POST',
     body: form,
@@ -244,7 +255,7 @@ export async function startOneClickJob(
     formData.append('temp_id', String(input.tempId || options.tempId));
   }
   if (input.videoUrl) {
-    formData.append('video_url', input.videoUrl.trim());
+    formData.append('video_url', extractCleanUrl(input.videoUrl));
   }
   formData.append('voice', options.voice);
   formData.append('speed', options.speed);
@@ -415,7 +426,7 @@ export function getOneClickVoiceSampleUrl(voiceId: string): string {
   let key = 'thiha';
   const v = voiceId.toLowerCase();
   if (v.includes('zaw')) key = 'zaw';
-  else if (v.includes('wun')) key = 'wunna';
+  else if (v.includes('wun') || v.includes('wanna')) key = 'wunna';
   else if (v.includes('nilar')) key = 'nilar';
   return `${getBaseUrl()}/api/oneclick/voice-sample/${key}`;
 }
