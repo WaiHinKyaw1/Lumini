@@ -3,6 +3,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   checkOneClickHealth,
   getOneClickVoices,
+  getBaseUrl,
   startOneClickJob,
   getOneClickJobStatus,
   getOneClickDownloadUrl,
@@ -543,7 +544,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
         return;
       }
       const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-      const hasDirectHttps = (import.meta.env.VITE_ONECLICK_URL || '').startsWith('https://');
+      const activeUrl = getBaseUrl();
+      const hasDirectHttps = activeUrl.startsWith('https://') || (import.meta.env.VITE_ONECLICK_URL || '').startsWith('https://');
       if (isHttps && !hasDirectHttps && file.size > 4.5 * 1024 * 1024) {
         const mb = (file.size / (1024 * 1024)).toFixed(1);
         const limitMsg = `Vercel serverless proxy ကန့်သတ်ချက် (4.5MB) ကြောင့် ${mb}MB ရှိသောဖိုင်ကို တိုက်ရိုက် Upload မတင်နိုင်ပါ။ အပေါ်ရှိ "YouTube / TikTok / Rednote Link" Mode ကို အသုံးပြုပါ (သို့မဟုတ်) local တွင် run ပေးပါ။`;
@@ -1412,6 +1414,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
               {voiceMode === 'preset' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {[
+                    { id: 'my-MM-KingBurma', name: 'King Burma (မင်းမြန်မာ)', gender: 'Male', description: 'TikTok & FB နာမည်ကြီး King Burma စတိုင် — ညို့ဓာတ်ပါသော အသံနက်၊ ဆွဲဆောင်မှုပြည့် ဇာတ်လမ်းပြောဟန်' },
                     { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ' },
                     { id: 'my-MM-ZawNeural', name: 'Zaw (ဇော်)', gender: 'Male', description: 'တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic' },
                     { id: 'my-MM-WunnaNeural', name: 'Wunna (ဝဏ္ဏ)', gender: 'Male', description: 'တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral' },

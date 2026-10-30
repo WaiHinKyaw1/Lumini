@@ -1793,8 +1793,9 @@ def resolve_media_url(url: str) -> str:
             req = urllib.request.Request(
                 clean_url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
                 }
             )
             with urllib.request.urlopen(req, timeout=12) as resp:
@@ -1812,43 +1813,78 @@ def download_rednote_fallback(url: str, output_path: Path) -> bool:
         import urllib.request
         import json
 
+        clean_url = extract_clean_url(url)
+        # Mobile User Agent allows fetching mobile share pages without desktop anti-crawler redirects
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         }
-        req = urllib.request.Request(url, headers=headers)
+        req = urllib.request.Request(clean_url, headers=headers)
         with urllib.request.urlopen(req, timeout=15) as resp:
             html = resp.read().decode("utf-8", errors="replace")
 
-        video_url = None
-        # Try finding __INITIAL_STATE__
-        state_match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.+?\})\s*</script>', html)
-        if state_match:
-            try:
-                state_json = json.loads(state_match.group(1).replace("undefined", "null"))
-                note_map = state_json.get("note", {}).get("noteDetailMap", {})
-                for note in note_map.values():
-                    n = note.get("note", {})
-                    v = n.get("video", {})
-                    media = v.get("media", {})
-                    streams = media.get("stream", {})
-                    h264 = streams.get("h264", [])
-                    if h264 and isinstance(h264, list) and h264[0].get("masterUrl"):
-                        video_url = h264[0]["masterUrl"]
-                        break
-            except Exception:
-                pass
+        # Normalize escaped slashes
+        clean_html = html.replace("\\u002F", "/").replace("\\/", "/")
 
+        # Look for MP4 video streams hosted on xhscdn.com
+        mp4_matches = re.findall(
+            r"https?://[a-zA-Z0-9.-]*xhscdn\.com/stream/[^\s\"\'<>\\]+\.mp4(?:\?[^\s\"\'<>\\]*)?",
+            clean_html,
+        )
+
+        video_url = None
+        if mp4_matches:
+            # Sort/prioritize: prefer signed URLs (?sign=) and high quality stream (e.g. 520 / 1080)
+            def score_url(u: str) -> int:
+                s = 0
+                if "sign=" in u:
+                    s += 10
+                if "/520/" in u or "_520.mp4" in u:
+                    s += 5
+                elif "/259/" in u or "_259.mp4" in u:
+                    s += 2
+                return s
+
+            sorted_matches = sorted(set(mp4_matches), key=score_url, reverse=True)
+            video_url = sorted_matches[0]
+            print(f"[Rednote] Found {len(mp4_matches)} streams. Selected best stream: {video_url[:80]}...")
+
+        # If not found via stream regex, search INITIAL_STATE for masterUrl
         if not video_url:
-            v_matches = re.findall(r'(https?:\\?/\\?/[a-zA-Z0-9.-]*xhscdn\.com\\?/[^\s"\'<>]+\.mp4[^\s"\'<>]*)', html)
-            if v_matches:
-                video_url = v_matches[0].replace('\\/', '/')
+            state_match = re.search(r"window\.__INITIAL_(?:SSR_)?STATE__\s*=\s*(\{.+?\})\s*</script>", html)
+            if state_match:
+                try:
+                    state_json = json.loads(state_match.group(1).replace("undefined", "null"))
+                    def find_master_urls(obj):
+                        found = []
+                        if isinstance(obj, dict):
+                            for k, v in obj.items():
+                                if k == "masterUrl" and isinstance(v, str) and v.startswith("http"):
+                                    found.append(v)
+                                else:
+                                    found.extend(find_master_urls(v))
+                        elif isinstance(obj, list):
+                            for item in obj:
+                                found.extend(find_master_urls(item))
+                        return found
+                    m_urls = find_master_urls(state_json)
+                    if m_urls:
+                        video_url = m_urls[0]
+                except Exception:
+                    pass
 
         if video_url:
-            v_req = urllib.request.Request(video_url, headers=headers)
-            with urllib.request.urlopen(v_req, timeout=60) as v_resp, open(output_path, "wb") as f_out:
-                f_out.write(v_resp.read())
+            v_req = urllib.request.Request(
+                video_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+                    "Accept": "*/*",
+                    "Referer": "https://www.xiaohongshu.com/",
+                },
+            )
+            with urllib.request.urlopen(v_req, timeout=120) as v_resp, open(output_path, "wb") as f_out:
+                shutil.copyfileobj(v_resp, f_out)
             return output_path.is_file() and output_path.stat().st_size > 10240
     except Exception as e:
         print(f"[RednoteFallback] Error: {e}")
@@ -1865,6 +1901,16 @@ def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
 
     update_job(job_id, step="download", progress=3,
                message=f"Downloading video from {platform_name} link...")
+
+    mp4_path = job_dir / "source.mp4"
+
+    # For Rednote (Xiaohongshu), attempt direct scraper FIRST (yt-dlp lacks mobile xhs cookies)
+    if is_rednote:
+        print(f"[Rednote] Direct stream extraction for {resolved_url[:60]}...")
+        if download_rednote_fallback(resolved_url, mp4_path):
+            print(f"[Rednote] Download successful: {mp4_path.stat().st_size} bytes")
+            return mp4_path
+        print("[Rednote] Direct extraction failed, falling back to yt-dlp...")
 
     ffmpeg_bin = find_ffmpeg()
     ffmpeg_dir = str(Path(ffmpeg_bin).parent)
@@ -1893,7 +1939,6 @@ def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
     )
 
     # Check for downloaded file
-    mp4_path = job_dir / "source.mp4"
     if mp4_path.is_file() and mp4_path.stat().st_size > 1024:
         return mp4_path
 
@@ -1902,7 +1947,7 @@ def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
         if c.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov"] and c.stat().st_size > 1024:
             return c
 
-    # If Rednote, try direct fallback scraper
+    # If Rednote and not yet successful, retry fallback
     if is_rednote:
         print("[Rednote] Attempting direct Rednote video stream extraction fallback...")
         if download_rednote_fallback(resolved_url, mp4_path):
@@ -2118,12 +2163,28 @@ async def health():
 
     all_ok = all(deps.values())
 
+    tunnel_url = os.environ.get("TUNNEL_URL", "").strip()
+    if not tunnel_url:
+        try:
+            for cand in [
+                Path("/opt/lumini-media-worker/data/tunnel_url.txt"),
+                Path("/opt/lumini-oneclick/data/tunnel_url.txt"),
+            ]:
+                if cand.is_file():
+                    t_val = cand.read_text(encoding="utf-8").strip()
+                    if t_val.startswith("https://"):
+                        tunnel_url = t_val
+                        break
+        except Exception:
+            pass
+
     return {
         "online": True,
         "service": "OneClick Recap EN→MM",
         "version": "1.0.0",
         "ready": all_ok,
         "dependencies": deps,
+        "tunnelUrl": tunnel_url or "https://solar-bug-association-invoice.trycloudflare.com",
     }
 
 

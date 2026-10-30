@@ -6,8 +6,25 @@
  */
 
 let activeOneClickUrl: string | null = null;
+try {
+  if (typeof window !== 'undefined') {
+    activeOneClickUrl = window.sessionStorage?.getItem('lumini_tunnel_url')
+      || window.localStorage?.getItem('lumini_tunnel_url')
+      || null;
+  }
+} catch {}
 
-const getBaseUrl = (): string => {
+export const setDirectOneClickUrl = (url: string) => {
+  activeOneClickUrl = url.replace(/\/$/, '');
+  try {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage?.setItem('lumini_tunnel_url', activeOneClickUrl);
+      window.localStorage?.setItem('lumini_tunnel_url', activeOneClickUrl);
+    }
+  } catch {}
+};
+
+export const getBaseUrl = (): string => {
   if (activeOneClickUrl !== null) return activeOneClickUrl;
 
   const dedicated = import.meta.env.VITE_ONECLICK_URL;
@@ -15,6 +32,11 @@ const getBaseUrl = (): string => {
 
   const mediaWorker = import.meta.env.VITE_MEDIA_WORKER_URL || '';
   if (mediaWorker) return mediaWorker.replace(/\/$/, '');
+
+  // If in browser over HTTPS, default to Cloudflare HTTPS tunnel to prevent Mixed Content block and bypass Vercel 4.5MB limit
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return 'https://solar-bug-association-invoice.trycloudflare.com';
+  }
 
   return 'http://16.170.108.153:8080';
 };
@@ -89,6 +111,7 @@ export async function checkOneClickHealth(): Promise<OneClickHealthResponse> {
   const urlsToTry: string[] = [];
   const primary = getBaseUrl();
   if (primary) urlsToTry.push(`${primary}/api/oneclick/health`);
+  urlsToTry.push('https://solar-bug-association-invoice.trycloudflare.com/api/oneclick/health');
   urlsToTry.push('/api/oneclick/health');
   urlsToTry.push('/worker/api/oneclick/health');
   if (primary !== 'http://16.170.108.153:8080') {
@@ -106,7 +129,10 @@ export async function checkOneClickHealth(): Promise<OneClickHealthResponse> {
         const text = await res.text();
         const data = JSON.parse(text);
         if (data && typeof data === 'object' && data.online !== undefined) {
-          activeOneClickUrl = url.replace(/\/api\/oneclick\/health$/, '');
+          const resolvedBase = (data.tunnelUrl && typeof data.tunnelUrl === 'string' && data.tunnelUrl.startsWith('https://'))
+            ? data.tunnelUrl.replace(/\/$/, '')
+            : url.replace(/\/api\/oneclick\/health$/, '');
+          setDirectOneClickUrl(resolvedBase);
           return data as OneClickHealthResponse;
         }
       }
@@ -425,7 +451,8 @@ export async function pollOneClickJob(
 export function getOneClickVoiceSampleUrl(voiceId: string): string {
   let key = 'thiha';
   const v = voiceId.toLowerCase();
-  if (v.includes('zaw')) key = 'zaw';
+  if (v.includes('king') || v.includes('burma')) key = 'kingburma';
+  else if (v.includes('zaw')) key = 'zaw';
   else if (v.includes('wun') || v.includes('wanna')) key = 'wunna';
   else if (v.includes('nilar')) key = 'nilar';
   return `${getBaseUrl()}/api/oneclick/voice-sample/${key}`;
