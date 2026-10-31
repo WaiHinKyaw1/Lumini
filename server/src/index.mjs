@@ -1237,8 +1237,8 @@ function generateAssSubtitle(canvas, settings, speedMultiplier = 1) {
     ? Math.max(10, Math.round(stripCenterFromBottom - (fontSize * 0.72)))
     : Math.round(isPortrait ? canvas.height * 0.08 : canvas.height * 0.10);
 
-  // Safe ~11% side margins to keep subtitles gracefully centered (never stretching full width)
-  const marginLR = Math.round(canvas.width * 0.11);
+  // Keep subtitle content inside the video with a fixed 10px left/right safe padding.
+  const marginLR = 10;
 
   let fontName = 'Akkhayar21';
   if (settings.subtitleStyle === 'font-kunheing' || settings.subtitleStyle === 'kunheing') {
