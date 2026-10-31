@@ -1088,7 +1088,7 @@ def format_burmese_single_line(raw_text: str, base_font_size: int, is_portrait: 
 
     # In portrait (9:16), screen is narrower; safe chars for base size is ~22.
     # In landscape (16:9), safe chars for base size is ~36.
-    safe_max_chars = 22 if is_portrait else 36
+    safe_max_chars = 18 if is_portrait else 32
 
     text_len = len(clean_text)
     scaled_font_size = base_font_size
@@ -1183,7 +1183,7 @@ def generate_burmese_ass(
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
 
-    margin_lr = int(canvas_w * 0.05)  # Wide 5% padding on sides (allows 90% full subtitle width)
+    margin_lr = int(canvas_w * (0.10 if is_portrait else 0.08))  # TikTok-safe 10% side padding; keeps text from stretching edge-to-edge
 
     # WrapStyle: 2 = strictly NO auto-wrapping by libass (guarantees max 2 lines!)
     header = f"""[Script Info]
