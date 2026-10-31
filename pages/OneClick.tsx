@@ -593,6 +593,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
           logoOpacity: logoOpacity / 100,
           includeOriginalAudio,
           voiceSample: voiceMode === 'custom-sample' ? voiceSampleFile : null,
+          voiceSamplePreset: selectedVoice === 'preset-kingburma-reference' ? 'kingburma-reference' : undefined,
           elevenlabsApiKey: voiceMode === 'custom-sample' ? elevenApiKey.trim() : undefined,
           enableIntroHook: false,
         }
@@ -1419,6 +1420,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                     { id: 'my-MM-ZawNeural', name: 'Zaw (ဇော်)', gender: 'Male', description: 'တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic' },
                     { id: 'my-MM-WunnaNeural', name: 'Wunna (ဝဏ္ဏ)', gender: 'Male', description: 'တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral' },
                     { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ)', gender: 'Female', description: 'ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် စကားပြောစတိုင်' },
+                    { id: 'preset-kingburma-reference', name: 'KingBurma Reference (နမူနာအသံ)', gender: 'Male', description: 'သင်ပေးထားသော sample အသံ — Deep TikTok Movie Recap / ElevenLabs Clone' },
                   ].map((v) => (
                     <div
                       key={v.id}

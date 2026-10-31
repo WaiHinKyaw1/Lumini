@@ -220,6 +220,7 @@ export interface OneClickJobOptions {
   logoOpacity?: number;
   includeOriginalAudio?: boolean;
   voiceSample?: File | null;
+  voiceSamplePreset?: string;
   voiceId?: string;
   elevenlabsApiKey?: string;
   enableIntroHook?: boolean;
@@ -312,6 +313,9 @@ export async function startOneClickJob(
   }
   if (options.voiceSample) {
     formData.append('voice_sample', options.voiceSample);
+  }
+  if (options.voiceSamplePreset) {
+    formData.append('voice_sample_preset', options.voiceSamplePreset);
   }
   if (options.voiceId) {
     formData.append('voice_id', options.voiceId);
@@ -449,6 +453,7 @@ export async function pollOneClickJob(
  * Get direct audio stream URL for voice sample preview (Thiha, Zaw, Wunna, Nilar)
  */
 export function getOneClickVoiceSampleUrl(voiceId: string): string {
+  if (voiceId === 'preset-kingburma-reference') return '/voice-samples/kingburma-reference.mp3';
   let key = 'thiha';
   const v = voiceId.toLowerCase();
   if (v.includes('king') || v.includes('burma')) key = 'kingburma';

@@ -60,6 +60,7 @@ app.add_middleware(
 # Paths
 DATA_DIR = Path(os.environ.get("ONECLICK_DATA_DIR", tempfile.gettempdir())) / "lumini_oneclick"
 JOBS_DIR = DATA_DIR / "jobs"
+VOICE_PRESET_DIR = Path(os.environ.get("ONECLICK_VOICE_PRESET_DIR", "/opt/lumini-oneclick/voice_presets"))
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Job status tracking
@@ -2255,6 +2256,7 @@ async def start_job(
     logo_opacity: float = Form(1.0),
     include_original_audio: bool = Form(False),
     voice_sample: Optional[UploadFile] = File(default=None),
+    voice_sample_preset: Optional[str] = Form(default=None),
     voice_id: Optional[str] = Form(default=None),
     elevenlabs_api_key: Optional[str] = Form(default=None),
     enable_intro_hook: bool = Form(False),
@@ -2304,7 +2306,14 @@ async def start_job(
         )
 
     voice_sample_path = None
-    if voice_sample and voice_sample.filename:
+    # Bundled reference voice: keep the original sample on the server; never send it from the browser.
+    if voice_sample_preset == "kingburma-reference":
+        preset_path = VOICE_PRESET_DIR / "kingburma-reference.mp3"
+        if preset_path.is_file():
+            voice_sample_path = preset_path
+        else:
+            raise HTTPException(status_code=503, detail="Preset voice sample is not installed on the OneClick server.")
+    elif voice_sample and voice_sample.filename:
         s_ext = Path(voice_sample.filename).suffix or ".mp3"
         voice_sample_path = job_dir / f"voice_sample{s_ext}"
         s_content = await voice_sample.read()
