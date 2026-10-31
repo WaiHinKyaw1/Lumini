@@ -2083,7 +2083,19 @@ def run_oneclick_pipeline(
             el_key = (elevenlabs_api_key or ELEVENLABS_API_KEY or os.environ.get("ELEVENLABS_API_KEY", "")).strip()
             if el_key:
                 update_job(job_id, step="voice_synthesis", progress=56, message="Cloning voice sample with ElevenLabs...")
-                cloned_id = clone_voice_sample(voice_sample_path, el_key)
+                cloned_id = None
+                # Reuse the server-side preset clone instead of creating a new ElevenLabs voice per job.
+                if voice_sample_path.parent == VOICE_PRESET_DIR:
+                    cache_path = VOICE_PRESET_DIR / "kingburma-reference.voice_id"
+                    if cache_path.is_file():
+                        cloned_id = cache_path.read_text(encoding="utf-8").strip() or None
+                    if not cloned_id:
+                        cloned_id = clone_voice_sample(voice_sample_path, el_key)
+                        if cloned_id:
+                            VOICE_PRESET_DIR.mkdir(parents=True, exist_ok=True)
+                            cache_path.write_text(cloned_id, encoding="utf-8")
+                else:
+                    cloned_id = clone_voice_sample(voice_sample_path, el_key)
                 if cloned_id:
                     tts_results = synthesize_elevenlabs_tts(translated, job_dir, job_id, cloned_id, el_key)
                     if not tts_results:
@@ -2551,6 +2563,8 @@ async def list_voices():
              "description": "တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral စတိုင်"},
             {"id": "my-MM-NilarNeural", "name": "Nilar (နီတာ)", "gender": "Female",
              "description": "ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် narration ပုံစံ"},
+            {"id": "preset-kingburma-reference", "name": "KingBurma Reference (နမူနာအသံ)", "gender": "Male",
+             "description": "Deep TikTok Movie Recap voice — ElevenLabs clone"},
         ],
         "speeds": [
             {"value": "-50%", "label": "Slow (0.5x)"},
