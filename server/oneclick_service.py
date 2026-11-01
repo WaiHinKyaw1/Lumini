@@ -212,8 +212,8 @@ def transcribe_with_whisper(audio_path: Path, job_dir: Path, job_id: str) -> lis
 
 # ─────────────────────────── Step 2: Smart Segmentation ───────────────────────────
 
-def split_long_segment(seg: dict, max_dur: float = 7.0) -> list[dict]:
-    """Split very long Whisper segments into complete, sentence-level narration units (4.0s - 7.5s)."""
+def split_long_segment(seg: dict, max_dur: float = 4.2) -> list[dict]:
+    """Split long Whisper segments into concise, sentence-level narration units (2.5s - 4.2s)."""
     text = seg.get("text", "").strip()
     total_dur = max(0.2, float(seg["end"]) - float(seg["start"]))
     if not text:
@@ -221,24 +221,24 @@ def split_long_segment(seg: dict, max_dur: float = 7.0) -> list[dict]:
 
     words = text.split()
     # Keep complete natural sentence intact if under reasonable recap length
-    if total_dur <= max_dur and len(words) <= 18:
+    if total_dur <= max_dur and len(words) <= 12:
         return [seg]
 
     # Split strictly on sentence terminators (. ! ?)
     parts = re.split(r'(?<=[.!?])\s+', text)
     parts = [p.strip() for p in parts if p.strip()]
     if not parts or len(parts) == 1:
-        # If no period and over 7s, split on comma or semicolon pause
+        # If no period, split on comma or semicolon pause
         parts = re.split(r'(?<=[,;])\s+', text)
         parts = [p.strip() for p in parts if p.strip()]
 
     if not parts or len(parts) == 1:
-        # Chunk by 10-12 words (natural spoken phrase)
+        # Chunk by 8-10 words (natural spoken phrase)
         parts = []
         chunk = []
         for w in words:
             chunk.append(w)
-            if len(chunk) >= 12:
+            if len(chunk) >= 9:
                 parts.append(" ".join(chunk))
                 chunk = []
         if chunk:
@@ -260,17 +260,17 @@ def split_long_segment(seg: dict, max_dur: float = 7.0) -> list[dict]:
     return res
 
 
-def segment_for_narration(segments: list[dict], max_chunk_sec: float = 7.0, hard_max: float = 8.5) -> list[dict]:
+def segment_for_narration(segments: list[dict], max_chunk_sec: float = 4.2, hard_max: float = 5.2) -> list[dict]:
     """Group speech into complete, natural sentence narration units (ideal for movie recaps)."""
     broken = []
     for s in segments:
         dur = float(s["end"]) - float(s["start"])
-        if dur > hard_max or len(s.get("text", "").split()) > 18:
+        if dur > hard_max or len(s.get("text", "").split()) > 12:
             broken.extend(split_long_segment(s, max_dur=max_chunk_sec))
         else:
             broken.append(s)
 
-    # Merge very tiny fragments (< 1.8s) if adjacent in time
+    # Merge very tiny fragments (< 1.5s) if adjacent in time
     chunks = []
     current_text = ""
     current_start = 0.0
@@ -295,8 +295,8 @@ def segment_for_narration(segments: list[dict], max_chunk_sec: float = 7.0, hard
         gap = float(seg["start"]) - current_end
         combined_dur = float(seg["end"]) - current_start
 
-        # If previous was very short (< 2.0s) and gap is small (< 0.8s) and combined fits <= 7.5s:
-        if (current_end - current_start) < 2.0 and gap < 0.8 and combined_dur <= max_chunk_sec:
+        # If previous was very short (< 1.8s) and gap is small (< 0.6s) and combined fits <= 4.2s:
+        if (current_end - current_start) < 1.8 and gap < 0.6 and combined_dur <= max_chunk_sec:
             current_text += " " + seg_text
             current_end = float(seg["end"])
         else:
@@ -624,16 +624,42 @@ def synthesize_edge_tts(
     af_filters = []
 
     if "preset-kingburma-reference" in v_norm:
-        # ElevenLabs Instant Voice Cloning may be unavailable on free plans.
-        # Use the native Burmese neural voice without pitch morphing rather than robotic acoustic processing.
         actual_voice = "my-MM-ThihaNeural"
         pitch_str = "+0Hz"
         af_filters.extend([
+            "asetrate=24000*0.89",
+            "atempo=1.1236",
             "highpass=f=70",
             "acompressor=threshold=-18dB:ratio=2.2:attack=8:release=80",
             "loudnorm=I=-16:TP=-1.5:LRA=11",
         ])
+    elif "susu" in v_norm or "su" in v_norm:
+        # Su Su / Mya (ဆုဆု / မြ) - Warm Emotional Drama Female Storyteller
+        actual_voice = "my-MM-NilarNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*0.92",
+            "atempo=1.0870",
+            "highpass=f=75",
+            "lowshelf=g=3.0:f=200",
+            "equalizer=f=3200:width_type=o:width=1.2:g=1.8",
+            "acompressor=threshold=-16dB:ratio=2.5:attack=5:release=60",
+            "loudnorm=I=-16:TP=-1.5:LRA=10",
+        ])
+    elif "may" in v_norm:
+        # May / May Thu (မေ / မေသူ) - Bright & Upbeat Youthful Female Narrator
+        actual_voice = "my-MM-NilarNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*1.08",
+            "atempo=0.9259",
+            "highpass=f=85",
+            "highshelf=g=2.5:f=3500",
+            "acompressor=threshold=-15dB:ratio=3:attack=3:release=40",
+            "loudnorm=I=-16:TP=-1.5:LRA=9",
+        ])
     elif "nilar" in v_norm:
+        # Nilar (နီလာ) - Sweet & Clear Natural Female Storyteller
         actual_voice = "my-MM-NilarNeural"
         pitch_str = "+0Hz"
         af_filters.extend([
@@ -642,10 +668,11 @@ def synthesize_edge_tts(
         ])
     elif "king" in v_norm or "burma" in v_norm:
         # King Burma (မင်းမြန်မာ) - Viral TikTok Movie Recap Voice
-        # Baritone pitch (-12Hz) with chest resonance, crisp vocal clarity & radio compressor
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "-12Hz"
+        pitch_str = "+0Hz"
         af_filters.extend([
+            "asetrate=24000*0.89",
+            "atempo=1.1236",
             "highpass=f=70",
             "lowshelf=g=4.0:f=160",
             "equalizer=f=350:width_type=o:width=1.2:g=-1.8",
@@ -655,28 +682,30 @@ def synthesize_edge_tts(
             "loudnorm=I=-15.5:TP=-1.5:LRA=9",
         ])
     elif "zaw" in v_norm:
-        # Zaw (ဇော်) - Team Alpha Deep Cinematic Voice
-        # Rich neural bass pitch (-18Hz) + chest resonance, low-end warmth & studio compressor
+        # Zaw (ဇော်) - Team Alpha Deep Cinematic Voice (Rich Baritone)
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "-18Hz"
+        pitch_str = "+0Hz"
         af_filters.extend([
+            "asetrate=24000*0.84",
+            "atempo=1.1905",
             "highpass=f=65",
-            "lowshelf=g=3.5:f=150",
-            "equalizer=f=260:width_type=o:width=1.5:g=-1.5",
-            "highshelf=g=1.2:f=3600",
+            "lowshelf=g=5.0:f=140",
+            "equalizer=f=250:width_type=o:width=1.5:g=-2.0",
+            "highshelf=g=1.5:f=3600",
             "acompressor=threshold=-18dB:ratio=3:attack=5:release=50",
             "loudnorm=I=-16:TP=-1.5:LRA=10",
         ])
-    elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm:
-        # Wunna / Wanna (ဝဏ္ဏ) - Team Alpha Fast Viral Street Recap Voice
-        # Energetic neural pitch (+18Hz) + crisp vocal presence & snappy broadcast compressor
+    elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm or "minkhant" in v_norm or "khant" in v_norm:
+        # Min Khant / Wunna (မင်းခန့် / ဝဏ္ဏ) - Energetic Viral Street Youth (Crisp Fast Pitch)
         actual_voice = "my-MM-ThihaNeural"
-        pitch_str = "+18Hz"
+        pitch_str = "+0Hz"
         af_filters.extend([
-            "highpass=f=85",
+            "asetrate=24000*1.12",
+            "atempo=0.8929",
+            "highpass=f=90",
             "equalizer=f=160:width_type=o:width=1.2:g=-2.0",
             "equalizer=f=1400:width_type=o:width=1.5:g=2.5",
-            "highshelf=g=2.5:f=3200",
+            "highshelf=g=2.8:f=3200",
             "acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40",
             "loudnorm=I=-16:TP=-1.5:LRA=9",
         ])
@@ -1085,42 +1114,138 @@ def assign_midpoint_boundaries(units: list[dict], video_duration: float) -> list
     return out
 
 
-def format_burmese_single_line(raw_text: str, base_font_size: int, is_portrait: bool) -> tuple[str, int]:
-    """Format Burmese subtitle text strictly into ONE SINGLE LINE (matching user reference photo).
-    - Removes all breaks (\\r, \\n, \\N).
-    - Strips extra spaces.
-    - Dynamically scales font size down so libass strictly NEVER breaks or auto-wraps into a 2nd line!
-    Returns: (formatted_ass_text, scaled_font_size)
+def split_burmese_balanced(text: str) -> tuple[str, str]:
+    """Split Burmese text cleanly into two balanced halves at natural phrase or syllable boundaries."""
+    text = text.strip()
+    if len(text) <= 1:
+        return text, ""
+    mid = len(text) // 2
+
+    # 1. Punctuation near mid (၊ or ။ or , or ;)
+    for punct in ['\u104a', '\u104b', ',', ';']:
+        idx = -1
+        best_p, min_d = -1, 999
+        while True:
+            idx = text.find(punct, idx + 1)
+            if idx == -1:
+                break
+            if 0.20 * len(text) <= idx <= 0.80 * len(text):
+                d = abs(idx - mid)
+                if d < min_d:
+                    min_d = d
+                    best_p = idx
+        if best_p != -1:
+            return text[:best_p + 1].strip(), text[best_p + 1:].strip()
+
+    # 2. Burmese connective markers near mid
+    connectives = [
+        ' ပြီးတော့ ', 'ပြီးတော့ ', ' ဒါပေမဲ့ ', 'ဒါပေမဲ့ ',
+        ' တဲ့အခါ ', 'တဲ့အခါ ', ' ဆိုပြီး ', 'ဆိုပြီး ',
+        ' ဖြစ်သွားပြီး ', ' အဲဒီနောက် ', 'အဲဒီနောက် ', ' ရောက်တဲ့အခါ ',
+        ' တဲ့အတွက် ', 'တဲ့အတွက် ', ' ကြောင့် ', 'ကြောင့် ',
+        ' နေတုန်း ', 'နေတုန်း ', ' လို့ ', 'လို့ '
+    ]
+    best_c, min_d = -1, 999
+    for conn in connectives:
+        idx = -1
+        while True:
+            idx = text.find(conn, idx + 1)
+            if idx == -1:
+                break
+            if 0.20 * len(text) <= idx <= 0.80 * len(text):
+                d = abs(idx - mid)
+                if d < min_d:
+                    min_d = d
+                    best_c = idx
+    if best_c != -1:
+        return text[:best_c].strip(), text[best_c:].strip()
+
+    # 3. Space near mid
+    best_s, min_d = -1, 999
+    for i, ch in enumerate(text):
+        if ch == ' ':
+            d = abs(i - mid)
+            if d < min_d:
+                min_d = d
+                best_s = i
+    if best_s != -1 and min_d < len(text) * 0.35:
+        return text[:best_s].strip(), text[best_s + 1:].strip()
+
+    # 4. Syllable breakpoint (avoid combining marks or virama)
+    combining = set(chr(c) for c in range(0x102B, 0x103F))
+    for offset in range(mid):
+        for cand in [mid + offset, mid - offset]:
+            if 0 < cand < len(text):
+                if text[cand] not in combining and text[cand - 1] != '\u1039' and text[cand] != '\u103A':
+                    return text[:cand].strip(), text[cand:].strip()
+
+    return text[:mid].strip(), text[mid:].strip()
+
+
+def format_burmese_dialogue_cues(
+    text: str,
+    start_time: float,
+    end_time: float,
+    base_font_size: int,
+    max_avail_width_px: int,
+    is_portrait: bool,
+) -> list[tuple[float, float, str]]:
+    """Format Burmese subtitle text cleanly into 1 or 2 lines that NEVER exceed the blur box or screen width.
+    - If text is long (>38 chars in portrait), automatically splits into 2 sequential timed cues.
+    - Uses balanced 2-line wrapping (max ~18 chars/line in portrait).
+    - Dynamically scales font size to strictly fit inside max_avail_width_px with zero overflow.
+    Returns: list of (cue_start, cue_end, formatted_ass_text)
     """
-    clean_text = raw_text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").replace("\\N", " ").replace("\\n", " ")
+    clean_text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').replace('\\N', ' ').replace('\\n', ' ')
+    clean_text = re.sub(r'[\"\'\`]', '', clean_text)
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
     if not clean_text:
-        return "", base_font_size
+        return []
 
-    # In portrait (9:16), screen is narrower; safe chars for base size is ~22.
-    # In landscape (16:9), safe chars for base size is ~36.
-    safe_max_chars = 18 if is_portrait else 32
+    max_chars_single_cue = 38 if is_portrait else 52
+    single_line_limit = 18 if is_portrait else 26
 
-    text_len = len(clean_text)
-    scaled_font_size = base_font_size
+    def format_single_block(block_text: str) -> str:
+        b = block_text.strip()
+        if not b:
+            return ""
+        if len(b) > single_line_limit:
+            l1, l2 = split_burmese_balanced(b)
+            lines = [l1, l2] if l2 else [l1]
+        else:
+            lines = [b]
+        longest = max(len(l) for l in lines)
+        # Font scaling: ensure longest line does not exceed max_avail_width_px (each char is ~0.48*fs)
+        needed_px = longest * (base_font_size * 0.48)
+        if needed_px > max_avail_width_px:
+            scaled = int(max_avail_width_px / max(1, longest * 0.48))
+            scaled = max(26, min(base_font_size, scaled))
+            return f"{{\\fs{scaled}}}" + r"\N".join(lines)
+        return r"\N".join(lines)
 
-    if text_len > safe_max_chars:
-        # Scale font down proportionally to strictly fit on 1 single line without overflow
-        ratio = safe_max_chars / float(text_len)
-        min_fs = max(26, int(base_font_size * 0.60))
-        scaled_font_size = max(min_fs, int(base_font_size * ratio))
+    dur = max(0.4, end_time - start_time)
+    if len(clean_text) <= max_chars_single_cue:
+        cue = format_single_block(clean_text)
+        return [(start_time, end_time, cue)] if cue else []
 
-    if scaled_font_size < base_font_size:
-        formatted = f"{{\\fs{scaled_font_size}}}{clean_text}"
-    else:
-        formatted = clean_text
+    # Long text: split into 2 sequential cues over the duration
+    p1, p2 = split_burmese_balanced(clean_text)
+    if not p2:
+        cue = format_single_block(p1)
+        return [(start_time, end_time, cue)] if cue else []
 
-    return formatted, scaled_font_size
+    ratio = len(p1) / max(1, len(p1) + len(p2))
+    t_mid = round(start_time + dur * ratio, 2)
+    t_mid = max(start_time + 0.3, min(end_time - 0.3, t_mid))
 
-
-def format_burmese_two_lines(raw_text: str, base_font_size: int, is_portrait: bool) -> tuple[str, int]:
-    """Single-line subtitle formatter (guarantees strictly 1 line matching movie recap style)."""
-    return format_burmese_single_line(raw_text, base_font_size, is_portrait)
+    cue1 = format_single_block(p1)
+    cue2 = format_single_block(p2)
+    res = []
+    if cue1:
+        res.append((start_time, t_mid, cue1))
+    if cue2:
+        res.append((t_mid, end_time, cue2))
+    return res
 
 
 def generate_burmese_ass(
@@ -1137,7 +1262,7 @@ def generate_burmese_ass(
     hook_title: str = "",
 ) -> Path:
     """Generate ASS subtitle file with Akkhayar21 font in clean Movie Recap style.
-    When blur is enabled, uses \\an5\\pos to center subtitles precisely in the 2D blur box (both vertically and horizontally).
+    Guarantees subtitles stay strictly inside the blur box (never stretch edge-to-edge).
     """
     font_name = "Akkhayar21"
     if subtitle_style in ("font-kunheing", "kunheing"):
@@ -1149,9 +1274,9 @@ def generate_burmese_ass(
 
     is_portrait = canvas_h > canvas_w
     font_size = int(canvas_h * 0.035) if is_portrait else int(canvas_h * 0.054)
-    font_size = max(52, min(72, font_size))
+    font_size = max(48, min(68, font_size))
 
-    hook_font_size = max(46, int(font_size * 1.30))
+    hook_font_size = max(44, int(font_size * 1.25))
     hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
 
     try:
@@ -1191,12 +1316,13 @@ def generate_burmese_ass(
         center_x = blur_x_pos + (blur_w // 2)
         center_y = blur_y + (blur_h // 2)
         margin_v = 0
+        max_avail_w = max(100, int(blur_w * 0.85))
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
+        max_avail_w = max(200, int(canvas_w * (0.70 if is_portrait else 0.78)))
 
-    margin_lr = int(canvas_w * (0.15 if is_portrait else 0.08))  # TikTok-safe 10% side padding; keeps text from stretching edge-to-edge
+    margin_lr = int(canvas_w * (0.16 if is_portrait else 0.12))
 
-    # WrapStyle: 2 = strictly NO auto-wrapping by libass (guarantees max 2 lines!)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {canvas_w}
@@ -1220,11 +1346,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         clean_hook = re.sub(r'[\"\'\`]', '', clean_hook)
         clean_hook = re.sub(r'\s+', ' ', clean_hook).strip()
         if clean_hook:
-            # Strictly ONE single line only:
             single_line_hook = clean_hook.split("||")[0].strip()
             events.append(f"Dialogue: 2,0:00:00.00,0:00:02.80,IntroHook,,0,0,0,,{{\\fad(100,250)}}{single_line_hook}")
 
-    # 2. Add Narration Subtitles
+    # 2. Add Narration Subtitles locked strictly inside blur box
     for r in tts_results:
         text = str(r.get("narration", "")).strip()
         if not text:
@@ -1232,12 +1357,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         start_time = float(r.get("sub_start", r.get("start", 0.0)))
         end_time = float(r.get("sub_end", start_time + float(r.get("tts_duration", 2.0))))
 
-        s_str = format_ass_time(start_time)
-        e_str = format_ass_time(end_time)
-
-        # Format strictly to 1 single line with dynamic font scaling (User reference photo style)
-        formatted_dialogue, _ = format_burmese_single_line(text, font_size, is_portrait)
-        if formatted_dialogue:
+        cues = format_burmese_dialogue_cues(
+            text, start_time, end_time, font_size, max_avail_w, is_portrait
+        )
+        for cue_s, cue_e, formatted_dialogue in cues:
+            if not formatted_dialogue:
+                continue
+            s_str = format_ass_time(cue_s)
+            e_str = format_ass_time(cue_e)
             if blur_enabled:
                 if formatted_dialogue.startswith("{\\fs"):
                     cue_text = formatted_dialogue.replace("{\\fs", f"{{\\an5\\pos({center_x},{center_y})\\fs", 1)
@@ -1274,15 +1401,16 @@ def generate_burmese_srt(subtitles_timing: list[dict], output_srt: Path) -> Path
         if end_t <= start_t:
             end_t = start_t + 1.8
 
-        # Strip any formatting tags like {\fs...} or \N
-        clean = re.sub(r'\{[^\}]*\}', '', text)
-        clean = clean.replace('\\N', ' ').replace('\\n', ' ').replace('\n', ' ')
-        clean = re.sub(r'\s+', ' ', clean).strip()
-
-        s_str = format_srt_time(start_t)
-        e_str = format_srt_time(end_t)
-        blocks.append(f"{idx}\n{s_str} --> {e_str}\n{clean}\n")
-        idx += 1
+        cues = format_burmese_dialogue_cues(text, start_t, end_t, 50, 700, is_portrait=True)
+        for cue_s, cue_e, c_text in cues:
+            clean = re.sub(r'\{[^\}]*\}', '', c_text)
+            clean = clean.replace('\\N', '\n').replace('\\n', '\n')
+            clean = clean.strip()
+            if clean:
+                s_str = format_srt_time(cue_s)
+                e_str = format_srt_time(cue_e)
+                blocks.append(f"{idx}\n{s_str} --> {e_str}\n{clean}\n")
+                idx += 1
 
     output_srt.write_text("\n".join(blocks) + "\n", encoding="utf-8")
     return output_srt
@@ -1519,8 +1647,8 @@ def render_smart_sync_video(
 
         adjusted_wav = Path(seg["tts_audio"])
         if dur > avail_window:
-            speedup = min(1.35, dur / avail_window)
-            if speedup > 1.05:
+            speedup = min(1.42, dur / avail_window)
+            if speedup > 1.03:
                 fast_wav = dub_dir / f"fast_{i+1:04d}.wav"
                 cmd_speed = [
                     ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
@@ -1602,11 +1730,13 @@ def render_smart_sync_video(
 
     update_job(job_id, progress=88, message="Single-pass encoding continuous recap video with audio crossfade...")
 
-    # Step 5: Continuous Video Retiming (Zero hard cuts) & Downstream Chains
-    pts_mult = voice_dur / vTotal
-
+    # Step 5: Professional Video & Audio Synchronization (Natural 1.0x playback, ZERO drift)
     filter_parts = []
-    filter_parts.append(f"[0:v]setpts={pts_mult:.6f}*PTS,fps=30[vraw]")
+    if voice_dur > vTotal:
+        pad_dur = round(voice_dur - vTotal + 0.3, 3)
+        filter_parts.append(f"[0:v]fps=30,tpad=stop_mode=clone:stop_duration={pad_dur}[vraw]")
+    else:
+        filter_parts.append(f"[0:v]fps=30[vraw]")
     current_v = "[vraw]"
     if ratio_filter:
         filter_parts.append(f"{current_v}{ratio_filter}[vbase]")
@@ -2570,15 +2700,17 @@ async def list_voices():
             {"id": "my-MM-KingBurma", "name": "King Burma (မင်းမြန်မာ)", "gender": "Male",
              "description": "TikTok & FB နာမည်ကြီး King Burma စတိုင် — ညို့ဓာတ်ပါသော အသံနက်၊ ဆွဲဆောင်မှုပြည့် ဇာတ်လမ်းပြောဟန်"},
             {"id": "my-MM-ThihaNeural", "name": "Thiha (သီဟ)", "gender": "Male",
-             "description": "ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ"},
+             "description": "ခန့်ညားပြတ်သား — သဘာဝကျသော Movie recap narration စတိုင်"},
             {"id": "my-MM-ZawNeural", "name": "Zaw (ဇော်)", "gender": "Male",
-             "description": "တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic စတိုင်"},
-            {"id": "my-MM-WunnaNeural", "name": "Wunna (ဝဏ္ဏ)", "gender": "Male",
-             "description": "တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral စတိုင်"},
-            {"id": "my-MM-NilarNeural", "name": "Nilar (နီတာ)", "gender": "Female",
-             "description": "ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် narration ပုံစံ"},
-            {"id": "preset-kingburma-reference", "name": "KingBurma Reference (နမူနာအသံ)", "gender": "Male",
-             "description": "Deep TikTok Movie Recap voice — ElevenLabs clone"},
+             "description": "Team Alpha စတိုင် — ဩဇာပြည့်ဝသော Deep Baritone & Cinematic အသံနက်"},
+            {"id": "my-MM-WunnaNeural", "name": "Min Khant / Wunna (မင်းခန့် / ဝဏ္ဏ)", "gender": "Male",
+             "description": "လူငယ်ဆန်ဆန် တက်ကြွသွက်လက် — Fast & Energetic Viral စတိုင်"},
+            {"id": "my-MM-NilarNeural", "name": "Nilar (နီလာ)", "gender": "Female",
+             "description": "ချိုသာကြည်လင် — သဘာဝကျသော အမျိုးသမီး ဇာတ်လမ်းပြောဟန်"},
+            {"id": "my-MM-SuSuNeural", "name": "Su Su / Mya (ဆုဆု / မြ)", "gender": "Female",
+             "description": "နွေးထွေးလေးနက် — ရင်ခုန်ဖွယ် Drama & Storyteller အမျိုးသမီးအသံ"},
+            {"id": "my-MM-MayNeural", "name": "May / May Thu (မေ / မေသူ)", "gender": "Female",
+             "description": "ကြည်လင်သွက်လက် — လူငယ်ဆန်ဆန် Upbeat & Bright ဇာတ်လမ်းပြောဟန်"},
         ],
         "speeds": [
             {"value": "-50%", "label": "Slow (0.5x)"},
@@ -2604,43 +2736,50 @@ async def get_voice_sample(voice_key: str):
     sample_dir.mkdir(parents=True, exist_ok=True)
     v_norm = voice_key.lower()
 
-    if "king" in v_norm or "burma" in v_norm:
+    if "susu" in v_norm or "su" in v_norm:
+        v_name = "susu"
+    elif "may" in v_norm:
+        v_name = "may"
+    elif "nilar" in v_norm:
+        v_name = "nilar"
+    elif "king" in v_norm or "burma" in v_norm:
         v_name = "kingburma"
     elif "zaw" in v_norm:
         v_name = "zaw"
-    elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm:
+    elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm or "minkhant" in v_norm or "khant" in v_norm:
         v_name = "wunna"
-    elif "nilar" in v_norm:
-        v_name = "nilar"
     else:
         v_name = "thiha"
 
-    sample_wav = sample_dir / f"sample_alpha_v4_{v_name}.wav"
+    sample_wav = sample_dir / f"sample_alpha_v7_{v_name}.wav"
     if not sample_wav.is_file():
         import edge_tts
-        text = "ကိုယ့်ရဲ့စိတ်ထဲမှာ ခံစားချက်တစ်ခုရှိနေပြီဆိုရင် အဲ့ဒီခံစားချက်ကို စာအဖြစ်ပြောင်းပြီးတော့ မျှဝေလိုက်ပါ"
+        text = "အဲဒီနောက်မှာတော့ ဇာတ်လမ်းက ပိုပြီး စိတ်ဝင်စားစရာကောင်းလာခဲ့ပါတော့တယ်"
         mp3_tmp = sample_dir / f"tmp_{v_name}.mp3"
         ffmpeg = find_ffmpeg()
-        if v_name == "kingburma":
-            af_king = "highpass=f=70,lowshelf=g=4.0:f=160,equalizer=f=350:width_type=o:width=1.2:g=-1.8,equalizer=f=2400:width_type=o:width=1.4:g=2.6,highshelf=g=1.8:f=4000,acompressor=threshold=-17dB:ratio=3.5:attack=4:release=45,loudnorm=I=-15.5:TP=-1.5:LRA=9"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+12%", pitch="-12Hz").save(str(mp3_tmp))
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_king, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        if v_name == "susu":
+            af_filter = "asetrate=24000*0.92,atempo=1.087,highpass=f=75,lowshelf=g=3.0:f=200,equalizer=f=3200:width_type=o:width=1.2:g=1.8,acompressor=threshold=-16dB:ratio=2.5:attack=5:release=60,loudnorm=I=-16:TP=-1.5:LRA=10"
+            await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+12%").save(str(mp3_tmp))
+        elif v_name == "may":
+            af_filter = "asetrate=24000*1.08,atempo=0.9259,highpass=f=85,highshelf=g=2.5:f=3500,acompressor=threshold=-15dB:ratio=3:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+16%").save(str(mp3_tmp))
         elif v_name == "nilar":
+            af_filter = "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=10"
             await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+15%").save(str(mp3_tmp))
-            af_nilar = "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=10"
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_nilar, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+        elif v_name == "kingburma":
+            af_filter = "asetrate=24000*0.89,atempo=1.1236,highpass=f=70,lowshelf=g=4.0:f=160,equalizer=f=350:width_type=o:width=1.2:g=-1.8,equalizer=f=2400:width_type=o:width=1.4:g=2.6,highshelf=g=1.8:f=4000,acompressor=threshold=-17dB:ratio=3.5:attack=4:release=45,loudnorm=I=-15.5:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+14%").save(str(mp3_tmp))
         elif v_name == "zaw":
-            af_zaw = "highpass=f=65,lowshelf=g=3.5:f=150,equalizer=f=260:width_type=o:width=1.5:g=-1.5,highshelf=g=1.2:f=3600,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%", pitch="-18Hz").save(str(mp3_tmp))
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_zaw, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+            af_filter = "asetrate=24000*0.84,atempo=1.1905,highpass=f=65,lowshelf=g=5.0:f=140,equalizer=f=250:width_type=o:width=1.5:g=-2.0,highshelf=g=1.5:f=3600,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%").save(str(mp3_tmp))
         elif v_name == "wunna":
-            af_wunna = "highpass=f=85,equalizer=f=160:width_type=o:width=1.2:g=-2.0,equalizer=f=1400:width_type=o:width=1.5:g=2.5,highshelf=g=2.5:f=3200,acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+22%", pitch="+18Hz").save(str(mp3_tmp))
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_wunna, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+            af_filter = "asetrate=24000*1.12,atempo=0.8929,highpass=f=90,equalizer=f=160:width_type=o:width=1.2:g=-2.0,equalizer=f=1400:width_type=o:width=1.5:g=2.5,highshelf=g=2.8:f=3200,acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+20%").save(str(mp3_tmp))
         else:
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%", pitch="+0Hz").save(str(mp3_tmp))
-            af_thiha = "highpass=f=75,loudnorm=I=-16:TP=-1.5:LRA=11"
-            subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_thiha, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
+            af_filter = "highpass=f=75,loudnorm=I=-16:TP=-1.5:LRA=11"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%").save(str(mp3_tmp))
+
+        subprocess.run([ffmpeg, "-y", "-i", str(mp3_tmp), "-af", af_filter, "-ac", "1", "-ar", "24000", str(sample_wav)], capture_output=True)
         mp3_tmp.unlink(missing_ok=True)
 
     return FileResponse(
