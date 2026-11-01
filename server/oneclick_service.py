@@ -623,7 +623,17 @@ def synthesize_edge_tts(
     pitch_str = "+0Hz"
     af_filters = []
 
-    if "nilar" in v_norm:
+    if "preset-kingburma-reference" in v_norm:
+        # ElevenLabs Instant Voice Cloning may be unavailable on free plans.
+        # Use the native Burmese neural voice without pitch morphing rather than robotic acoustic processing.
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "highpass=f=70",
+            "acompressor=threshold=-18dB:ratio=2.2:attack=8:release=80",
+            "loudnorm=I=-16:TP=-1.5:LRA=11",
+        ])
+    elif "nilar" in v_norm:
         actual_voice = "my-MM-NilarNeural"
         pitch_str = "+0Hz"
         af_filters.extend([
@@ -1089,7 +1099,7 @@ def format_burmese_single_line(raw_text: str, base_font_size: int, is_portrait: 
 
     # In portrait (9:16), screen is narrower; safe chars for base size is ~22.
     # In landscape (16:9), safe chars for base size is ~36.
-    safe_max_chars = 20 if is_portrait else 32
+    safe_max_chars = 18 if is_portrait else 32
 
     text_len = len(clean_text)
     scaled_font_size = base_font_size
@@ -1138,8 +1148,8 @@ def generate_burmese_ass(
         font_name = "Myanmar OS"
 
     is_portrait = canvas_h > canvas_w
-    font_size = int(canvas_h * 0.048) if is_portrait else int(canvas_h * 0.054)
-    font_size = max(52, min(84, font_size))
+    font_size = int(canvas_h * 0.035) if is_portrait else int(canvas_h * 0.054)
+    font_size = max(52, min(72, font_size))
 
     hook_font_size = max(46, int(font_size * 1.30))
     hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
@@ -1184,7 +1194,7 @@ def generate_burmese_ass(
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
 
-    margin_lr = int(canvas_w * (0.10 if is_portrait else 0.08))  # TikTok-safe 10% side padding; keeps text from stretching edge-to-edge
+    margin_lr = int(canvas_w * (0.15 if is_portrait else 0.08))  # TikTok-safe 10% side padding; keeps text from stretching edge-to-edge
 
     # WrapStyle: 2 = strictly NO auto-wrapping by libass (guarantees max 2 lines!)
     header = f"""[Script Info]
@@ -2103,8 +2113,12 @@ def run_oneclick_pipeline(
 
             # 2. If ElevenLabs not configured or failed, use Smart Acoustic Voice Clone (Free & 100% Guaranteed to Work!)
             if not tts_results:
-                update_job(job_id, step="voice_synthesis", progress=56, message="Applying Acoustic Voice Cloning from your sample...")
-                tts_results = synthesize_acoustic_cloned_voice(translated, job_dir, job_id, voice_sample_path, speed=speed or "+0%")
+                if voice_sample_path.parent == VOICE_PRESET_DIR:
+                    update_job(job_id, step="voice_synthesis", progress=56, message="ElevenLabs cloning unavailable; using natural Burmese narrator fallback...")
+                    tts_results = synthesize_edge_tts(translated, job_dir, job_id, voice=voice, speed=speed or "+0%")
+                else:
+                    update_job(job_id, step="voice_synthesis", progress=56, message="Applying Acoustic Voice Cloning from your sample...")
+                    tts_results = synthesize_acoustic_cloned_voice(translated, job_dir, job_id, voice_sample_path, speed=speed or "+0%")
 
         if not tts_results and voice_id:
             el_key = (elevenlabs_api_key or ELEVENLABS_API_KEY or os.environ.get("ELEVENLABS_API_KEY", "")).strip()
