@@ -1639,34 +1639,37 @@ def render_smart_sync_video(
         orig_start = float(seg.get("start", curr_time))
         next_start = float(active_tts[i + 1].get("start", vTotal)) if i < N - 1 else vTotal
 
-        # Hard-lock each narration clip to its original transcript timestamp.
-        # Never use the previous clip's end as the next clip's start: that creates
-        # cumulative A/V drift whenever one TTS segment is slightly too long.
-        avail_window = max(0.45, next_start - orig_start - 0.04)
+        # Preserve every spoken word. If a clip runs beyond the nominal scene
+        # window, move the next narration cue later instead of trimming speech.
+        # The renderer extends the final frame when the narration runs longer
+        # than the source video, so speech and subtitles are never cut off.
+        avail_window = max(0.8, next_start - orig_start - 0.10)
         dur = float(seg.get("tts_duration", 0.0))
         if dur <= 0:
             dur = probe_duration(Path(seg["tts_audio"]))
 
         adjusted_wav = Path(seg["tts_audio"])
         if dur > avail_window:
-            speedup = min(1.75, dur / avail_window)
-            if speedup > 1.01:
+            speedup = min(1.42, dur / avail_window)
+            if speedup > 1.03:
                 fast_wav = dub_dir / f"fast_{i+1:04d}.wav"
                 cmd_speed = [
                     ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
                     "-i", str(adjusted_wav),
-                    "-filter:a", f"atempo={speedup:.4f},atrim=duration={avail_window:.4f},asetpts=PTS-STARTPTS",
+                    "-filter:a", f"atempo={speedup:.4f}",
                     "-ac", "1", "-ar", "24000",
                     str(fast_wav),
                 ]
                 res = subprocess.run(cmd_speed)
                 if res.returncode == 0 and fast_wav.is_file():
                     adjusted_wav = fast_wav
-                    dur = min(dur / speedup, avail_window)
+                    dur = dur / speedup
 
-        play_start = orig_start
-        play_end = play_start + min(dur, avail_window)
-        curr_time = play_end
+        # Never trim the clip. A late cue is deliberately shifted after the
+        # previous complete clip, preserving the full sentence.
+        play_start = max(curr_time, orig_start)
+        play_end = play_start + dur
+        curr_time = play_end + 0.08
 
         scheduled.append({
             **seg,
