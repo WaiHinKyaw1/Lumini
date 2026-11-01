@@ -998,10 +998,10 @@ def synthesize_elevenlabs_tts(
                 "text": narration,
                 "model_id": "eleven_multilingual_v2",
                 "voice_settings": {
-                    "stability": 0.45,
-                    "similarity_boost": 0.8,
-                    "style": 0.25,
-                    "speed": 1.05
+                    "stability": 0.32,
+                    "similarity_boost": 0.88,
+                    "style": 0.42,
+                    "speed": 1.0
                 }
             }).encode("utf-8")
 
@@ -1089,7 +1089,7 @@ def format_burmese_single_line(raw_text: str, base_font_size: int, is_portrait: 
 
     # In portrait (9:16), screen is narrower; safe chars for base size is ~22.
     # In landscape (16:9), safe chars for base size is ~36.
-    safe_max_chars = 18 if is_portrait else 32
+    safe_max_chars = 20 if is_portrait else 32
 
     text_len = len(clean_text)
     scaled_font_size = base_font_size
@@ -1138,8 +1138,8 @@ def generate_burmese_ass(
         font_name = "Myanmar OS"
 
     is_portrait = canvas_h > canvas_w
-    font_size = int(canvas_h * 0.042) if is_portrait else int(canvas_h * 0.054)
-    font_size = max(44, min(70, font_size))
+    font_size = int(canvas_h * 0.048) if is_portrait else int(canvas_h * 0.054)
+    font_size = max(52, min(84, font_size))
 
     hook_font_size = max(46, int(font_size * 1.30))
     hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
@@ -1457,7 +1457,7 @@ def render_smart_sync_video(
         ratio_filter = "scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
     elif ratio == "9:16":
         canvas_w, canvas_h = 1080, 1920
-        ratio_filter = "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+        ratio_filter = "scale=1080:1920:force_original_aspect_ratio=increase:force_divisible_by=2,crop=1080:1920"
     elif ratio == "1:1":
         canvas_w, canvas_h = 1080, 1080
         ratio_filter = "scale=1080:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"
@@ -1637,7 +1637,7 @@ def render_smart_sync_video(
                 f"[vblur]crop=w={canvas_w}:h={blur_h}:x=0:y={blur_y},"
                 f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
                 f"[vmain][blurBand]overlay=x=0:y={blur_y},"
-                f"drawbox=x=0:y={blur_y}:w={canvas_w}:h={blur_h}:color=black@{tint_opacity:.2f}:t=fill,"
+                f"drawbox=x=0:y={blur_y}:w={canvas_w}:h={blur_h}:color=white@0.08:t=fill,"
                 f"drawbox=x=0:y={blur_y}:w={canvas_w}:h=2:color=white@0.30:t=fill,"
                 f"drawbox=x=0:y={blur_bottom - 2}:w={canvas_w}:h=2:color=white@0.30:t=fill[vblurred]"
             )
@@ -1647,7 +1647,7 @@ def render_smart_sync_video(
                 f"[vblur]crop=w={blur_w}:h={blur_h}:x={blur_x_pos}:y={blur_y},"
                 f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
                 f"[vmain][blurBand]overlay=x={blur_x_pos}:y={blur_y},"
-                f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h={blur_h}:color=black@{tint_opacity:.2f}:t=fill,"
+                f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h={blur_h}:color=white@0.08:t=fill,"
                 f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h=2:color=white@0.35:t=fill,"
                 f"drawbox=x={blur_x_pos}:y={blur_bottom - 2}:w={blur_w}:h=2:color=white@0.35:t=fill,"
                 f"drawbox=x={blur_x_pos}:y={blur_y}:w=2:h={blur_h}:color=white@0.35:t=fill,"
