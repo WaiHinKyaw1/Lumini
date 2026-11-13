@@ -1202,8 +1202,8 @@ def format_burmese_dialogue_cues(
     if not clean_text:
         return []
 
-    max_chars_single_cue = 38 if is_portrait else 52
-    single_line_limit = 18 if is_portrait else 26
+    max_chars_single_cue = 34 if is_portrait else 52
+    single_line_limit = 17 if is_portrait else 26
 
     def format_single_block(block_text: str) -> str:
         b = block_text.strip()
@@ -1273,8 +1273,8 @@ def generate_burmese_ass(
         font_name = "Myanmar OS"
 
     is_portrait = canvas_h > canvas_w
-    font_size = int(canvas_h * 0.035) if is_portrait else int(canvas_h * 0.054)
-    font_size = max(48, min(68, font_size))
+    font_size = int(canvas_h * 0.033) if is_portrait else int(canvas_h * 0.054)
+    font_size = max(52, min(64, font_size))
 
     hook_font_size = max(44, int(font_size * 1.25))
     hook_margin_v = int(canvas_h * 0.28 if is_portrait else canvas_h * 0.20)
@@ -1316,7 +1316,7 @@ def generate_burmese_ass(
         center_x = blur_x_pos + (blur_w // 2)
         center_y = blur_y + (blur_h // 2)
         margin_v = 0
-        max_avail_w = max(100, int(blur_w * 0.85))
+        max_avail_w = max(420, int(canvas_w * (0.68 if is_portrait else 0.78)))
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
         max_avail_w = max(200, int(canvas_w * (0.70 if is_portrait else 0.78)))
@@ -1332,7 +1332,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&H0000E6FF,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,4.5,1.5,2,{margin_lr},{margin_lr},{margin_v},1
+Style: Default,{font_name},{font_size},&H0000E6FF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3.5,1.2,2,{margin_lr},{margin_lr},{margin_v},1
 Style: IntroHook,{font_name},{hook_font_size},&H0000E6FF,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,5.5,2.5,2,{margin_lr},{margin_lr},{hook_margin_v},1
 
 [Events]
