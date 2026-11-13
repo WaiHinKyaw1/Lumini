@@ -1639,34 +1639,15 @@ def render_smart_sync_video(
         orig_start = float(seg.get("start", curr_time))
         next_start = float(active_tts[i + 1].get("start", vTotal)) if i < N - 1 else vTotal
 
-        # Preserve every spoken word. If a clip runs beyond the nominal scene
-        # window, move the next narration cue later instead of trimming speech.
-        # The renderer extends the final frame when the narration runs longer
-        # than the source video, so speech and subtitles are never cut off.
-        avail_window = max(0.8, next_start - orig_start - 0.10)
+        # Keep one consistent natural speaking rate across the whole recap.
+        # Do not apply per-segment atempo: different scene windows otherwise make
+        # some sentences fast and others slow. If speech is longer than the next
+        # scene cue, the cue is shifted after the complete sentence.
         dur = float(seg.get("tts_duration", 0.0))
         if dur <= 0:
             dur = probe_duration(Path(seg["tts_audio"]))
 
         adjusted_wav = Path(seg["tts_audio"])
-        if dur > avail_window:
-            speedup = min(1.42, dur / avail_window)
-            if speedup > 1.03:
-                fast_wav = dub_dir / f"fast_{i+1:04d}.wav"
-                cmd_speed = [
-                    ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", str(adjusted_wav),
-                    "-filter:a", f"atempo={speedup:.4f}",
-                    "-ac", "1", "-ar", "24000",
-                    str(fast_wav),
-                ]
-                res = subprocess.run(cmd_speed)
-                if res.returncode == 0 and fast_wav.is_file():
-                    adjusted_wav = fast_wav
-                    dur = dur / speedup
-
-        # Never trim the clip. A late cue is deliberately shifted after the
-        # previous complete clip, preserving the full sentence.
         play_start = max(curr_time, orig_start)
         play_end = play_start + dur
         curr_time = play_end + 0.08
