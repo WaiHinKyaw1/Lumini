@@ -1193,7 +1193,7 @@ def format_burmese_dialogue_cues(
     """Format Burmese subtitle text cleanly into 1 or 2 lines that NEVER exceed the blur box or screen width.
     - If text is long (>38 chars in portrait), automatically splits into 2 sequential timed cues.
     - Uses balanced 2-line wrapping (max ~18 chars/line in portrait).
-    - Dynamically scales font size to strictly fit inside max_avail_width_px with zero overflow.
+    - Dynamically scales font size to fit inside the independent subtitle text box.
     Returns: list of (cue_start, cue_end, formatted_ass_text)
     """
     clean_text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').replace('\\N', ' ').replace('\\n', ' ')
@@ -1262,9 +1262,9 @@ def generate_burmese_ass(
     hook_title: str = "",
 ) -> Path:
     """Generate ASS subtitle file with Akkhayar21 font in clean Movie Recap style.
-    Guarantees subtitles stay strictly inside the blur box (never stretch edge-to-edge).
+    Subtitle text box dimensions are independent from the user-controlled blur box.
     """
-    font_name = "Akkhayar21"
+    font_name = "Akkhayar21"  # Installed at /usr/share/fonts/truetype/burmese/Akkhayar21-Regular.ttf
     if subtitle_style in ("font-kunheing", "kunheing"):
         font_name = "A J Kunheing E-T-M 01"
     elif subtitle_style in ("font-jojar", "jojar"):
@@ -1294,6 +1294,10 @@ def generate_burmese_ass(
     center_x = canvas_w // 2
     center_y = int(canvas_h * (b_pos_f / 100.0))
 
+    # Subtitle geometry is intentionally independent from blur geometry.
+    # Blur width/height come only from the user's blur controls below.
+    subtitle_width_pct = 0.68 if is_portrait else 0.78
+
     if blur_enabled:
         b_thick_f = float(blur_thickness) if str(blur_thickness).replace('.', '', 1).isdigit() else 14.0
         b_width_f = float(blur_width) if str(blur_width).replace('.', '', 1).isdigit() else 100.0
@@ -1316,10 +1320,10 @@ def generate_burmese_ass(
         center_x = blur_x_pos + (blur_w // 2)
         center_y = blur_y + (blur_h // 2)
         margin_v = 0
-        max_avail_w = max(420, int(canvas_w * (0.68 if is_portrait else 0.78)))
+        max_avail_w = max(420, int(canvas_w * subtitle_width_pct))
     else:
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
-        max_avail_w = max(200, int(canvas_w * (0.70 if is_portrait else 0.78)))
+        max_avail_w = max(200, int(canvas_w * subtitle_width_pct))
 
     margin_lr = int(canvas_w * (0.16 if is_portrait else 0.12))
 
