@@ -233,16 +233,9 @@ def split_long_segment(seg: dict, max_dur: float = 4.2) -> list[dict]:
         parts = [p.strip() for p in parts if p.strip()]
 
     if not parts or len(parts) == 1:
-        # Chunk by 8-10 words (natural spoken phrase)
-        parts = []
-        chunk = []
-        for w in words:
-            chunk.append(w)
-            if len(chunk) >= 9:
-                parts.append(" ".join(chunk))
-                chunk = []
-        if chunk:
-            parts.append(" ".join(chunk))
+        # Never cut a Whisper segment in the middle of a sentence.
+        # A long sentence remains one narration unit; the renderer wraps it visually.
+        return [seg]
 
     total_words = sum(max(1, len(p.split())) for p in parts)
     res = []
@@ -1191,8 +1184,8 @@ def format_burmese_dialogue_cues(
     is_portrait: bool,
 ) -> list[tuple[float, float, str]]:
     """Format Burmese subtitle text cleanly into 1 or 2 lines that NEVER exceed the blur box or screen width.
-    - If text is long (>38 chars in portrait), automatically splits into 2 sequential timed cues.
-    - Uses balanced 2-line wrapping (max ~18 chars/line in portrait).
+    - Keeps each narration sentence in one timed cue.
+    - Uses balanced visual line wrapping without changing cue timing.
     - Dynamically scales font size to fit inside the independent subtitle text box.
     Returns: list of (cue_start, cue_end, formatted_ass_text)
     """
@@ -1223,29 +1216,10 @@ def format_burmese_dialogue_cues(
             return f"{{\\fs{scaled}}}" + r"\N".join(lines)
         return r"\N".join(lines)
 
-    dur = max(0.4, end_time - start_time)
-    if len(clean_text) <= max_chars_single_cue:
-        cue = format_single_block(clean_text)
-        return [(start_time, end_time, cue)] if cue else []
-
-    # Long text: split into 2 sequential cues over the duration
-    p1, p2 = split_burmese_balanced(clean_text)
-    if not p2:
-        cue = format_single_block(p1)
-        return [(start_time, end_time, cue)] if cue else []
-
-    ratio = len(p1) / max(1, len(p1) + len(p2))
-    t_mid = round(start_time + dur * ratio, 2)
-    t_mid = max(start_time + 0.3, min(end_time - 0.3, t_mid))
-
-    cue1 = format_single_block(p1)
-    cue2 = format_single_block(p2)
-    res = []
-    if cue1:
-        res.append((start_time, t_mid, cue1))
-    if cue2:
-        res.append((t_mid, end_time, cue2))
-    return res
+    # Keep one subtitle cue for the complete narration unit. Long Burmese text
+    # is wrapped into visual lines only; its timing is never split mid-sentence.
+    cue = format_single_block(clean_text)
+    return [(start_time, end_time, cue)] if cue else []
 
 
 def generate_burmese_ass(
