@@ -6,7 +6,8 @@ import {
   getBaseUrl,
   startOneClickJob,
   getOneClickJobStatus,
-  getOneClickDownloadUrl,
+  getOneClickDownloadUrl,
+  getOneClickThumbnailUrl,
   getOneClickStreamUrl,
   getOneClickSrtDownloadUrl,
   getOneClickTranscript,
@@ -107,8 +108,12 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
   const [enableBlur, setEnableBlur] = useState(true);
   const [blurPosition, setBlurPosition] = useState<number>(82);
   const [blurThickness, setBlurThickness] = useState<number>(14);
-  const [blurWidth, setBlurWidth] = useState<number>(100);
-  const [blurIntensity, setBlurIntensity] = useState<number>(35);
+  const [blurWidth, setBlurWidth] = useState<number>(100);
+  const [blurIntensity, setBlurIntensity] = useState<number>(35);
+  const [subtitleX, setSubtitleX] = useState<number>(50);
+  const [subtitleY, setSubtitleY] = useState<number>(82);
+  const [subtitleWidth, setSubtitleWidth] = useState<number>(68);
+  const [subtitleHeight, setSubtitleHeight] = useState<number>(14);
 
   // URL mode auto blur setting & Video aspect ratio detection
   const [urlBlurMode, setUrlBlurMode] = useState<'auto' | 'manual'>('auto');
@@ -116,13 +121,17 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
   // Direct Drag Calibrator State on Video Canvas
   const previewBoxRef = useRef<HTMLDivElement>(null);
-  const [activeDrag, setActiveDrag] = useState<'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'logo-move' | 'logo-resize' | null>(null);
+  const [activeDrag, setActiveDrag] = useState<'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'subtitle-move' | 'subtitle-resize-top' | 'subtitle-resize-bottom' | 'subtitle-resize-left' | 'subtitle-resize-right' | 'logo-move' | 'logo-resize' | null>(null);
   const dragStartXRef = useRef<number>(0);
   const dragStartYRef = useRef<number>(0);
-  const dragStartValRef = useRef<{ pos: number; thick: number; width: number; logoX: number; logoY: number; logoScale: number }>({
+  const dragStartValRef = useRef<{ pos: number; thick: number; width: number; subtitleX: number; subtitleY: number; subtitleWidth: number; subtitleHeight: number; logoX: number; logoY: number; logoScale: number }>({
     pos: 82,
     thick: 14,
-    width: 100,
+    width: 100,
+    subtitleX: 50,
+    subtitleY: 82,
+    subtitleWidth: 68,
+    subtitleHeight: 14,
     logoX: 80,
     logoY: 6,
     logoScale: 14,
@@ -462,7 +471,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
   // Canvas Direct Drag Calibration Handlers (Mouse & Touch for live adjustment on video)
   const handlePointerDown = (
-    type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'logo-move' | 'logo-resize',
+    type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'subtitle-move' | 'subtitle-resize-top' | 'subtitle-resize-bottom' | 'subtitle-resize-left' | 'subtitle-resize-right' | 'logo-move' | 'logo-resize',
     e: React.PointerEvent
   ) => {
     e.preventDefault();
@@ -472,9 +481,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     dragStartYRef.current = e.clientY;
     dragStartValRef.current = {
       pos: blurPosition,
-      thick: blurThickness,
-      width: blurWidth,
-      logoX,
+      thick: blurThickness,
+      width: blurWidth,
+      subtitleX,
+      subtitleY,
+      subtitleWidth,
+      subtitleHeight,
+      logoX,
       logoY,
       logoScale,
     };
@@ -505,9 +518,18 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
     } else if (activeDrag === 'blur-resize-left') {
       const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
       setBlurWidth(newWidth);
-    } else if (activeDrag === 'blur-resize-right') {
-      const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
-      setBlurWidth(newWidth);
+    } else if (activeDrag === 'blur-resize-right') {
+      const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
+      setBlurWidth(newWidth);
+    } else if (activeDrag === 'subtitle-move') {
+      setSubtitleX(Math.round(Math.max(subtitleWidth / 2, Math.min(100 - subtitleWidth / 2, dragStartValRef.current.subtitleX + deltaXPercent))));
+      setSubtitleY(Math.round(Math.max(subtitleHeight / 2, Math.min(100 - subtitleHeight / 2, dragStartValRef.current.subtitleY + deltaYPercent))));
+    } else if (activeDrag === 'subtitle-resize-left' || activeDrag === 'subtitle-resize-right') {
+      const direction = activeDrag === 'subtitle-resize-left' ? -1 : 1;
+      setSubtitleWidth(Math.round(Math.max(25, Math.min(95, dragStartValRef.current.subtitleWidth + direction * deltaXPercent * 2))));
+    } else if (activeDrag === 'subtitle-resize-top' || activeDrag === 'subtitle-resize-bottom') {
+      const direction = activeDrag === 'subtitle-resize-top' ? -1 : 1;
+      setSubtitleHeight(Math.round(Math.max(8, Math.min(35, dragStartValRef.current.subtitleHeight + direction * deltaYPercent * 2))));
     } else if (activeDrag === 'logo-move') {
       const newLogoX = Math.round(Math.max(0, Math.min(100 - logoScale, dragStartValRef.current.logoX + deltaXPercent)));
       const newLogoY = Math.round(Math.max(0, Math.min(96, dragStartValRef.current.logoY + deltaYPercent)));
@@ -605,9 +627,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
           enableBlur,
           blurPosition,
           blurThickness,
-          blurWidth,
-          blurIntensity,
-          subtitleStyle,
+          blurWidth,
+          blurIntensity,
+          subtitleX,
+          subtitleY,
+          subtitleWidth,
+          subtitleHeight,
+          subtitleStyle,
           watermarkText: watermarkText.trim(),
           logoFile: enableLogo ? logoFile : null,
           logoX,
@@ -799,13 +825,20 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                   >
                     <Download className="w-3.5 h-3.5" /> Video (.mp4)
                   </a>
-                  <a
-                    href={getOneClickSrtDownloadUrl(jobId)}
-                    download
-                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> စာတန်းထိုး (.srt)
-                  </a>
+                  <a
+                    href={getOneClickSrtDownloadUrl(jobId)}
+                    download
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> စာတန်းထိုး (.srt)
+                  </a>
+                  <a
+                    href={getOneClickThumbnailUrl(jobId)}
+                    download
+                    className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-500/20 flex items-center gap-1.5 transition-all"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" /> Thumbnail (.jpg)
+                  </a>
                 </>
               )}
             </div>
@@ -1017,9 +1050,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                     { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', icon: '🎙️', tag: 'Classic Narrator' },
                     { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', icon: '🎬', tag: 'Team Alpha Baritone' },
                     { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', icon: '⚡', tag: 'Energetic Youth' },
-                    { id: 'my-MM-NilarNeural', name: 'Nilar', mmName: 'နီလာ', icon: '🌸', tag: 'Sweet Storyteller' },
-                    { id: 'my-MM-SuSuNeural', name: 'Mya / Su Su', mmName: 'ဆုဆု', icon: '🎭', tag: 'Drama Emotional' },
-                    { id: 'my-MM-MayNeural', name: 'May Thu', mmName: 'မေသူ', icon: '🌺', tag: 'Bright Upbeat' },
+                    { id: 'eleven-brian', name: 'Brian', mmName: 'ဘရိုင်ယန်', icon: '🎙️', tag: 'Deep Recap' },
+                    { id: 'eleven-george', name: 'George', mmName: 'ဂျော့ဂျ်', icon: '🎬', tag: 'Warm Storyteller' },
+                    { id: 'eleven-roger', name: 'Roger', mmName: 'ရော်ဂျာ', icon: '📻', tag: 'Resonant Narrator' },
                   ].map((v) => (
                     <div
                       key={v.id}
@@ -1323,7 +1356,23 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
                     )}
                   </div>
 
-                  {/* Channel Logo / Watermark */}
+                  {/* Independent Burmese Subtitle Box */}
+                  {enableSubtitles && (
+                    <div className="p-3 rounded-xl bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-900/50 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Burmese Subtitle Box (သီးခြား)</span>
+                        <span className="text-[10px] text-cyan-600 dark:text-cyan-300">Preview ပေါ်မှာ drag/resize လုပ်နိုင်သည်</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <label className="font-bold text-slate-600 dark:text-zinc-300">X: {subtitleX}%<input type="range" min={10} max={90} value={subtitleX} onChange={(e) => setSubtitleX(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                        <label className="font-bold text-slate-600 dark:text-zinc-300">Y: {subtitleY}%<input type="range" min={8} max={92} value={subtitleY} onChange={(e) => setSubtitleY(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                        <label className="font-bold text-slate-600 dark:text-zinc-300">Width: {subtitleWidth}%<input type="range" min={25} max={95} value={subtitleWidth} onChange={(e) => setSubtitleWidth(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                        <label className="font-bold text-slate-600 dark:text-zinc-300">Height: {subtitleHeight}%<input type="range" min={8} max={35} value={subtitleHeight} onChange={(e) => setSubtitleHeight(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Channel Logo / Watermark */}
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Channel Logo / Watermark</span>
@@ -1519,7 +1568,27 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
 
 
 
-                    {/* DRAGGABLE & RESIZABLE LOGO WATERMARK OVERLAY */}
+                    {/* INDEPENDENT DRAGGABLE & RESIZABLE BURMESE SUBTITLE BOX */}
+                    {enableSubtitles && (
+                      <div
+                        style={{
+                          top: `${Math.max(0, Math.min(100 - subtitleHeight, subtitleY - subtitleHeight / 2))}%`,
+                          left: `${Math.max(0, Math.min(100 - subtitleWidth, subtitleX - subtitleWidth / 2))}%`,
+                          width: `${subtitleWidth}%`,
+                          height: `${subtitleHeight}%`,
+                        }}
+                        onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
+                        className={`absolute z-[15] flex items-center justify-center rounded-xl border-2 border-cyan-300/90 bg-black/35 px-2 shadow-xl backdrop-blur-[2px] ${activeDrag === 'subtitle-move' ? 'cursor-grabbing ring-2 ring-cyan-300' : 'cursor-grab'}`}
+                        title="Drag to position Burmese subtitle box"
+                      >
+                        <span className="pointer-events-none text-center text-[clamp(8px,1.5vw,15px)] font-bold leading-tight text-amber-300 drop-shadow-[0_2px_1px_rgba(0,0,0,.9)]">မြန်မာစာတန်းထိုး preview</span>
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-left', e)} className="absolute -left-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white" />
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-right', e)} className="absolute -right-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white" />
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-top', e)} className="absolute -top-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white" />
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-bottom', e)} className="absolute -bottom-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white" />
+                      </div>
+                    )}
+                    {/* DRAGGABLE & RESIZABLE LOGO WATERMARK OVERLAY */}
                     {enableLogo && logoUrl && (
                       <div
                         style={{

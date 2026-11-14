@@ -180,7 +180,8 @@ export async function getOneClickVoices(): Promise<OneClickVoicesResponse> {
       { id: 'my-MM-ThihaNeural', name: 'Thiha (သီဟ)', gender: 'Male', description: 'ခန့်ညားပြတ်သား — Movie recap narration ပုံစံ' },
       { id: 'my-MM-ZawNeural', name: 'Zaw (ဇော်)', gender: 'Male', description: 'တည်ငြိမ်ရင့်ကျက် ဩဇာပြည့် — ဇာတ်ရှိန်မြှင့် Deep & Cinematic' },
       { id: 'my-MM-WunnaNeural', name: 'Wunna (ဝဏ္ဏ)', gender: 'Male', description: 'တက်ကြွမြူးကြွ သွက်လက် — လူငယ်ဆန်ဆန် Energetic Viral' },
-      { id: 'my-MM-NilarNeural', name: 'Nilar (နီလာ)', gender: 'Female', description: 'ချိုသာကြည်လင် — ညင်သာကြည်နူးဖွယ် စကားပြောစတိုင်' },
+      { id: 'eleven-brian', name: 'Brian', gender: 'Male', description: 'Deep multilingual recap narrator' },
+      { id: 'eleven-george', name: 'George', gender: 'Male', description: 'Warm multilingual storyteller' },
     ],
     speeds: [
       { value: '-50%', label: 'Slow (0.5x)' },
@@ -208,9 +209,13 @@ export interface OneClickJobOptions {
   blurPosition?: number | string;
   blurThickness?: number;
   blurIntensity?: number;
-  blurWidth?: number;
-  blurX?: number;
-  subtitleStyle?: string;
+  blurWidth?: number;
+  blurX?: number;
+  subtitleX?: number;
+  subtitleY?: number;
+  subtitleWidth?: number;
+  subtitleHeight?: number;
+  subtitleStyle?: string;
   watermarkText?: string;
   logoFile?: File | null;
   logoX?: number;
@@ -305,9 +310,13 @@ export async function startOneClickJob(
   if (options.blurWidth !== undefined) {
     formData.append('blur_width', String(options.blurWidth));
   }
-  if (options.blurX !== undefined) {
-    formData.append('blur_x', String(options.blurX));
-  }
+  if (options.blurX !== undefined) {
+    formData.append('blur_x', String(options.blurX));
+  }
+  if (options.subtitleX !== undefined) formData.append('subtitle_x', String(options.subtitleX));
+  if (options.subtitleY !== undefined) formData.append('subtitle_y', String(options.subtitleY));
+  if (options.subtitleWidth !== undefined) formData.append('subtitle_width', String(options.subtitleWidth));
+  if (options.subtitleHeight !== undefined) formData.append('subtitle_height', String(options.subtitleHeight));
   if (options.subtitleStyle) {
     formData.append('subtitle_style', options.subtitleStyle);
   }

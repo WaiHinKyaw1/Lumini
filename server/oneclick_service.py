@@ -1232,6 +1232,10 @@ def generate_burmese_ass(
     blur_thickness: float = 14.0,
     blur_width: float = 100.0,
     blur_x: Optional[float] = None,
+    subtitle_x: Optional[float] = None,
+    subtitle_y: Optional[float] = None,
+    subtitle_width: Optional[float] = None,
+    subtitle_height: Optional[float] = None,
     subtitle_style: str = "font-akkhayar",
     hook_title: str = "",
 ) -> Path:
@@ -1299,6 +1303,15 @@ def generate_burmese_ass(
         margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
         max_avail_w = max(200, int(canvas_w * subtitle_width_pct))
 
+    # Manual preview geometry overrides automatic subtitle placement. Values are percentages.
+    if all(v is not None for v in (subtitle_x, subtitle_y, subtitle_width)):
+        try:
+            center_x = int(round(canvas_w * max(0.0, min(100.0, float(subtitle_x))) / 100.0))
+            center_y = int(round(canvas_h * max(0.0, min(100.0, float(subtitle_y))) / 100.0))
+            max_avail_w = max(200, int(canvas_w * max(0.20, min(1.0, float(subtitle_width) / 100.0))))
+            margin_v = 0
+        except (TypeError, ValueError):
+            pass
     margin_lr = int(canvas_w * (0.16 if is_portrait else 0.12))
 
     header = f"""[Script Info]
@@ -1544,6 +1557,10 @@ def render_smart_sync_video(
     blur_intensity: float = 30.0,
     blur_width: float = 100.0,
     blur_x: Optional[float] = None,
+    subtitle_x: Optional[float] = None,
+    subtitle_y: Optional[float] = None,
+    subtitle_width: Optional[float] = None,
+    subtitle_height: Optional[float] = None,
     subtitle_style: str = "font-akkhayar",
     watermark_text: str = "",
     logo_path: Optional[Path] = None,
@@ -2234,6 +2251,10 @@ def run_oneclick_pipeline(
             blur_intensity=blur_intensity,
             blur_width=blur_width,
             blur_x=blur_x,
+            subtitle_x=subtitle_x,
+            subtitle_y=subtitle_y,
+            subtitle_width=subtitle_width,
+            subtitle_height=subtitle_height,
             subtitle_style=subtitle_style,
             watermark_text=watermark_text,
             logo_path=logo_path,
@@ -2366,6 +2387,10 @@ async def start_job(
     blur_intensity: float = Form(30.0),
     blur_width: float = Form(100.0),
     blur_x: Optional[float] = Form(None),
+    subtitle_x: Optional[float] = Form(None),
+    subtitle_y: Optional[float] = Form(None),
+    subtitle_width: Optional[float] = Form(None),
+    subtitle_height: Optional[float] = Form(None),
     subtitle_style: str = Form("font-akkhayar"),
     watermark_text: str = Form(""),
     logo_file: Optional[UploadFile] = File(default=None),
@@ -2465,6 +2490,12 @@ async def start_job(
         "blur_position": blur_position,
         "blur_thickness": blur_thickness,
         "blur_intensity": blur_intensity,
+        "blur_width": blur_width,
+        "blur_x": blur_x,
+        "subtitle_x": subtitle_x,
+        "subtitle_y": subtitle_y,
+        "subtitle_width": subtitle_width,
+        "subtitle_height": subtitle_height,
         "subtitle_style": subtitle_style,
         "watermark_text": watermark_text,
         "has_logo": bool(logo_path),
@@ -2493,6 +2524,10 @@ async def start_job(
         blur_intensity,
         blur_width,
         blur_x,
+        subtitle_x,
+        subtitle_y,
+        subtitle_width,
+        subtitle_height,
         subtitle_style,
         watermark_text,
         logo_path,
