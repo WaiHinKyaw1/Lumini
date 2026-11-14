@@ -645,7 +645,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits }) => {
           voiceSample: voiceMode === 'custom-sample' ? voiceSampleFile : null,
           voiceSamplePreset: selectedVoice === 'preset-kingburma-reference' ? 'kingburma-reference' : undefined,
           elevenlabsApiKey: voiceMode === 'custom-sample' ? elevenApiKey.trim() : undefined,
-          enableIntroHook: false,
+          enableIntroHook: true,
         }
       );
 

@@ -1872,13 +1872,29 @@ def render_smart_sync_video(
     final_duration = probe_duration(output_path)
     file_size_mb = output_path.stat().st_size / (1024 * 1024)
 
-    # Generate standalone intro thumbnail cover with hook title burned in (t=0.6s)
+    # Generate a separate 9:16 TikTok-style thumbnail: black negative space,
+    # centered white hook above a restrained video still. This is intentionally
+    # independent from the final video subtitle/blur geometry.
     thumb_path = job_dir / "thumbnail_cover.jpg"
     try:
+        hook_file = job_dir / "thumbnail_hook.txt"
+        hook_file.write_text(wrap_thumbnail_hook(hook_title), encoding="utf-8")
+        font_file = "/usr/share/fonts/truetype/burmese/Akkhayar21-Regular.ttf"
+        if not Path(font_file).is_file():
+            font_file = "/usr/share/fonts/truetype/burmese/Akkhayar21.ttf"
+        vf = (
+            "color=c=black:s=1080x1920[bg];"
+            "[0:v]scale=w=950:h=620:force_original_aspect_ratio=decrease,"
+            "pad=950:620:(ow-iw)/2:(oh-ih)/2:color=black[still];"
+            "[bg][still]overlay=(W-w)/2:650[cover];"
+            f"[cover]drawtext=fontfile='{font_file}':textfile='{hook_file}':"
+            "fontcolor=white:fontsize=58:line_spacing=12:"
+            "x=(w-text_w)/2:y=250:text_align=center:fix_bounds=1"
+        )
         subprocess.run(
             [ffmpeg, "-y", "-ss", "00:00:00.600", "-i", str(output_path),
-             "-vframes", "1", "-q:v", "2", str(thumb_path)],
-            capture_output=True, check=True
+             "-filter_complex", vf, "-frames:v", "1", "-q:v", "2", str(thumb_path)],
+            capture_output=True, text=True, check=True
         )
     except Exception as e:
         print(f"[Thumbnail] Cover extract note: {e}")
@@ -1894,6 +1910,24 @@ def render_smart_sync_video(
 
     return output_path
 
+
+def wrap_thumbnail_hook(text: str, max_chars: int = 22) -> str:
+    """Wrap a thumbnail hook into centered, readable portrait-cover lines."""
+    clean = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not clean:
+        return "မြန်မာ Movie Recap"
+    words = clean.split(" ")
+    lines, current = [], ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and len(candidate) > max_chars:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return "\n".join(lines[:4])
 
 # ─────────────────────────── Full Pipeline ───────────────────────────
 
@@ -2704,12 +2738,12 @@ async def list_voices():
              "description": "Team Alpha စတိုင် — ဩဇာပြည့်ဝသော Deep Baritone & Cinematic အသံနက်"},
             {"id": "my-MM-WunnaNeural", "name": "Min Khant / Wunna (မင်းခန့် / ဝဏ္ဏ)", "gender": "Male",
              "description": "လူငယ်ဆန်ဆန် တက်ကြွသွက်လက် — Fast & Energetic Viral စတိုင်"},
-            {"id": "my-MM-NilarNeural", "name": "Nilar (နီလာ)", "gender": "Female",
-             "description": "ချိုသာကြည်လင် — သဘာဝကျသော အမျိုးသမီး ဇာတ်လမ်းပြောဟန်"},
-            {"id": "my-MM-SuSuNeural", "name": "Su Su / Mya (ဆုဆု / မြ)", "gender": "Female",
-             "description": "နွေးထွေးလေးနက် — ရင်ခုန်ဖွယ် Drama & Storyteller အမျိုးသမီးအသံ"},
-            {"id": "my-MM-MayNeural", "name": "May / May Thu (မေ / မေသူ)", "gender": "Female",
-             "description": "ကြည်လင်သွက်လက် — လူငယ်ဆန်ဆန် Upbeat & Bright ဇာတ်လမ်းပြောဟန်"},
+            {"id": "eleven-brian", "name": "Brian", "gender": "Male",
+             "description": "Deep multilingual recap narrator"},
+            {"id": "eleven-george", "name": "George", "gender": "Male",
+             "description": "Warm multilingual storyteller"},
+            {"id": "eleven-roger", "name": "Roger", "gender": "Male",
+             "description": "Resonant narrator for recap videos"},
         ],
         "speeds": [
             {"value": "-50%", "label": "Slow (0.5x)"},
