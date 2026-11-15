@@ -1278,315 +1278,304 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               </div>
             </div>
 
-            {/* STEP 3: STYLE & SUBTITLES */}
-            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3">
+
+
+            {/* STEP 3: STYLE, SUBTITLES & FROSTED BLUR */}
+            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">3</span>
                   <h2 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                    ဗီဒီယို စတိုင်နှင့် စာတန်းထိုး
+                    ဗီဒီယို အရွယ်အစား၊ စာတန်းထိုးနှင့် Blur Setting
                   </h2>
                 </div>
               </div>
 
-              {/* 3 Quick Presets */}
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'alpha', label: '🎬 Team Alpha', desc: '9:16 + Blur Box ✨' },
-                  { id: 'tiktok', label: '📱 TikTok Reels', desc: '9:16 ဒေါင်လိုက်' },
-                  { id: 'youtube', label: '💻 Original / YT', desc: 'မူရင်းအတိုင်း' },
-                ].map((p) => {
-                  const isActive = (p.id === 'alpha' && selectedRatio === '9:16' && enableBlur) ||
-                    (p.id === 'tiktok' && selectedRatio === '9:16' && !enableBlur) ||
-                    (p.id === 'youtube' && selectedRatio === 'original' && !enableBlur);
-                  return (
+              {/* Aspect Ratio Selector */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
+                  ဗီဒီယို အရွယ်အစား (Aspect Ratio)
+                </label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    { id: 'original', label: 'Original' },
+                    { id: '16:9', label: '16:9' },
+                    { id: '9:16', label: '9:16' },
+                    { id: '1:1', label: '1:1' },
+                    { id: '4:5', label: '4:5' },
+                  ].map((r) => (
                     <button
-                      key={p.id}
+                      key={r.id}
                       type="button"
-                      onClick={() => applyPreset(p.id as any)}
-                      className={`p-2.5 rounded-xl border text-center transition-all ${isActive
-                        ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 font-bold'
-                        : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
+                      onClick={() => handleRatioSelect(r.id)}
+                      className={`py-1.5 rounded-lg border text-xs font-bold transition-all ${selectedRatio === r.id
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
                         }`}
                     >
-                      <span className="block text-xs font-bold text-slate-900 dark:text-white truncate">{p.label}</span>
-                      <span className="block text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5 truncate">{p.desc}</span>
+                      {r.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
 
-              {/* SECTION: FROSTED BLUR STRIP (စာတန်းဟောင်း ဖုံးအုပ်ရန် Blur အလွှာ - အရင်အတိုင်း စိတ်ကြိုက်ချိန်နိုင်သော Setting) */}
-
-            </div>
-
-            {/* COLLAPSIBLE: ADVANCED CUSTOMIZATION ACCORDION */}
-            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 shadow-sm overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-indigo-500" />
-                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                    စိတ်ကြိုက် အသေးစိတ် ပြင်ဆင်ရန် (Advanced Settings)
-                  </span>
+              {/* TWO PROMINENT ON / OFF SWITCHES */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* 1. Frosted Blur ON / OFF Switch */}
+                <div className={`p-3 rounded-xl border transition-all ${enableBlur ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-800/20'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${enableBlur ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
+                      Frosted Blur Strip
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEnableBlur(!enableBlur)}
+                      className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${enableBlur
+                        ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
+                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-300'
+                        }`}
+                    >
+                      {enableBlur ? '✓ ON (ဖွင့်ထား)' : 'OFF (ပိတ်ထား)'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1">
+                    မူရင်းဗီဒီယို စာတန်းဟောင်းများကို ဖုံးအုပ်ရန်
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <span>{isAdvancedOpen ? 'ပိတ်မည်' : 'ဖွင့်မည်'}</span>
-                  {isAdvancedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </div>
-              </button>
 
-              {isAdvancedOpen && (
-                <div className="p-4 pt-0 space-y-4 border-t border-slate-100 dark:border-zinc-800">
-                  {/* Manual Aspect Ratio */}
-                  <div className="space-y-1.5 pt-3">
+                {/* 2. Burmese Subtitles ON / OFF Switch */}
+                <div className={`p-3 rounded-xl border transition-all ${enableSubtitles ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-800/20'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${enableSubtitles ? 'bg-cyan-400 animate-pulse' : 'bg-slate-400'}`} />
+                      မြန်မာစာတန်းထိုး (Subtitles)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEnableSubtitles(!enableSubtitles)}
+                      className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${enableSubtitles
+                        ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-sm'
+                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-300'
+                        }`}
+                    >
+                      {enableSubtitles ? '✓ ON (ဖွင့်ထား)' : 'OFF (ပိတ်ထား)'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1">
+                    ဗီဒီယိုပေါ်တွင် မြန်မာစာတန်း အလိုအလျောက် ထိုးမည်
+                  </p>
+                </div>
+              </div>
+
+              {/* FROSTED BLUR CONTROLS (Visible only when enableBlur is ON) */}
+              {enableBlur && (
+                <div className="p-3.5 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-300/60 dark:border-amber-700/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                      Frosted Blur Settings (စိတ်ကြိုက်ချိန်ညှိမှု)
+                    </span>
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                      Preview ပေါ်တွင် Drag ဆွဲ၍လည်း ရွှေ့နိုင်သည်
+                    </span>
+                  </div>
+
+                  {/* Quick Blur Presets */}
+                  <div className="grid grid-cols-5 gap-1 text-[10px]">
+                    {[
+                      { label: 'အောက်ခြေ', pos: 82, thick: 14, width: 100 },
+                      { label: 'ဇာတ်ကား', pos: 66, thick: 15, width: 100 },
+                      { label: 'ဗဟို', pos: 60, thick: 16, width: 100 },
+                      { label: 'အပြည့် 100%', pos: 82, thick: 14, width: 100 },
+                      { label: 'ဘောင်ကျဉ်း', pos: 80, thick: 14, width: 65 },
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setBlurPosition(preset.pos);
+                          setBlurThickness(preset.thick);
+                          setBlurWidth(preset.width);
+                        }}
+                        className={`py-1 px-1 rounded-md border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
+                          ? 'border-amber-500 bg-amber-500 text-white font-bold'
+                          : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-white dark:bg-zinc-900'
+                          }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 4 Interactive Sliders */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                        <span>နေရာ အမြင့် (Vertical Y):</span>
+                        <span className="text-amber-500 font-mono">{blurPosition}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={50}
+                        max={95}
+                        value={blurPosition}
+                        onChange={(e) => setBlurPosition(Number(e.target.value))}
+                        className="w-full accent-amber-500"
+                      />
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                        <span>အထူ (Thickness / Height):</span>
+                        <span className="text-amber-500 font-mono">{blurThickness}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={6}
+                        max={35}
+                        value={blurThickness}
+                        onChange={(e) => setBlurThickness(Number(e.target.value))}
+                        className="w-full accent-amber-500"
+                      />
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                        <span>အကျယ် (Width):</span>
+                        <span className="text-amber-500 font-mono">{blurWidth}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={30}
+                        max={100}
+                        value={blurWidth}
+                        onChange={(e) => setBlurWidth(Number(e.target.value))}
+                        className="w-full accent-amber-500"
+                      />
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                        <span>ဝေဝါးမှုအား (Intensity):</span>
+                        <span className="text-amber-500 font-mono">{blurIntensity}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        value={blurIntensity}
+                        onChange={(e) => setBlurIntensity(Number(e.target.value))}
+                        className="w-full accent-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* BURMESE SUBTITLES CONTROLS (Visible only when enableSubtitles is ON) */}
+              {enableSubtitles && (
+                <div className="p-3.5 rounded-2xl bg-cyan-50/40 dark:bg-cyan-950/20 border border-cyan-300/60 dark:border-cyan-700/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-800 dark:text-cyan-300">
+                      မြန်မာစာတန်းထိုး Settings (Font & Position)
+                    </span>
+                    <span className="text-[10px] text-cyan-600 dark:text-cyan-400">
+                      Preview ပေါ်တွင် Drag ဆွဲ၍ ချိန်နိုင်သည်
+                    </span>
+                  </div>
+
+                  {/* Font Picker */}
+                  <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
-                      ဗီဒီယို အရွယ်အစား (Aspect Ratio)
+                      မြန်မာစာလုံး ဖောင့် (Font Style)
                     </label>
-                    <div className="grid grid-cols-5 gap-1.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                       {[
-                        { id: 'original', label: 'Original' },
-                        { id: '16:9', label: '16:9' },
-                        { id: '9:16', label: '9:16' },
-                        { id: '1:1', label: '1:1' },
-                        { id: '4:5', label: '4:5' },
-                      ].map((r) => (
+                        { id: 'font-akkhayar', label: 'Akkhayar 21 ✨' },
+                        { id: 'font-kunheing', label: 'AJ Kunheing' },
+                        { id: 'font-jojar', label: 'Myanmar Jojar' },
+                        { id: 'font-padauk', label: 'Padauk White' },
+                      ].map((f) => (
                         <button
-                          key={r.id}
+                          key={f.id}
                           type="button"
-                          onClick={() => handleRatioSelect(r.id)}
-                          className={`py-1.5 rounded-lg border text-xs font-bold transition-all ${selectedRatio === r.id
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                            : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
+                          onClick={() => setSubtitleStyle(f.id)}
+                          className={`py-1.5 px-2 rounded-lg border text-center transition-all ${subtitleStyle === f.id
+                            ? 'border-cyan-500 bg-cyan-500 text-white font-bold shadow-sm'
+                            : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] bg-white dark:bg-zinc-900'
                             }`}
                         >
-                          {r.label}
+                          <span className="block truncate">{f.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Burmese Font Picker */}
-                  {enableSubtitles && (
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
-                        မြန်မာစာလုံး ဖောင့် (Font Style)
-                      </label>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {[
-                          { id: 'font-akkhayar', label: 'Akkhayar 21 ✨' },
-                          { id: 'font-kunheing', label: 'AJ Kunheing' },
-                          { id: 'font-jojar', label: 'Myanmar Jojar' },
-                          { id: 'font-padauk', label: 'Padauk White' },
-                        ].map((f) => (
-                          <button
-                            key={f.id}
-                            type="button"
-                            onClick={() => setSubtitleStyle(f.id)}
-                            className={`py-1.5 px-2 rounded-lg border text-center transition-all ${subtitleStyle === f.id
-                              ? 'border-indigo-500 bg-indigo-50 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 font-bold'
-                              : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px]'
-                              }`}
-                          >
-                            <span className="block truncate">{f.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                          Frosted Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်မှု)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setEnableBlur(!enableBlur)}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all ${enableBlur
-                          ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
-                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                          }`}
-                      >
-                        {enableBlur ? '✓ ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
-                      </button>
-                    </div>
-
-                    {enableBlur && (
-                      <div className="space-y-3 pt-1">
-                        {/* Quick Blur Presets */}
-                        <div className="grid grid-cols-5 gap-1 text-[10px]">
-                          {[
-                            { label: 'အောက်ခြေ', pos: 82, thick: 14, width: 100 },
-                            { label: 'ဇာတ်ကား', pos: 66, thick: 15, width: 100 },
-                            { label: 'ဗဟို', pos: 60, thick: 16, width: 100 },
-                            { label: 'အပြည့် 100%', pos: 82, thick: 14, width: 100 },
-                            { label: 'ဘောင်ကျဉ်း', pos: 80, thick: 14, width: 65 },
-                          ].map((preset, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => {
-                                setBlurPosition(preset.pos);
-                                setBlurThickness(preset.thick);
-                                setBlurWidth(preset.width);
-                              }}
-                              className={`py-1 px-1 rounded-md border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
-                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
-                                : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
-                                }`}
-                            >
-                              {preset.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* 4 Interactive Sliders */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
-                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                              <span>နေရာ အမြင့် (Vertical Y):</span>
-                              <span className="text-amber-500 font-mono">{blurPosition}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={50}
-                              max={95}
-                              value={blurPosition}
-                              onChange={(e) => setBlurPosition(Number(e.target.value))}
-                              className="w-full accent-amber-500"
-                            />
-                          </div>
-
-                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                              <span>အထူ (Thickness / Height):</span>
-                              <span className="text-amber-500 font-mono">{blurThickness}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={6}
-                              max={35}
-                              value={blurThickness}
-                              onChange={(e) => setBlurThickness(Number(e.target.value))}
-                              className="w-full accent-amber-500"
-                            />
-                          </div>
-
-                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                              <span>အကျယ် (Width):</span>
-                              <span className="text-amber-500 font-mono">{blurWidth}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={30}
-                              max={100}
-                              value={blurWidth}
-                              onChange={(e) => setBlurWidth(Number(e.target.value))}
-                              className="w-full accent-amber-500"
-                            />
-                          </div>
-
-                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                              <span>ဝေဝါးမှုအား (Intensity):</span>
-                              <span className="text-amber-500 font-mono">{blurIntensity}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={10}
-                              max={100}
-                              value={blurIntensity}
-                              onChange={(e) => setBlurIntensity(Number(e.target.value))}
-                              className="w-full accent-amber-500"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-
-                  {/* Independent Burmese Subtitle Box */}
-                  {enableSubtitles && (
-                    <div className="p-3 rounded-xl bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-900/50 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Burmese Subtitle Box (သီးခြား)</span>
-                        <span className="text-[10px] text-cyan-600 dark:text-cyan-300">Preview ပေါ်မှာ drag/resize လုပ်နိုင်သည်</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <label className="font-bold text-slate-600 dark:text-zinc-300">X: {subtitleX}%<input type="range" min={10} max={90} value={subtitleX} onChange={(e) => setSubtitleX(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                        <label className="font-bold text-slate-600 dark:text-zinc-300">Y: {subtitleY}%<input type="range" min={8} max={92} value={subtitleY} onChange={(e) => setSubtitleY(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                        <label className="font-bold text-slate-600 dark:text-zinc-300">Width: {subtitleWidth}%<input type="range" min={25} max={95} value={subtitleWidth} onChange={(e) => setSubtitleWidth(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                        <label className="font-bold text-slate-600 dark:text-zinc-300">Height: {subtitleHeight}%<input type="range" min={8} max={35} value={subtitleHeight} onChange={(e) => setSubtitleHeight(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Channel Logo / Watermark */}
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Channel Logo / Watermark</span>
-                      <button
-                        type="button"
-                        onClick={() => setEnableLogo(!enableLogo)}
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${enableLogo ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600'}`}
-                      >
-                        {enableLogo ? 'ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
-                      </button>
-                    </div>
-
-                    {enableLogo && (
-                      <div className="space-y-2 pt-1">
-                        {logoUrl ? (
-                          <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700">
-                            <div className="flex items-center gap-2">
-                              <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain rounded" />
-                              <span className="text-xs font-bold truncate max-w-[150px]">{logoFile?.name || 'Logo'}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleRemoveLogo}
-                              className="text-xs font-bold text-rose-500 hover:underline"
-                            >
-                              ဖယ်ရှားမည်
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => logoInputRef.current?.click()}
-                            className="w-full py-2.5 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800"
-                          >
-                            + Logo ရုပ်ပုံ တင်ရန် (.png / .jpg)
-                          </button>
-                        )}
-                        <input
-                          ref={logoInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          onChange={handleLogoUpload}
-                          className="hidden"
-                        />
-                        <input
-                          type="text"
-                          value={watermarkText}
-                          onChange={(e) => setWatermarkText(e.target.value)}
-                          placeholder="သို့မဟုတ် Channel နာမည် စာသားထည့်ပါ (ဥပမာ- Movie Channel)"
-                          className="w-full px-3 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs"
-                        />
-                      </div>
-                    )}
+                  {/* Subtitle Box Position Sliders */}
+                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
+                    <label className="font-bold text-slate-600 dark:text-zinc-300">X: {subtitleX}%<input type="range" min={10} max={90} value={subtitleX} onChange={(e) => setSubtitleX(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                    <label className="font-bold text-slate-600 dark:text-zinc-300">Y: {subtitleY}%<input type="range" min={8} max={92} value={subtitleY} onChange={(e) => setSubtitleY(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                    <label className="font-bold text-slate-600 dark:text-zinc-300">Width: {subtitleWidth}%<input type="range" min={25} max={95} value={subtitleWidth} onChange={(e) => setSubtitleWidth(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                    <label className="font-bold text-slate-600 dark:text-zinc-300">Height: {subtitleHeight}%<input type="range" min={8} max={35} value={subtitleHeight} onChange={(e) => setSubtitleHeight(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
                   </div>
                 </div>
               )}
+
+              {/* Channel Logo / Watermark */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Channel Logo / Watermark</span>
+                  <button
+                    type="button"
+                    onClick={() => setEnableLogo(!enableLogo)}
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${enableLogo ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600'}`}
+                  >
+                    {enableLogo ? '✓ ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
+                  </button>
+                </div>
+
+                {enableLogo && (
+                  <div className="space-y-2 pt-1">
+                    {logoUrl ? (
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700">
+                        <div className="flex items-center gap-2">
+                          <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain rounded" />
+                          <span className="text-xs font-bold truncate max-w-[150px]">{logoFile?.name || 'Logo'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveLogo}
+                          className="text-xs font-bold text-rose-500 hover:underline"
+                        >
+                          ဖယ်ရှားမည်
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="w-full py-2.5 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800"
+                      >
+                        + Logo ရုပ်ပုံ တင်ရန် (.png / .jpg)
+                      </button>
+                    )}
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                    <input
+                      type="text"
+                      value={watermarkText}
+                      onChange={(e) => setWatermarkText(e.target.value)}
+                      placeholder="သို့မဟုတ် Channel နာမည် စာသားထည့်ပါ (ဥပမာ- Movie Channel)"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
           </div>
@@ -1836,7 +1825,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       {isUploading ? (
                         <div className="flex flex-col">
                           <span className="flex items-center gap-2">
-                            <LoadingSpinner size="sm" showLabel={false} />
+                            {/* <LoadingSpinner size="sm" showLabel={false} /> */}
                             {uploadProgress >= 100
                               ? 'Server သို့ ရောက်ရှိပြီး Pipeline စတင်နေပါပြီ...'
                               : 'ဗီဒီယို Cloud ပေါ်သို့ တင်ပို့နေပါသည် (Uploading)...'}
@@ -1849,7 +1838,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         </div>
                       ) : isProcessing ? (
                         <span className="flex items-center gap-2">
-                          <LoadingSpinner size="sm" showLabel={false} />
+                          {/* <LoadingSpinner size="sm" showLabel={false} /> */}
                           {STEP_LABELS[jobStatus?.step || ''] || jobStatus?.message || 'Processing on AWS...'}
                         </span>
                       ) : (
