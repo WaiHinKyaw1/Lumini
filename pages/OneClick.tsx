@@ -7,7 +7,6 @@ import {
   startOneClickJob,
   getOneClickJobStatus,
   getOneClickDownloadUrl,
-  getOneClickThumbnailUrl,
   getOneClickStreamUrl,
   getOneClickSrtDownloadUrl,
   getOneClickTranscript,
@@ -28,7 +27,6 @@ import {
   Pause,
   Trash2,
   Sliders,
-  Sparkles,
   Zap,
   Layers,
   Image as ImageIcon,
@@ -42,8 +40,6 @@ import {
   Volume2,
   ChevronDown,
   ChevronUp,
-  Copy,
-  Wand2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -652,7 +648,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
           voiceSample: voiceMode === 'custom-sample' ? voiceSampleFile : null,
           voiceSamplePreset: selectedVoice === 'preset-kingburma-reference' ? 'kingburma-reference' : undefined,
           elevenlabsApiKey: voiceMode === 'custom-sample' ? elevenApiKey.trim() : undefined,
-          enableIntroHook: true,
+          enableIntroHook: false,
         },
         (pct, loaded, total) => {
           setUploadProgress(pct);
@@ -843,13 +839,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   >
                     <FileText className="w-3.5 h-3.5" /> စာတန်းထိုး (.srt)
                   </a>
-                  <a
-                    href={getOneClickThumbnailUrl(jobId)}
-                    download
-                    className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-500/20 flex items-center gap-1.5 transition-all"
-                  >
-                    <ImageIcon className="w-3.5 h-3.5" /> Thumbnail (.jpg)
-                  </a>
                 </>
               )}
             </div>
@@ -905,110 +894,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               </div>
             </div>
           </div>
-
-          {/* TikTok Viral Thumbnail & Hook Studio Card */}
-          {jobId && (
-            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-zinc-800/80 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-pink-500/10 text-pink-500 text-xs">
-                    <Sparkles className="w-4 h-4" />
-                  </span>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                      TikTok Cover & Viral Thumbnail (DeepClip 3D)
-                    </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                      ဗီဒီယိုအတွက် အလိုအလျောက် ထုတ်လုပ်ပေးထားသော 9:16 Portrait Cover Photo နှင့် Hook စာသား
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={getOneClickThumbnailUrl(jobId)}
-                    download
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Download (.jpg)
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (jobStatus?.hook_title) {
-                        localStorage.setItem('lumini_thumbnail_initial_hook', jobStatus.hook_title);
-                      }
-                      const topicName = file?.name ? file.name.replace(/\.[^/.]+$/, '') : (videoUrl || 'Movie Recap');
-                      localStorage.setItem('lumini_thumbnail_initial_topic', topicName);
-                      if (onNavigate) {
-                        onNavigate('thumbnail');
-                      } else {
-                        toast.success('Thumbnail Studio tab သို့ သွားရောက်ပြင်ဆင်နိုင်ပါသည်');
-                      }
-                    }}
-                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-500/20 flex items-center gap-1.5 transition-all"
-                  >
-                    <Wand2 className="w-3.5 h-3.5" /> Open in Thumbnail Studio
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                {/* Thumbnail Preview */}
-                <div className="md:col-span-4 flex justify-center">
-                  <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-md bg-black max-w-[200px] aspect-[9/16] group">
-                    <img
-                      src={getOneClickThumbnailUrl(jobId)}
-                      alt="Thumbnail Cover"
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/70 text-[10px] font-bold text-amber-400">
-                      9:16 Portrait
-                    </span>
-                  </div>
-                </div>
-
-                {/* Hook and Meta Info */}
-                <div className="md:col-span-8 space-y-3">
-                  {jobStatus?.hook_title ? (
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-950/70 border border-slate-200 dark:border-zinc-800 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 flex items-center gap-1">
-                          🎬 Generated Hook Title
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(jobStatus.hook_title || '');
-                            toast.success('Hook စာသား Copy ကူးပြီးပါပြီ');
-                          }}
-                          className="text-[11px] font-semibold text-indigo-500 hover:text-indigo-400 flex items-center gap-1"
-                        >
-                          <Copy className="w-3 h-3" /> Copy Hook
-                        </button>
-                      </div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 font-burmese leading-relaxed">
-                        {jobStatus.hook_title}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-slate-700 dark:text-zinc-300 space-y-1">
-                    <p className="font-semibold text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
-                      💡 DeepClip 3D TikTok Style Support
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                      TikTok link ထဲကအတိုင်း 3D Neon Cyan & Golden Burmese စာလုံး၊ Golden FREE တံဆိပ်နှင့် 35mm film strip တို့ဖြင့် စိတ်ကြိုက် ပြင်ဆင်/ဆွဲထုတ်လိုပါက <b>Open in Thumbnail Studio</b> ကို နှိပ်ပါ။
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

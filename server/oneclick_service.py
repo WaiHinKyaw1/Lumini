@@ -1387,16 +1387,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
 
-    # 1. Add Intro Thumbnail Hook (Strictly 1 line, exactly matching ref photo, 0s to 2.8s)
-    if hook_title:
-        clean_hook = str(hook_title).replace("\r", " ").replace("\n", " ").strip()
-        clean_hook = re.sub(r'[\"\'\`]', '', clean_hook)
-        clean_hook = re.sub(r'\s+', ' ', clean_hook).strip()
-        if clean_hook:
-            single_line_hook = clean_hook.split("||")[0].strip()
-            events.append(f"Dialogue: 2,0:00:00.00,0:00:02.80,IntroHook,,0,0,0,,{{\\fad(100,250)}}{single_line_hook}")
-
-    # 2. Add Narration Subtitles locked strictly inside blur box
+    # Narration Subtitles locked strictly inside blur box
     for r in tts_results:
         text = str(r.get("narration", "")).strip()
         if not text:
@@ -1996,41 +1987,12 @@ def render_smart_sync_video(
     final_duration = probe_duration(output_path)
     file_size_mb = output_path.stat().st_size / (1024 * 1024)
 
-    # Generate a separate 9:16 TikTok-style thumbnail: black negative space,
-    # centered white hook above a restrained video still. This is intentionally
-    # independent from the final video subtitle/blur geometry.
-    thumb_path = job_dir / "thumbnail_cover.jpg"
-    try:
-        hook_file = job_dir / "thumbnail_hook.txt"
-        hook_file.write_text(wrap_thumbnail_hook(hook_title), encoding="utf-8")
-        font_file = "/usr/share/fonts/truetype/burmese/Akkhayar21-Regular.ttf"
-        if not Path(font_file).is_file():
-            font_file = "/usr/share/fonts/truetype/burmese/Akkhayar21.ttf"
-        vf = (
-            "color=c=black:s=1080x1920[bg];"
-            "[0:v]scale=w=950:h=620:force_original_aspect_ratio=decrease,"
-            "pad=950:620:(ow-iw)/2:(oh-ih)/2:color=black[still];"
-            "[bg][still]overlay=(W-w)/2:650[cover];"
-            f"[cover]drawtext=fontfile='{font_file}':textfile='{hook_file}':"
-            "fontcolor=white:fontsize=58:line_spacing=12:"
-            "x=(w-text_w)/2:y=250:text_align=center:fix_bounds=1"
-        )
-        subprocess.run(
-            [ffmpeg, "-y", "-ss", "00:00:00.600", "-i", str(output_path),
-             "-filter_complex", vf, "-frames:v", "1", "-q:v", "2", str(thumb_path)],
-            capture_output=True, text=True, check=True
-        )
-    except Exception as e:
-        print(f"[Thumbnail] Cover extract note: {e}")
-
     update_job(job_id, progress=100,
                message=f"Complete! {final_duration:.1f}s, {file_size_mb:.1f}MB",
                status="completed",
                output_file=str(output_path),
                output_duration=round(final_duration, 1),
-               output_size_mb=round(file_size_mb, 1),
-               thumbnail_file=str(thumb_path) if thumb_path.is_file() else None,
-               hook_title=hook_title if hook_title else None)
+               output_size_mb=round(file_size_mb, 1))
 
     return output_path
 
@@ -2340,24 +2302,7 @@ def run_oneclick_pipeline(
 
         # Step 4: Gemini translation (Spoken storytelling style)
         translated = translate_with_gemini(chunks, job_dir, job_id)
-
-        # Step 4b: Generate 1-line recap intro hook title (Thumbnail Title Hook)
         hook_title = ""
-        if enable_intro_hook:
-            if intro_hook_text and str(intro_hook_text).strip():
-                hook_title = str(intro_hook_text).strip()
-            else:
-                try:
-                    from google import genai
-                    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY", "")
-                    if api_key:
-                        client = genai.Client(api_key=api_key)
-                        full_context = " ".join([c.get("narration", c.get("text", "")) for c in translated[:15]])
-                        hook_title = generate_story_hook_title(full_context, client)
-                        print(f"[IntroHook] Generated 1-line title hook: {hook_title}")
-                except Exception as e:
-                    print(f"[IntroHook] Generation note: {e}")
-                    hook_title = "ဒီနေ့ဘာတွေထူးဆန်းတာဖြစ်သွားတာလဲ?"
 
         # Step 5: Voice synthesis (Smart Acoustic Cloned Voice, ElevenLabs, or Natural Edge TTS)
         tts_results = []
