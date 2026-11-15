@@ -35,7 +35,7 @@ export const getBaseUrl = (): string => {
 
   // If in browser over HTTPS, default to Cloudflare HTTPS tunnel to prevent Mixed Content block and bypass Vercel 4.5MB limit
   if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return 'https://solar-bug-association-invoice.trycloudflare.com';
+    return 'https://aaron-blanket-purpose-earlier.trycloudflare.com';
   }
 
   return 'http://16.170.108.153:8080';
@@ -113,7 +113,7 @@ export async function checkOneClickHealth(): Promise<OneClickHealthResponse> {
   const urlsToTry: string[] = [];
   const primary = getBaseUrl();
   if (primary) urlsToTry.push(`${primary}/api/oneclick/health`);
-  urlsToTry.push('https://solar-bug-association-invoice.trycloudflare.com/api/oneclick/health');
+  urlsToTry.push('https://aaron-blanket-purpose-earlier.trycloudflare.com/api/oneclick/health');
   urlsToTry.push('/api/oneclick/health');
   urlsToTry.push('/worker/api/oneclick/health');
   if (primary !== 'http://16.170.108.153:8080') {
@@ -279,7 +279,8 @@ export async function fetchOneClickUrlVideo(url: string): Promise<{
  */
 export async function startOneClickJob(
   input: { file?: File | null; videoUrl?: string; tempId?: string },
-  options: OneClickJobOptions
+  options: OneClickJobOptions,
+  onProgress?: (progressPct: number, loadedBytes: number, totalBytes: number) => void
 ): Promise<OneClickStartResponse> {
   const formData = new FormData();
   if (input.file) {
@@ -349,17 +350,47 @@ export async function startOneClickJob(
     formData.append('intro_hook_text', options.introHookText.trim());
   }
 
-  const res = await fetch(`${getBaseUrl()}/api/oneclick/start`, {
-    method: 'POST',
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const url = `${getBaseUrl()}/api/oneclick/start`;
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        const pct = Math.round((event.loaded / event.total) * 100);
+        onProgress(pct, event.loaded, event.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data);
+        } catch {
+          reject(new Error('Invalid response from server.'));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.detail || `Server error (${xhr.status})`));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network connection error during upload. Please check your connection.'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('Upload timed out. Please try again or check network speed.'));
+    };
+
+    xhr.open('POST', url, true);
+    xhr.timeout = 20 * 60 * 1000; // 20 minutes for large videos
+    xhr.send(formData);
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `Upload failed: ${res.status}` }));
-    throw new Error(err.detail || `Upload failed: ${res.status}`);
-  }
-
-  return res.json();
 }
 
 /**

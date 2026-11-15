@@ -246,6 +246,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<OneClickJobStatus | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadBytes, setUploadBytes] = useState<{ loaded: number; total: number } | null>(null);
 
   // Script & Output
   const [transcript, setTranscript] = useState<OneClickTranscript | null>(null);
@@ -612,6 +614,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
     setError(null);
     setIsUploading(true);
+    setUploadProgress(0);
+    setUploadBytes(null);
     setJobStatus(null);
     setTranscript(null);
 
@@ -649,6 +653,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
           voiceSamplePreset: selectedVoice === 'preset-kingburma-reference' ? 'kingburma-reference' : undefined,
           elevenlabsApiKey: voiceMode === 'custom-sample' ? elevenApiKey.trim() : undefined,
           enableIntroHook: true,
+        },
+        (pct, loaded, total) => {
+          setUploadProgress(pct);
+          setUploadBytes({ loaded, total });
         }
       );
 
@@ -1151,44 +1159,52 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
               {/* Voice Cards */}
               {voiceMode === 'preset' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {[
-                    { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', icon: '👑', tag: 'TikTok Pro' },
-                    { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', icon: '🎙️', tag: 'Classic Narrator' },
-                    { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', icon: '🎬', tag: 'Team Alpha Baritone' },
-                    { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', icon: '⚡', tag: 'Energetic Youth' },
-                    { id: 'eleven-brian', name: 'Brian', mmName: 'ဘရိုင်ယန်', icon: '🎙️', tag: 'Deep Recap' },
-                    { id: 'eleven-george', name: 'George', mmName: 'ဂျော့ဂျ်', icon: '🎬', tag: 'Warm Storyteller' },
-                    { id: 'eleven-roger', name: 'Roger', mmName: 'ရော်ဂျာ', icon: '📻', tag: 'Resonant Narrator' },
-                  ].map((v) => (
-                    <div
-                      key={v.id}
-                      onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
-                        ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
-                        : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                          {v.icon} {v.mmName}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => handlePlayVoiceSample(e, v.id)}
-                          className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 transition-all ${sampleAudioPlaying === v.id
-                            ? 'bg-indigo-600 text-white animate-pulse'
-                            : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white'
-                            }`}
-                          title="နမူနာအသံ နားထောင်မည်"
-                        >
-                          <Volume2 className="w-2.5 h-2.5" />
-                          <span>{sampleAudioPlaying === v.id ? 'ရပ်မည်' : sampleAudioLoading === v.id ? '...' : 'နားထောင်'}</span>
-                        </button>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', icon: '👑', tag: 'TikTok Pro' },
+                      { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', icon: '🎙️', tag: 'Classic Narrator' },
+                      { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', icon: '🎬', tag: 'Team Alpha Baritone' },
+                      { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', icon: '⚡', tag: 'Energetic Youth' },
+                      { id: 'my-MM-NilarNeural', name: 'Nilar', mmName: 'နီလာ', icon: '🌸', tag: 'Natural Female' },
+                      { id: 'my-MM-SuSuNeural', name: 'Su Su', mmName: 'ဆုဆု', icon: '🎭', tag: 'Drama Female' },
+                      { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန် (Gemini)', icon: '🤖', tag: 'Cinematic Deep' },
+                      { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ် (Gemini)', icon: '⚡', tag: 'Viral Energetic' },
+                      { id: 'eleven-brian', name: 'Brian', mmName: 'ဘရိုင်ယန် (11Labs)', icon: '🎙️', tag: 'Deep Recap' },
+                      { id: 'eleven-george', name: 'George', mmName: 'ဂျော့ဂျ် (11Labs)', icon: '🎬', tag: 'Warm Story' },
+                      { id: 'eleven-roger', name: 'Roger', mmName: 'ရော်ဂျာ (11Labs)', icon: '📻', tag: 'Resonant Baritone' },
+                    ].map((v) => (
+                      <div
+                        key={v.id}
+                        onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
+                          ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                            {v.icon} {v.mmName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => handlePlayVoiceSample(e, v.id)}
+                            className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 transition-all ${sampleAudioPlaying === v.id
+                              ? 'bg-indigo-600 text-white animate-pulse'
+                              : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white'
+                              }`}
+                            title="နမူနာအသံ နားထောင်မည်"
+                          >
+                            <Volume2 className="w-2.5 h-2.5" />
+                            <span>{sampleAudioPlaying === v.id ? 'ရပ်မည်' : sampleAudioLoading === v.id ? '...' : 'နားထောင်'}</span>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
                       </div>
-                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+
                 </div>
               ) : (
                 /* Custom Sample Upload */
@@ -1281,8 +1297,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   { id: 'youtube', label: '💻 Original / YT', desc: 'မူရင်းအတိုင်း' },
                 ].map((p) => {
                   const isActive = (p.id === 'alpha' && selectedRatio === '9:16' && enableBlur) ||
-                                   (p.id === 'tiktok' && selectedRatio === '9:16' && !enableBlur) ||
-                                   (p.id === 'youtube' && selectedRatio === 'original' && !enableBlur);
+                    (p.id === 'tiktok' && selectedRatio === '9:16' && !enableBlur) ||
+                    (p.id === 'youtube' && selectedRatio === 'original' && !enableBlur);
                   return (
                     <button
                       key={p.id}
@@ -1301,120 +1317,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               </div>
 
               {/* SECTION: FROSTED BLUR STRIP (စာတန်းဟောင်း ဖုံးအုပ်ရန် Blur အလွှာ - အရင်အတိုင်း စိတ်ကြိုက်ချိန်နိုင်သော Setting) */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                      Frosted Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်မှု)
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEnableBlur(!enableBlur)}
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all ${enableBlur
-                      ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
-                      : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
-                  >
-                    {enableBlur ? '✓ ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
-                  </button>
-                </div>
 
-                {enableBlur && (
-                  <div className="space-y-3 pt-1">
-                    {/* Quick Blur Presets */}
-                    <div className="grid grid-cols-5 gap-1 text-[10px]">
-                      {[
-                        { label: 'အောက်ခြေ', pos: 82, thick: 14, width: 100 },
-                        { label: 'ဇာတ်ကား', pos: 66, thick: 15, width: 100 },
-                        { label: 'ဗဟို', pos: 60, thick: 16, width: 100 },
-                        { label: 'အပြည့် 100%', pos: 82, thick: 14, width: 100 },
-                        { label: 'ဘောင်ကျဉ်း', pos: 80, thick: 14, width: 65 },
-                      ].map((preset, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setBlurPosition(preset.pos);
-                            setBlurThickness(preset.thick);
-                            setBlurWidth(preset.width);
-                          }}
-                          className={`py-1 px-1 rounded-md border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
-                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
-                            : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
-                            }`}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* 4 Interactive Sliders */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
-                      <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                        <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                          <span>နေရာ အမြင့် (Vertical Y):</span>
-                          <span className="text-amber-500 font-mono">{blurPosition}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={50}
-                          max={95}
-                          value={blurPosition}
-                          onChange={(e) => setBlurPosition(Number(e.target.value))}
-                          className="w-full accent-amber-500"
-                        />
-                      </div>
-
-                      <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                        <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                          <span>အထူ (Thickness / Height):</span>
-                          <span className="text-amber-500 font-mono">{blurThickness}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={6}
-                          max={35}
-                          value={blurThickness}
-                          onChange={(e) => setBlurThickness(Number(e.target.value))}
-                          className="w-full accent-amber-500"
-                        />
-                      </div>
-
-                      <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                        <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                          <span>အကျယ် (Width):</span>
-                          <span className="text-amber-500 font-mono">{blurWidth}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={30}
-                          max={100}
-                          value={blurWidth}
-                          onChange={(e) => setBlurWidth(Number(e.target.value))}
-                          className="w-full accent-amber-500"
-                        />
-                      </div>
-
-                      <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                        <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                          <span>ဝေဝါးမှုအား (Intensity):</span>
-                          <span className="text-amber-500 font-mono">{blurIntensity}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={10}
-                          max={100}
-                          value={blurIntensity}
-                          onChange={(e) => setBlurIntensity(Number(e.target.value))}
-                          className="w-full accent-amber-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* COLLAPSIBLE: ADVANCED CUSTOMIZATION ACCORDION */}
@@ -1495,66 +1398,121 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     </div>
                   )}
 
-                  {/* Blur Sliders */}
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 space-y-3">
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-800 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Frosted Blur Bar (မူရင်းစာတန်း ဖျောက်မှု)</span>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                          Frosted Blur Strip (စာတန်းဟောင်း ဖုံးအုပ်မှု)
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setEnableBlur(!enableBlur)}
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${enableBlur ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600'}`}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all ${enableBlur
+                          ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
+                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                          }`}
                       >
-                        {enableBlur ? 'ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
+                        {enableBlur ? '✓ ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
                       </button>
                     </div>
 
                     {enableBlur && (
-                      <div className="space-y-2.5 pt-1 text-[11px]">
-                        <div>
-                          <div className="flex justify-between font-bold text-slate-600 dark:text-zinc-300 mb-1">
-                            <span>Blur Width (အကျယ်):</span>
-                            <span>{blurWidth}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={30}
-                            max={100}
-                            value={blurWidth}
-                            onChange={(e) => setBlurWidth(Number(e.target.value))}
-                            className="w-full accent-indigo-600"
-                          />
+                      <div className="space-y-3 pt-1">
+                        {/* Quick Blur Presets */}
+                        <div className="grid grid-cols-5 gap-1 text-[10px]">
+                          {[
+                            { label: 'အောက်ခြေ', pos: 82, thick: 14, width: 100 },
+                            { label: 'ဇာတ်ကား', pos: 66, thick: 15, width: 100 },
+                            { label: 'ဗဟို', pos: 60, thick: 16, width: 100 },
+                            { label: 'အပြည့် 100%', pos: 82, thick: 14, width: 100 },
+                            { label: 'ဘောင်ကျဉ်း', pos: 80, thick: 14, width: 65 },
+                          ].map((preset, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setBlurPosition(preset.pos);
+                                setBlurThickness(preset.thick);
+                                setBlurWidth(preset.width);
+                              }}
+                              className={`py-1 px-1 rounded-md border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
+                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
+                                : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
+                                }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
                         </div>
-                        <div>
-                          <div className="flex justify-between font-bold text-slate-600 dark:text-zinc-300 mb-1">
-                            <span>Blur Height (အမြင့်):</span>
-                            <span>{blurThickness}%</span>
+
+                        {/* 4 Interactive Sliders */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                              <span>နေရာ အမြင့် (Vertical Y):</span>
+                              <span className="text-amber-500 font-mono">{blurPosition}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={50}
+                              max={95}
+                              value={blurPosition}
+                              onChange={(e) => setBlurPosition(Number(e.target.value))}
+                              className="w-full accent-amber-500"
+                            />
                           </div>
-                          <input
-                            type="range"
-                            min={6}
-                            max={35}
-                            value={blurThickness}
-                            onChange={(e) => setBlurThickness(Number(e.target.value))}
-                            className="w-full accent-indigo-600"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex justify-between font-bold text-slate-600 dark:text-zinc-300 mb-1">
-                            <span>Blur Intensity (ဝေဝါးမှု):</span>
-                            <span>{blurIntensity}%</span>
+
+                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                              <span>အထူ (Thickness / Height):</span>
+                              <span className="text-amber-500 font-mono">{blurThickness}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={6}
+                              max={35}
+                              value={blurThickness}
+                              onChange={(e) => setBlurThickness(Number(e.target.value))}
+                              className="w-full accent-amber-500"
+                            />
                           </div>
-                          <input
-                            type="range"
-                            min={10}
-                            max={100}
-                            value={blurIntensity}
-                            onChange={(e) => setBlurIntensity(Number(e.target.value))}
-                            className="w-full accent-indigo-600"
-                          />
+
+                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                              <span>အကျယ် (Width):</span>
+                              <span className="text-amber-500 font-mono">{blurWidth}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={30}
+                              max={100}
+                              value={blurWidth}
+                              onChange={(e) => setBlurWidth(Number(e.target.value))}
+                              className="w-full accent-amber-500"
+                            />
+                          </div>
+
+                          <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
+                            <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                              <span>ဝေဝါးမှုအား (Intensity):</span>
+                              <span className="text-amber-500 font-mono">{blurIntensity}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={10}
+                              max={100}
+                              value={blurIntensity}
+                              onChange={(e) => setBlurIntensity(Number(e.target.value))}
+                              className="w-full accent-amber-500"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
+
 
                   {/* Independent Burmese Subtitle Box */}
                   {enableSubtitles && (
@@ -1874,16 +1832,26 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               {(isUploading || isProcessing || isFailed) && (
                 <div className="p-4 rounded-2xl border border-indigo-500/20 bg-slate-50 dark:bg-zinc-800/80 shadow-md space-y-2.5">
                   <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-slate-800 dark:text-zinc-200 flex items-center gap-2">
+                    <span className="text-slate-800 dark:text-zinc-200">
                       {isUploading ? (
-                        <>
-                          <LoadingSpinner size="sm" showLabel={false} />
-                          ဆာဗာသို့ တင်ပို့နေပါသည်...
-                        </>
+                        <div className="flex flex-col">
+                          <span className="flex items-center gap-2">
+                            <LoadingSpinner size="sm" showLabel={false} />
+                            {uploadProgress >= 100
+                              ? 'Server သို့ ရောက်ရှိပြီး Pipeline စတင်နေပါပြီ...'
+                              : 'ဗီဒီယို Cloud ပေါ်သို့ တင်ပို့နေပါသည် (Uploading)...'}
+                          </span>
+                          {uploadBytes && uploadProgress < 100 && (
+                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-normal pl-6 mt-0.5">
+                              {(uploadBytes.loaded / (1024 * 1024)).toFixed(1)} MB / {(uploadBytes.total / (1024 * 1024)).toFixed(1)} MB ({uploadProgress}%)
+                            </span>
+                          )}
+                        </div>
                       ) : isProcessing ? (
-                        <>
+                        <span className="flex items-center gap-2">
+                          <LoadingSpinner size="sm" showLabel={false} />
                           {STEP_LABELS[jobStatus?.step || ''] || jobStatus?.message || 'Processing on AWS...'}
-                        </>
+                        </span>
                       ) : (
                         <span className="text-red-500 flex items-center gap-1.5 font-bold">
                           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -1891,8 +1859,14 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         </span>
                       )}
                     </span>
-                    <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold">
-                      {isFailed ? 'Error' : jobStatus?.progress ? `${Math.max(0, jobStatus.progress)}%` : isUploading ? '...' : ''}
+                    <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold text-sm">
+                      {isFailed
+                        ? 'Error'
+                        : isUploading
+                          ? `${uploadProgress}%`
+                          : jobStatus?.progress
+                            ? `${Math.max(0, jobStatus.progress)}%`
+                            : '0%'}
                     </span>
                   </div>
 
@@ -1908,7 +1882,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         ? 'bg-red-500 w-full'
                         : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'
                         }`}
-                      style={{ width: isFailed ? '100%' : `${Math.max(5, Math.min(100, jobStatus?.progress || (isUploading ? 12 : 0)))}%` }}
+                      style={{
+                        width: isFailed
+                          ? '100%'
+                          : isUploading
+                            ? `${Math.max(4, uploadProgress)}%`
+                            : `${Math.max(5, Math.min(100, jobStatus?.progress || 0))}%`
+                      }}
                     />
                   </div>
                 </div>
@@ -1927,7 +1907,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 {isUploading ? (
                   <span className="flex items-center justify-center gap-2">
                     <LoadingSpinner size="sm" showLabel={false} />
-                    Starting Pipeline...
+                    {uploadProgress >= 100 ? 'Starting Pipeline...' : `Uploading Video (${uploadProgress}%)...`}
                   </span>
                 ) : isProcessing ? (
                   <span className="flex items-center justify-center gap-2">

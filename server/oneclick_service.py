@@ -702,6 +702,62 @@ def synthesize_edge_tts(
             "acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40",
             "loudnorm=I=-16:TP=-1.5:LRA=9",
         ])
+    elif "brian" in v_norm or "charon" in v_norm:
+        # Brian / Charon - Deep Cinematic Tone
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*0.80",
+            "atempo=1.25",
+            "highpass=f=60",
+            "lowshelf=g=6.0:f=130",
+            "equalizer=f=200:width_type=o:width=1.4:g=-2.2",
+            "highshelf=g=2.0:f=3400",
+            "acompressor=threshold=-19dB:ratio=3.2:attack=4:release=55",
+            "loudnorm=I=-15:TP=-1.5:LRA=9",
+        ])
+    elif "george" in v_norm:
+        # George - Warm Natural Storyteller
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*0.86",
+            "atempo=1.1628",
+            "highpass=f=68",
+            "lowshelf=g=3.8:f=160",
+            "equalizer=f=400:width_type=o:width=1.2:g=-1.5",
+            "equalizer=f=2200:width_type=o:width=1.2:g=2.0",
+            "acompressor=threshold=-17dB:ratio=3:attack=5:release=50",
+            "loudnorm=I=-16:TP=-1.5:LRA=10",
+        ])
+    elif "roger" in v_norm:
+        # Roger - Resonant Classic Announcer
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*0.82",
+            "atempo=1.2195",
+            "highpass=f=62",
+            "lowshelf=g=4.5:f=150",
+            "equalizer=f=300:width_type=o:width=1.3:g=-2.0",
+            "highshelf=g=2.2:f=3500",
+            "acompressor=threshold=-18dB:ratio=3:attack=4:release=45",
+            "loudnorm=I=-15.5:TP=-1.5:LRA=9",
+        ])
+    elif "puck" in v_norm:
+        # Puck - Energetic Viral Street Youth
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*1.12",
+            "atempo=0.8929",
+            "highpass=f=90",
+            "equalizer=f=160:width_type=o:width=1.2:g=-2.0",
+            "equalizer=f=1400:width_type=o:width=1.5:g=2.5",
+            "highshelf=g=2.8:f=3200",
+            "acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40",
+            "loudnorm=I=-16:TP=-1.5:LRA=9",
+        ])
     else:
         # Default Thiha (သီဟ) - Natural Balanced Recap Tone
         actual_voice = "my-MM-ThihaNeural"
@@ -2832,7 +2888,7 @@ async def list_voices():
 
 @app.get("/api/oneclick/voice-sample/{voice_key}")
 async def get_voice_sample(voice_key: str):
-    """Return quick audio preview sample for Thiha, Zaw, Wunna, or Nilar."""
+    """Return quick audio preview sample for all available voices."""
     sample_dir = Path("/tmp/lumini_voice_samples")
     sample_dir.mkdir(parents=True, exist_ok=True)
     v_norm = voice_key.lower()
@@ -2849,10 +2905,22 @@ async def get_voice_sample(voice_key: str):
         v_name = "zaw"
     elif "wunna" in v_norm or "wun" in v_norm or "wanna" in v_norm or "minkhant" in v_norm or "khant" in v_norm:
         v_name = "wunna"
+    elif "brian" in v_norm:
+        v_name = "brian"
+    elif "george" in v_norm:
+        v_name = "george"
+    elif "roger" in v_norm:
+        v_name = "roger"
+    elif "charon" in v_norm:
+        v_name = "charon"
+    elif "puck" in v_norm:
+        v_name = "puck"
+    elif "kore" in v_norm:
+        v_name = "kore"
     else:
         v_name = "thiha"
 
-    sample_wav = sample_dir / f"sample_alpha_v7_{v_name}.wav"
+    sample_wav = sample_dir / f"sample_alpha_v9_{v_name}.wav"
     if not sample_wav.is_file():
         import edge_tts
         text = "အဲဒီနောက်မှာတော့ ဇာတ်လမ်းက ပိုပြီး စိတ်ဝင်စားစရာကောင်းလာခဲ့ပါတော့တယ်"
@@ -2864,7 +2932,7 @@ async def get_voice_sample(voice_key: str):
         elif v_name == "may":
             af_filter = "asetrate=24000*1.08,atempo=0.9259,highpass=f=85,highshelf=g=2.5:f=3500,acompressor=threshold=-15dB:ratio=3:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
             await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+16%").save(str(mp3_tmp))
-        elif v_name == "nilar":
+        elif v_name == "nilar" or v_name == "kore":
             af_filter = "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=10"
             await edge_tts.Communicate(text, voice="my-MM-NilarNeural", rate="+15%").save(str(mp3_tmp))
         elif v_name == "kingburma":
@@ -2873,9 +2941,18 @@ async def get_voice_sample(voice_key: str):
         elif v_name == "zaw":
             af_filter = "asetrate=24000*0.84,atempo=1.1905,highpass=f=65,lowshelf=g=5.0:f=140,equalizer=f=250:width_type=o:width=1.5:g=-2.0,highshelf=g=1.5:f=3600,acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
             await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%").save(str(mp3_tmp))
-        elif v_name == "wunna":
+        elif v_name == "wunna" or v_name == "puck":
             af_filter = "asetrate=24000*1.12,atempo=0.8929,highpass=f=90,equalizer=f=160:width_type=o:width=1.2:g=-2.0,equalizer=f=1400:width_type=o:width=1.5:g=2.5,highshelf=g=2.8:f=3200,acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40,loudnorm=I=-16:TP=-1.5:LRA=9"
-            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+20%").save(str(mp3_tmp))
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+22%").save(str(mp3_tmp))
+        elif v_name == "brian" or v_name == "charon":
+            af_filter = "asetrate=24000*0.80,atempo=1.25,highpass=f=60,lowshelf=g=6.0:f=130,equalizer=f=200:width_type=o:width=1.4:g=-2.2,highshelf=g=2.0:f=3400,acompressor=threshold=-19dB:ratio=3.2:attack=4:release=55,loudnorm=I=-15:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+8%").save(str(mp3_tmp))
+        elif v_name == "george":
+            af_filter = "asetrate=24000*0.86,atempo=1.1628,highpass=f=68,lowshelf=g=3.8:f=160,equalizer=f=400:width_type=o:width=1.2:g=-1.5,equalizer=f=2200:width_type=o:width=1.2:g=2.0,acompressor=threshold=-17dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+12%").save(str(mp3_tmp))
+        elif v_name == "roger":
+            af_filter = "asetrate=24000*0.82,atempo=1.2195,highpass=f=62,lowshelf=g=4.5:f=150,equalizer=f=300:width_type=o:width=1.3:g=-2.0,highshelf=g=2.2:f=3500,acompressor=threshold=-18dB:ratio=3:attack=4:release=45,loudnorm=I=-15.5:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+10%").save(str(mp3_tmp))
         else:
             af_filter = "highpass=f=75,loudnorm=I=-16:TP=-1.5:LRA=11"
             await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+15%").save(str(mp3_tmp))
