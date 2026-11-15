@@ -305,7 +305,7 @@ const App: React.FC = () => {
                   case 'thumbnail': return <ThumbnailGen onSpendCredits={spendCredits} />;
                   case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
                   case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
-                  case 'oneclick': return <OneClick onSpendCredits={spendCredits} />;
+                  case 'oneclick': return <OneClick onSpendCredits={spendCredits} onNavigate={setCurrentPath} />;
                   case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onLogout={handleLogout} />;
                   default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
                 }

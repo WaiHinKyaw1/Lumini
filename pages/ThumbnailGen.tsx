@@ -29,9 +29,17 @@ interface ThumbnailGenProps {
 }
 
 export type BurmeseFontOption = 'font-akkhayar' | 'font-kunheing' | 'font-jojar' | 'font-myanmaros' | 'font-notosans';
-export type TextColorTheme = 'yellow' | 'white' | 'orange' | 'cyan' | 'lime';
+export type TextColorTheme = 'yellow' | 'white' | 'orange' | 'cyan' | 'lime' | 'cyan-gold';
+export type ThumbnailStylePreset = 'deepclip-viral-3d' | 'suspense-thriller';
 
-export const DEFAULT_RECAP_STYLE_NAME = 'Viral Suspense Thriller';
+export const DEFAULT_RECAP_STYLE_NAME = 'DeepClip 3D Viral (TikTok Tech & Creator)';
+
+// DeepClip Viral 3D Style (Matching https://vt.tiktok.com/ZSpVFMw1V/ reference)
+export const DEEPCLIP_RECAP_PROMPT_TEMPLATE =
+  "Viral TikTok 9:16 vertical cover photo, enthusiastic Asian tech creator or movie storyteller smiling and gesturing towards floating 3D graphic elements on the side. " +
+  "Dynamic cinematic studio lighting with electric neon cyan and warm golden rim light on subject, dark futuristic workstation background with glowing screens and bokeh. " +
+  "Floating 3D glossy icons: glowing golden FREE badge, miniature cinematic 35mm film reel strip with glowing light trails, calendar with video badges, clean 3D isometric tech graphics. " +
+  "Hyper-realistic, 8k, ultra-sharp detail, cinematic color grade, commercial ad photography, high-contrast, clean negative space on the left for title typography, no text, no watermarks.";
 
 // Master prompt baked with the exact eerie suspense mystery thriller movie aesthetic
 export const CINEMATIC_RECAP_PROMPT_TEMPLATE =
@@ -56,12 +64,13 @@ const FONTS: { id: BurmeseFontOption; name: string }[] = [
   { id: 'font-notosans', name: 'Noto Sans' },
 ];
 
-const COLOR_THEMES: { id: TextColorTheme; color: string }[] = [
-  { id: 'yellow', color: '#FACC15' },
-  { id: 'white', color: '#FFFFFF' },
-  { id: 'orange', color: '#F97316' },
-  { id: 'cyan', color: '#06B6D4' },
-  { id: 'lime', color: '#84CC16' },
+const COLOR_THEMES: { id: TextColorTheme; color: string; label: string }[] = [
+  { id: 'cyan-gold', color: '#00F2FE', label: 'Electric Cyan & Gold ✨' },
+  { id: 'yellow', color: '#FACC15', label: 'Golden Yellow' },
+  { id: 'cyan', color: '#06B6D4', label: 'Neon Cyan' },
+  { id: 'white', color: '#FFFFFF', label: 'Clean White' },
+  { id: 'orange', color: '#F97316', label: 'Vibrant Orange' },
+  { id: 'lime', color: '#84CC16', label: 'Bright Lime' },
 ];
 
 const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
@@ -69,13 +78,14 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const [titleText, setTitleText] = useState('');
   // Default to 9:16 vertical recap format matching reference photo
   const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>('9:16');
+  const [stylePreset, setStylePreset] = useState<ThumbnailStylePreset>('deepclip-viral-3d');
   const [file, setFile] = useState<File | null>(null);
 
-  // Typography Customization - default to Yellow, Akkhayar 21, lower third (83%), smooth backdrop
+  // Typography Customization - default to Electric Cyan & Gold, Akkhayar 21, upper-third (32%) for DeepClip style
   const [burmeseFont, setBurmeseFont] = useState<BurmeseFontOption>('font-akkhayar');
-  const [textColorPreset, setTextColorPreset] = useState<TextColorTheme>('yellow');
-  const [textY, setTextY] = useState<number>(83);
-  const [textSize, setTextSize] = useState<number>(20);
+  const [textColorPreset, setTextColorPreset] = useState<TextColorTheme>('cyan-gold');
+  const [textY, setTextY] = useState<number>(35);
+  const [textSize, setTextSize] = useState<number>(24);
   const [backdropEnabled, setBackdropEnabled] = useState<boolean>(true);
   const [backdropOpacity, setBackdropOpacity] = useState<number>(80);
 
@@ -101,6 +111,19 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    try {
+      const storedHook = localStorage.getItem('lumini_thumbnail_initial_hook');
+      const storedTopic = localStorage.getItem('lumini_thumbnail_initial_topic');
+      if (storedHook) {
+        setTitleText(storedHook);
+        localStorage.removeItem('lumini_thumbnail_initial_hook');
+      }
+      if (storedTopic) {
+        setTopic(storedTopic);
+        localStorage.removeItem('lumini_thumbnail_initial_topic');
+      }
+    } catch {}
+
     return () => {
       isMounted.current = false;
     };
@@ -236,11 +259,12 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
         ctx.restore();
       }
 
-      // 4. Color (Default yellow #FACC15)
+      // 4. Color & Dual-Tone Theme
       let primaryColor = '#FACC15';
+      const isCyanGold = textColorPreset === 'cyan-gold';
       if (textColorPreset === 'white') primaryColor = '#FFFFFF';
       else if (textColorPreset === 'orange') primaryColor = '#FB923C';
-      else if (textColorPreset === 'cyan') primaryColor = '#38BDF8';
+      else if (textColorPreset === 'cyan') primaryColor = '#00F2FE';
       else if (textColorPreset === 'lime') primaryColor = '#A3E635';
 
       // 5. Draw text with bold black stroke and drop shadow
@@ -249,28 +273,132 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
       ctx.textBaseline = 'middle';
       const textX = w / 2;
 
+      // Draw DeepClip 3D Elements if deepclip-viral-3d style is active
+      if (stylePreset === 'deepclip-viral-3d') {
+        // A. Top-left App Logo / Channel Badge
+        const badgeSize = Math.max(36, Math.floor(w * 0.08));
+        const badgeX = Math.floor(w * 0.07);
+        const badgeY = Math.floor(h * 0.05);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.strokeStyle = '#00F2FE';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#00F2FE';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeSize, badgeSize, Math.floor(badgeSize * 0.28));
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#00F2FE';
+        ctx.font = `bold ${Math.floor(badgeSize * 0.58)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('D', badgeX + badgeSize / 2, badgeY + badgeSize / 2);
+        ctx.restore();
+
+        // B. Bottom Cinematic 35mm Film Strip with Glowing Lights
+        const stripH = Math.max(48, Math.floor(h * 0.065));
+        const stripY = h - stripH - Math.floor(h * 0.03);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.75)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#FACC15';
+        ctx.shadowBlur = 18;
+        ctx.fillRect(0, stripY, w, stripH);
+        ctx.strokeRect(0, stripY, w, stripH);
+
+        // Sprocket holes along top and bottom of strip
+        const holeW = Math.max(8, Math.floor(w * 0.016));
+        const holeH = Math.max(6, Math.floor(stripH * 0.16));
+        const step = Math.max(18, Math.floor(w * 0.035));
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.shadowBlur = 6;
+        for (let x = 10; x < w - 10; x += step) {
+          ctx.fillRect(x, stripY + 4, holeW, holeH);
+          ctx.fillRect(x, stripY + stripH - holeH - 4, holeW, holeH);
+        }
+
+        // Film frames in the middle
+        const frameW = Math.max(50, Math.floor(w * 0.14));
+        const frameH = stripH - holeH * 2 - 14;
+        const frameStep = frameW + 12;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.6)';
+        ctx.lineWidth = 1.5;
+        for (let fx = 16; fx < w - frameW; fx += frameStep) {
+          ctx.fillRect(fx, stripY + holeH + 7, frameW, frameH);
+          ctx.strokeRect(fx, stripY + holeH + 7, frameW, frameH);
+        }
+        ctx.restore();
+
+        // C. Glowing Golden FREE Badge
+        const freeW = Math.max(110, Math.floor(w * 0.26));
+        const freeH = Math.max(38, Math.floor(freeW * 0.38));
+        const freeX = (w - freeW) / 2;
+        const freeY = startY + (lines.length * lineHeight) + Math.floor(freeH * 0.35);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.strokeStyle = '#FACC15';
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = '#FACC15';
+        ctx.shadowBlur = 24;
+        ctx.beginPath();
+        ctx.roundRect(freeX, freeY, freeW, freeH, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#FACC15';
+        ctx.font = `900 ${Math.floor(freeH * 0.62)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(250, 204, 21, 0.8)';
+        ctx.shadowBlur = 10;
+        ctx.fillText('FREE 🎬', freeX + freeW / 2, freeY + freeH / 2);
+        ctx.restore();
+      }
+
       lines.forEach((line, idx) => {
         const lineY = startY + (idx * lineHeight);
 
-        ctx.lineWidth = Math.max(8, Math.floor(baseFontSize * 0.18));
+        // 1. Heavy Black Outline for Maximum Legibility
+        ctx.lineWidth = Math.max(10, Math.floor(baseFontSize * 0.22));
         ctx.lineJoin = 'round';
         ctx.miterLimit = 2;
         ctx.strokeStyle = '#000000';
         ctx.strokeText(line, textX, lineY);
 
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.98)';
-        ctx.shadowBlur = Math.max(10, Math.floor(baseFontSize * 0.25));
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = Math.max(4, Math.floor(baseFontSize * 0.08));
+        // 2. High-Impact 3D Shadow & Neon Glow
+        if (isCyanGold) {
+          ctx.shadowColor = idx % 2 === 0 ? 'rgba(0, 242, 254, 0.95)' : 'rgba(250, 204, 21, 0.95)';
+          ctx.shadowBlur = Math.max(16, Math.floor(baseFontSize * 0.36));
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = Math.max(4, Math.floor(baseFontSize * 0.08));
+        } else {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.98)';
+          ctx.shadowBlur = Math.max(10, Math.floor(baseFontSize * 0.25));
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = Math.max(4, Math.floor(baseFontSize * 0.08));
+        }
 
-        ctx.fillStyle = primaryColor;
+        // 3. Dual-Tone Alternation for DeepClip Style
+        if (isCyanGold) {
+          ctx.fillStyle = idx % 2 === 0 ? '#00F2FE' : '#FACC15';
+        } else {
+          ctx.fillStyle = primaryColor;
+        }
+
         ctx.fillText(line, textX, lineY);
       });
 
       ctx.restore();
       setCompositeUrl(canvas.toDataURL('image/png'));
     };
-  }, [rawImageUrl, titleText, burmeseFont, textSize, textY, textColorPreset, backdropEnabled, backdropOpacity, aspectRatio]);
+  }, [rawImageUrl, titleText, burmeseFont, textSize, textY, textColorPreset, backdropEnabled, backdropOpacity, aspectRatio, stylePreset]);
 
   useEffect(() => {
     if (rawImageUrl) {
@@ -286,7 +414,9 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
     }
     setIsSuggestingHooks(true);
     try {
-      const prompt = `Write 3 short, catchy Burmese (Myanmar Unicode) headline hooks (2-4 words) for this video topic: "${topic}". Output only numbered list without extra text.`;
+      const prompt = stylePreset === 'deepclip-viral-3d'
+        ? `Write 3 short, catchy viral TikTok headline hooks in Burmese Unicode (2-4 words, energetic, high CTR, e.g. "နေ့တိုင်း ၃ ပုဒ် Free ထုတ်မယ် 🎬") for this video topic: "${topic}". Output only numbered list without extra text.`
+        : `Write 3 short, catchy Burmese (Myanmar Unicode) headline hooks (2-4 words) for this video topic: "${topic}". Output only numbered list without extra text.`;
       const response = await generateText(prompt, "Respond strictly in Burmese Unicode.");
       const list = response
         .split('\n')
@@ -322,7 +452,9 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
 
     try {
       // 1. Direct prompt synthesis - bypasses slow LLM rewrite to cut generation time by 3x!
-      let finalPrompt = `${CINEMATIC_RECAP_PROMPT_TEMPLATE} Specific scene focus: ${topic.trim()}. Foreground subject in intense psychological tension, uncanny mysterious figures or eerie depth in misty background.`;
+      let finalPrompt = stylePreset === 'deepclip-viral-3d'
+        ? `${DEEPCLIP_RECAP_PROMPT_TEMPLATE} Specific theme / topic: ${topic.trim()}.`
+        : `${CINEMATIC_RECAP_PROMPT_TEMPLATE} Specific scene focus: ${topic.trim()}. Foreground subject in intense psychological tension, uncanny mysterious figures or eerie depth in misty background.`;
 
       let imageBase64: string | undefined = undefined;
       let mimeType: string = 'image/png';
@@ -335,13 +467,14 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
       let activeBurmeseText = titleText.trim();
 
       // 2. Launch image generation immediately at 0.0s! Concurrently generate hook if not provided.
+      const hookPrompt = stylePreset === 'deepclip-viral-3d'
+        ? `Write 1 short catchy viral TikTok Burmese 2-5 words hook title (e.g. "နေ့တိုင်း ၃ ပုဒ် Free ထုတ်မယ် 🎬" or similar high-energy hook) for: "${topic}". Output only the Burmese text, no quotes or punctuation.`
+        : `Write 1 short catchy viral Burmese 2-5 words suspense movie question hook for: "${topic}". Output only the Burmese text, no quotes or punctuation.`;
+
       const [generatedImageUrl, generatedHook] = await Promise.all([
         generateImage(finalPrompt, aspectRatio, imageBase64, mimeType),
         !activeBurmeseText
-          ? generateText(
-            `Write 1 short catchy viral Burmese 2-5 words suspense movie question hook for: "${topic}". Output only the Burmese text, no quotes or punctuation.`,
-            "Respond strictly in Burmese Unicode."
-          ).catch(() => '')
+          ? generateText(hookPrompt, "Respond strictly in Burmese Unicode.").catch(() => '')
           : Promise.resolve('')
       ]);
 
@@ -535,6 +668,57 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ onSpendCredits }) => {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Thumbnail Style Preset */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                Thumbnail Style Preset
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStylePreset('deepclip-viral-3d');
+                    setTextColorPreset('cyan-gold');
+                    setTextY(35);
+                    setAspectRatio('9:16');
+                  }}
+                  className={`p-2.5 rounded-xl text-left border transition-all ${
+                    stylePreset === 'deepclip-viral-3d'
+                      ? 'border-cyan-400 bg-cyan-500/15 shadow-sm ring-1 ring-cyan-400/50'
+                      : 'border-gray-200 dark:border-white/10 hover:border-cyan-500/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-cyan-400">
+                    <span>🎬 DeepClip 3D</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5 line-clamp-1">
+                    TikTok Viral • Cyan & Gold
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStylePreset('suspense-thriller');
+                    setTextColorPreset('yellow');
+                    setTextY(83);
+                  }}
+                  className={`p-2.5 rounded-xl text-left border transition-all ${
+                    stylePreset === 'suspense-thriller'
+                      ? 'border-amber-400 bg-amber-500/15 shadow-sm ring-1 ring-amber-400/50'
+                      : 'border-gray-200 dark:border-white/10 hover:border-amber-500/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-400">
+                    <span>👁️ Movie Suspense</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5 line-clamp-1">
+                    Recap Thriller • Yellow Hook
+                  </p>
+                </button>
+              </div>
             </div>
 
             {/* Ratio */}
