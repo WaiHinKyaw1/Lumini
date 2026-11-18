@@ -1240,8 +1240,8 @@ def format_burmese_dialogue_cues(
     is_portrait: bool,
 ) -> list[tuple[float, float, str]]:
     """Format Burmese subtitle text cleanly into 1 or 2 lines that NEVER exceed the blur box or screen width.
-    - Keeps each narration sentence in one timed cue.
-    - Uses balanced visual line wrapping without changing cue timing.
+    - If narration sentence is long (>32 chars in portrait or >48 in landscape), breaks into sequential timed cues.
+    - Uses balanced visual line wrapping so each line <= 16 chars in portrait (or 24 in landscape).
     - Dynamically scales font size to fit inside the independent subtitle text box.
     Returns: list of (cue_start, cue_end, formatted_ass_text)
     """
@@ -1251,31 +1251,71 @@ def format_burmese_dialogue_cues(
     if not clean_text:
         return []
 
-    max_chars_single_cue = 34 if is_portrait else 52
-    single_line_limit = 17 if is_portrait else 26
+    max_chars_single_cue = 32 if is_portrait else 48
+    single_line_limit = 16 if is_portrait else 24
+    total_dur = max(0.5, end_time - start_time)
 
-    def format_single_block(block_text: str) -> str:
-        b = block_text.strip()
-        if not b:
-            return ""
-        if len(b) > single_line_limit:
-            l1, l2 = split_burmese_balanced(b)
+    # Break long sentence into balanced sequential subtitle cues
+    raw_blocks: list[str] = []
+    if len(clean_text) > max_chars_single_cue:
+        p1, p2 = split_burmese_balanced(clean_text)
+        if p1 and p2:
+            for part in (p1, p2):
+                if len(part) > max_chars_single_cue:
+                    sub1, sub2 = split_burmese_balanced(part)
+                    if sub1 and sub2:
+                        raw_blocks.extend([sub1, sub2])
+                    else:
+                        raw_blocks.append(part)
+                else:
+                    raw_blocks.append(part)
+        else:
+            raw_blocks = [clean_text]
+    else:
+        raw_blocks = [clean_text]
+
+    total_chars = max(1, sum(len(b) for b in raw_blocks))
+    cues_out: list[tuple[float, float, str]] = []
+    cur_t = start_time
+
+    for idx, blk in enumerate(raw_blocks):
+        b_len = len(blk)
+        if idx == len(raw_blocks) - 1:
+            blk_end = end_time
+        else:
+            blk_dur = (b_len / total_chars) * total_dur
+            blk_end = min(end_time, cur_t + max(0.4, blk_dur))
+
+        # Split block into 1 or 2 lines so each line <= single_line_limit
+        if len(blk) > single_line_limit:
+            l1, l2 = split_burmese_balanced(blk)
             lines = [l1, l2] if l2 else [l1]
         else:
-            lines = [b]
-        longest = max(len(l) for l in lines)
-        # Font scaling: ensure longest line does not exceed max_avail_width_px (each char is ~0.48*fs)
-        needed_px = longest * (base_font_size * 0.48)
-        if needed_px > max_avail_width_px:
-            scaled = int(max_avail_width_px / max(1, longest * 0.48))
-            scaled = max(26, min(base_font_size, scaled))
-            return f"{{\\fs{scaled}}}" + r"\N".join(lines)
-        return r"\N".join(lines)
+            lines = [blk]
 
-    # Keep one subtitle cue for the complete narration unit. Long Burmese text
-    # is wrapped into visual lines only; its timing is never split mid-sentence.
-    cue = format_single_block(clean_text)
-    return [(start_time, end_time, cue)] if cue else []
+        final_lines = []
+        for line in lines:
+            if len(line) > single_line_limit + 4:
+                sub_l1, sub_l2 = split_burmese_balanced(line)
+                if sub_l2:
+                    final_lines.extend([sub_l1, sub_l2])
+                else:
+                    final_lines.append(line)
+            else:
+                final_lines.append(line)
+
+        longest = max(len(l) for l in final_lines) if final_lines else 1
+        needed_px = longest * (base_font_size * 0.70)
+        formatted_text = r"\N".join(final_lines)
+        if needed_px > max_avail_width_px:
+            scaled = int(max_avail_width_px / max(1, longest * 0.70))
+            scaled = max(28, min(base_font_size, scaled))
+            formatted_text = f"{{\\fs{scaled}}}" + formatted_text
+
+        cues_out.append((round(cur_t, 3), round(blk_end, 3), formatted_text))
+        cur_t = blk_end
+
+    return cues_out
 
 
 def generate_burmese_ass(
@@ -1374,7 +1414,7 @@ def generate_burmese_ass(
 ScriptType: v4.00+
 PlayResX: {canvas_w}
 PlayResY: {canvas_h}
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
@@ -1387,7 +1427,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
 
-    # Narration Subtitles locked strictly inside blur box
+    # Narration Subtitles locked strictly inside blur / subtitle box
+    use_custom_pos = blur_enabled or all(v is not None for v in (subtitle_x, subtitle_y))
     for r in tts_results:
         text = str(r.get("narration", "")).strip()
         if not text:
@@ -1403,7 +1444,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 continue
             s_str = format_ass_time(cue_s)
             e_str = format_ass_time(cue_e)
-            if blur_enabled:
+            if use_custom_pos:
                 if formatted_dialogue.startswith("{\\fs"):
                     cue_text = formatted_dialogue.replace("{\\fs", f"{{\\an5\\pos({center_x},{center_y})\\fs", 1)
                 else:
@@ -1637,7 +1678,7 @@ def render_smart_sync_video(
         ratio_filter = "scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
     elif ratio == "9:16":
         canvas_w, canvas_h = 1080, 1920
-        ratio_filter = "scale=1080:1920:force_original_aspect_ratio=increase:force_divisible_by=2,crop=1080:1920"
+        ratio_filter = "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
     elif ratio == "1:1":
         canvas_w, canvas_h = 1080, 1080
         ratio_filter = "scale=1080:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"

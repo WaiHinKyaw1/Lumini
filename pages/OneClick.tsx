@@ -177,7 +177,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   }, [selectedRatio, naturalAspect, isTikTokUrl, isYouTubeShort, isRednoteUrl]);
 
   // Intelligent blur positioning that accounts for canvas padding when video aspect ratio != canvas ratio
-  const getSmartBlurForRatio = useCallback((ratioId: string, vidAspect: number | null): { pos: number; thick: number } => {
+  const getSmartBlurForRatio = useCallback((ratioId: string, vidAspect: number | null): { pos: number; thick: number; width?: number } => {
     const vAspect = vidAspect && vidAspect > 0 ? vidAspect : 16 / 9;
     let cAspect = 16 / 9;
     if (ratioId === '9:16') cAspect = 9 / 16;
@@ -187,15 +187,20 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     else cAspect = vAspect;
 
     // If video is letterboxed vertically (black bars top & bottom in output canvas):
-    if (vAspect > cAspect) {
+    if (vAspect > cAspect + 0.05) {
       const vHeightPct = cAspect / vAspect;
       const topPadPct = (1.0 - vHeightPct) / 2.0;
       // Position blur directly over subtitles at bottom of video
       const subPosPct = topPadPct + 0.82 * vHeightPct;
-      const thickPct = Math.max(8, Math.min(22, Math.round(14 * vHeightPct)));
-      return { pos: Math.round(subPosPct * 100), thick: thickPct };
+      const thickPct = Math.max(6, Math.min(22, Math.round(14 * vHeightPct)));
+      return { pos: Math.round(subPosPct * 100), thick: thickPct, width: 100 };
+    } else if (vAspect < cAspect - 0.05) {
+      // Pillarboxed horizontally (black bars left & right)
+      const vWidthPct = vAspect / cAspect;
+      const wPct = Math.max(30, Math.min(100, Math.round(vWidthPct * 100)));
+      return { pos: 82, thick: 14, width: wPct };
     }
-    return { pos: 82, thick: 14 };
+    return { pos: 82, thick: 14, width: 100 };
   }, []);
 
   const handleRatioSelect = (ratioId: string) => {
@@ -203,6 +208,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     const smart = getSmartBlurForRatio(ratioId, naturalAspect);
     setBlurPosition(smart.pos);
     setBlurThickness(smart.thick);
+    if (smart.width) setBlurWidth(smart.width);
+    setSubtitleY(smart.pos);
+    setSubtitleHeight(smart.thick);
   };
 
   // ElevenLabs Pro Key (Optional)
@@ -1514,6 +1522,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                               const smart = getSmartBlurForRatio(selectedRatio, aspect);
                               setBlurPosition(smart.pos);
                               setBlurThickness(smart.thick);
+                              if (smart.width) setBlurWidth(smart.width);
+                              setSubtitleY(smart.pos);
+                              setSubtitleHeight(smart.thick);
                             }
                           }
                         }}
