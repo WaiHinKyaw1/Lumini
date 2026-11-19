@@ -758,6 +758,44 @@ def synthesize_edge_tts(
             "acompressor=threshold=-16dB:ratio=3.5:attack=3:release=40",
             "loudnorm=I=-16:TP=-1.5:LRA=9",
         ])
+    elif "fenrir" in v_norm:
+        # Fenrir - Dark & Powerful Deep Baritone
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*0.76",
+            "atempo=1.316",
+            "highpass=f=55",
+            "lowshelf=g=7.0:f=120",
+            "equalizer=f=180:width_type=o:width=1.6:g=-3.0",
+            "highshelf=g=1.2:f=4000",
+            "acompressor=threshold=-20dB:ratio=4:attack=5:release=60",
+            "loudnorm=I=-14.5:TP=-1.5:LRA=9",
+        ])
+    elif "orus" in v_norm:
+        # Orus - Epic Cinematic Baritone
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "asetrate=24000*0.83",
+            "atempo=1.2048",
+            "highpass=f=63",
+            "lowshelf=g=5.5:f=145",
+            "equalizer=f=280:width_type=o:width=1.4:g=-2.5",
+            "highshelf=g=1.6:f=3800",
+            "acompressor=threshold=-18dB:ratio=3.5:attack=4:release=50",
+            "loudnorm=I=-15:TP=-1.5:LRA=9",
+        ])
+    elif "aoede" in v_norm:
+        # Aoede - Smooth & Clear Narrator
+        actual_voice = "my-MM-ThihaNeural"
+        pitch_str = "+0Hz"
+        af_filters.extend([
+            "highpass=f=75",
+            "equalizer=f=2800:width_type=o:width=1.2:g=1.5",
+            "acompressor=threshold=-17dB:ratio=2.8:attack=5:release=45",
+            "loudnorm=I=-16:TP=-1.5:LRA=10",
+        ])
     else:
         # Default Thiha (သီဟ) - Natural Balanced Recap Tone
         actual_voice = "my-MM-ThihaNeural"
@@ -1239,10 +1277,10 @@ def format_burmese_dialogue_cues(
     max_avail_width_px: int,
     is_portrait: bool,
 ) -> list[tuple[float, float, str]]:
-    """Format Burmese subtitle text cleanly into 1 or 2 lines that NEVER exceed the blur box or screen width.
-    - If narration sentence is long (>32 chars in portrait or >48 in landscape), breaks into sequential timed cues.
-    - Uses balanced visual line wrapping so each line <= 16 chars in portrait (or 24 in landscape).
-    - Dynamically scales font size to fit inside the independent subtitle text box.
+    """Format Burmese subtitle into single-line sequential timed cues.
+    - Each cue shows EXACTLY ONE LINE (never wraps to 2 lines).
+    - Long narration is split into multiple cues, each timed proportionally.
+    - Max ~20 chars per cue in portrait, ~32 in landscape.
     Returns: list of (cue_start, cue_end, formatted_ass_text)
     """
     clean_text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').replace('\\N', ' ').replace('\\n', ' ')
@@ -1251,28 +1289,26 @@ def format_burmese_dialogue_cues(
     if not clean_text:
         return []
 
-    max_chars_single_cue = 32 if is_portrait else 48
-    single_line_limit = 16 if is_portrait else 24
+    # ONE LINE max character limit per cue
+    ONE_LINE_MAX = 20 if is_portrait else 32
     total_dur = max(0.5, end_time - start_time)
 
-    # Break long sentence into balanced sequential subtitle cues
-    raw_blocks: list[str] = []
-    if len(clean_text) > max_chars_single_cue:
-        p1, p2 = split_burmese_balanced(clean_text)
-        if p1 and p2:
-            for part in (p1, p2):
-                if len(part) > max_chars_single_cue:
-                    sub1, sub2 = split_burmese_balanced(part)
-                    if sub1 and sub2:
-                        raw_blocks.extend([sub1, sub2])
-                    else:
-                        raw_blocks.append(part)
-                else:
-                    raw_blocks.append(part)
-        else:
-            raw_blocks = [clean_text]
-    else:
-        raw_blocks = [clean_text]
+    # Recursively split into single-line chunks
+    def split_into_one_line_blocks(t: str) -> list[str]:
+        t = t.strip()
+        if not t:
+            return []
+        if len(t) <= ONE_LINE_MAX:
+            return [t]
+        p1, p2 = split_burmese_balanced(t)
+        if p1 and p2 and p1 != t:
+            return split_into_one_line_blocks(p1) + split_into_one_line_blocks(p2)
+        # Fallback: hard cut at ONE_LINE_MAX
+        return [t[:ONE_LINE_MAX].strip(), t[ONE_LINE_MAX:].strip()]
+
+    raw_blocks = [b for b in split_into_one_line_blocks(clean_text) if b]
+    if not raw_blocks:
+        return []
 
     total_chars = max(1, sum(len(b) for b in raw_blocks))
     cues_out: list[tuple[float, float, str]] = []
@@ -1284,33 +1320,16 @@ def format_burmese_dialogue_cues(
             blk_end = end_time
         else:
             blk_dur = (b_len / total_chars) * total_dur
-            blk_end = min(end_time, cur_t + max(0.4, blk_dur))
+            blk_end = min(end_time, cur_t + max(0.3, blk_dur))
 
-        # Split block into 1 or 2 lines so each line <= single_line_limit
-        if len(blk) > single_line_limit:
-            l1, l2 = split_burmese_balanced(blk)
-            lines = [l1, l2] if l2 else [l1]
-        else:
-            lines = [blk]
-
-        final_lines = []
-        for line in lines:
-            if len(line) > single_line_limit + 4:
-                sub_l1, sub_l2 = split_burmese_balanced(line)
-                if sub_l2:
-                    final_lines.extend([sub_l1, sub_l2])
-                else:
-                    final_lines.append(line)
-            else:
-                final_lines.append(line)
-
-        longest = max(len(l) for l in final_lines) if final_lines else 1
-        needed_px = longest * (base_font_size * 0.70)
-        formatted_text = r"\N".join(final_lines)
+        # Font scaling for single line
+        needed_px = b_len * (base_font_size * 0.60)
         if needed_px > max_avail_width_px:
-            scaled = int(max_avail_width_px / max(1, longest * 0.70))
+            scaled = int(max_avail_width_px / max(1, b_len * 0.60))
             scaled = max(28, min(base_font_size, scaled))
-            formatted_text = f"{{\\fs{scaled}}}" + formatted_text
+            formatted_text = f"{{\\fs{scaled}}}{blk}"
+        else:
+            formatted_text = blk
 
         cues_out.append((round(cur_t, 3), round(blk_end, 3), formatted_text))
         cur_t = blk_end
@@ -1365,49 +1384,19 @@ def generate_burmese_ass(
         else:
             b_pos_f = 82.0
 
-    center_x = canvas_w // 2
-    center_y = int(canvas_h * (b_pos_f / 100.0))
+    # Subtitle coordinates are 100% independent from blur!
+    # Subtitles are placed strictly where the user positioned them in the live preview.
+    try:
+        sub_x = float(subtitle_x) if subtitle_x is not None else 50.0
+        sub_y = float(subtitle_y) if subtitle_y is not None else (78.0 if is_portrait else 82.0)
+        sub_w = float(subtitle_width) if subtitle_width is not None else 85.0
+    except (TypeError, ValueError):
+        sub_x, sub_y, sub_w = 50.0, (78.0 if is_portrait else 82.0), 85.0
 
-    # Subtitle geometry is intentionally independent from blur geometry.
-    # Blur width/height come only from the user's blur controls below.
-    subtitle_width_pct = 0.68 if is_portrait else 0.78
-
-    if blur_enabled:
-        b_thick_f = float(blur_thickness) if str(blur_thickness).replace('.', '', 1).isdigit() else 14.0
-        b_width_f = float(blur_width) if str(blur_width).replace('.', '', 1).isdigit() else 100.0
-        thickness_pct = max(0.04, min(0.40, b_thick_f / 100.0))
-        top_pct = max(0.0, min(1.0 - thickness_pct, (b_pos_f - b_thick_f / 2.0) / 100.0))
-        width_pct = max(0.20, min(1.0, b_width_f / 100.0))
-
-        blur_y = int(round(canvas_h * top_pct / 2.0)) * 2
-        blur_h = max(8, int(round(canvas_h * thickness_pct / 2.0)) * 2)
-        if blur_y + blur_h > canvas_h:
-            blur_h = max(8, canvas_h - blur_y)
-
-        blur_w = max(40, int(round(canvas_w * width_pct / 2.0)) * 2)
-        if blur_x is not None and str(blur_x).replace('.', '', 1).isdigit():
-            blur_x_f = float(blur_x)
-            blur_x_pos = max(0, min(canvas_w - blur_w, int(round(canvas_w * blur_x_f / 100.0 / 2.0)) * 2))
-        else:
-            blur_x_pos = int(round((canvas_w - blur_w) / 2.0 / 2.0)) * 2
-
-        center_x = blur_x_pos + (blur_w // 2)
-        center_y = blur_y + (blur_h // 2)
-        margin_v = 0
-        max_avail_w = max(420, int(canvas_w * subtitle_width_pct))
-    else:
-        margin_v = int(canvas_h * 0.08 if is_portrait else canvas_h * 0.10)
-        max_avail_w = max(200, int(canvas_w * subtitle_width_pct))
-
-    # Manual preview geometry overrides automatic subtitle placement. Values are percentages.
-    if all(v is not None for v in (subtitle_x, subtitle_y, subtitle_width)):
-        try:
-            center_x = int(round(canvas_w * max(0.0, min(100.0, float(subtitle_x))) / 100.0))
-            center_y = int(round(canvas_h * max(0.0, min(100.0, float(subtitle_y))) / 100.0))
-            max_avail_w = max(200, int(canvas_w * max(0.20, min(1.0, float(subtitle_width) / 100.0))))
-            margin_v = 0
-        except (TypeError, ValueError):
-            pass
+    center_x = int(round(canvas_w * max(0.0, min(100.0, sub_x)) / 100.0))
+    center_y = int(round(canvas_h * max(0.0, min(100.0, sub_y)) / 100.0))
+    max_avail_w = max(200, int(canvas_w * max(0.20, min(1.0, sub_w / 100.0))))
+    margin_v = 0
     margin_lr = int(canvas_w * (0.16 if is_portrait else 0.12))
 
     header = f"""[Script Info]
@@ -1427,8 +1416,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
 
-    # Narration Subtitles locked strictly inside blur / subtitle box
-    use_custom_pos = blur_enabled or all(v is not None for v in (subtitle_x, subtitle_y))
+    # Narration Subtitles positioned strictly at preview coordinates
+    use_custom_pos = True
     for r in tts_results:
         text = str(r.get("narration", "")).strip()
         if not text:
@@ -2852,12 +2841,16 @@ async def list_voices():
              "description": "Team Alpha စတိုင် — ဩဇာပြည့်ဝသော Deep Baritone & Cinematic အသံနက်"},
             {"id": "my-MM-WunnaNeural", "name": "Min Khant / Wunna (မင်းခန့် / ဝဏ္ဏ)", "gender": "Male",
              "description": "လူငယ်ဆန်ဆန် တက်ကြွသွက်လက် — Fast & Energetic Viral စတိုင်"},
-            {"id": "eleven-brian", "name": "Brian", "gender": "Male",
-             "description": "Deep multilingual recap narrator"},
-            {"id": "eleven-george", "name": "George", "gender": "Male",
-             "description": "Warm multilingual storyteller"},
-            {"id": "eleven-roger", "name": "Roger", "gender": "Male",
-             "description": "Resonant narrator for recap videos"},
+            {"id": "gemini-charon", "name": "Charon (ရှာရွန်)", "gender": "Male",
+             "description": "Gemini TTS — Cinematic Deep, အမှောင်ထုဆန်ဆန် ဩဇာအသံ"},
+            {"id": "gemini-puck", "name": "Puck (ပပ်ခ်)", "gender": "Male",
+             "description": "Gemini TTS — Viral Energetic, တက်ကြွသွက်လက် ပြောဆိုဟန်"},
+            {"id": "gemini-fenrir", "name": "Fenrir (ဖင်းရီယာ)", "gender": "Male",
+             "description": "Gemini TTS — Dark & Powerful, နက်ရှိုင်းသည့် cinematic baritone"},
+            {"id": "gemini-orus", "name": "Orus (အိုးရပ်စ်)", "gender": "Male",
+             "description": "Gemini TTS — Epic Baritone, ဝင်ထိသော ဇာတ်လမ်းပြောသံ"},
+            {"id": "gemini-aoede", "name": "Aoede (အာအိုးဒီ)", "gender": "Male",
+             "description": "Gemini TTS — Smooth & Clear, ကြည်လင်သပ်ရပ်သော narrator"},
         ],
         "speeds": [
             {"value": "-50%", "label": "Slow (0.5x)"},
@@ -2901,8 +2894,16 @@ async def get_voice_sample(voice_key: str):
         v_name = "george"
     elif "roger" in v_norm:
         v_name = "roger"
-    elif "charon" in v_norm:
-        v_name = "charon"
+    elif "charon" in v_norm or "fenrir" in v_norm or "orus" in v_norm or "aoede" in v_norm:
+        # Map Gemini voice names to their sample renditions (edge-tts based approximation)
+        if "charon" in v_norm:
+            v_name = "charon"
+        elif "fenrir" in v_norm:
+            v_name = "fenrir"
+        elif "orus" in v_norm:
+            v_name = "orus"
+        else:
+            v_name = "aoede"
     elif "puck" in v_norm:
         v_name = "puck"
     elif "kore" in v_norm:
@@ -2937,6 +2938,18 @@ async def get_voice_sample(voice_key: str):
         elif v_name == "brian" or v_name == "charon":
             af_filter = "asetrate=24000*0.80,atempo=1.25,highpass=f=60,lowshelf=g=6.0:f=130,equalizer=f=200:width_type=o:width=1.4:g=-2.2,highshelf=g=2.0:f=3400,acompressor=threshold=-19dB:ratio=3.2:attack=4:release=55,loudnorm=I=-15:TP=-1.5:LRA=9"
             await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+8%").save(str(mp3_tmp))
+        elif v_name == "fenrir":
+            # Dark & powerful — deepest pitch
+            af_filter = "asetrate=24000*0.76,atempo=1.316,highpass=f=55,lowshelf=g=7.0:f=120,equalizer=f=180:width_type=o:width=1.6:g=-3.0,highshelf=g=1.2:f=4000,acompressor=threshold=-20dB:ratio=4:attack=5:release=60,loudnorm=I=-14.5:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+5%").save(str(mp3_tmp))
+        elif v_name == "orus":
+            # Epic baritone
+            af_filter = "asetrate=24000*0.83,atempo=1.2048,highpass=f=63,lowshelf=g=5.5:f=145,equalizer=f=280:width_type=o:width=1.4:g=-2.5,highshelf=g=1.6:f=3800,acompressor=threshold=-18dB:ratio=3.5:attack=4:release=50,loudnorm=I=-15:TP=-1.5:LRA=9"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+11%").save(str(mp3_tmp))
+        elif v_name == "aoede":
+            # Smooth & clear
+            af_filter = "highpass=f=75,equalizer=f=2800:width_type=o:width=1.2:g=1.5,acompressor=threshold=-17dB:ratio=2.8:attack=5:release=45,loudnorm=I=-16:TP=-1.5:LRA=10"
+            await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+13%").save(str(mp3_tmp))
         elif v_name == "george":
             af_filter = "asetrate=24000*0.86,atempo=1.1628,highpass=f=68,lowshelf=g=3.8:f=160,equalizer=f=400:width_type=o:width=1.2:g=-1.5,equalizer=f=2200:width_type=o:width=1.2:g=2.0,acompressor=threshold=-17dB:ratio=3:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=10"
             await edge_tts.Communicate(text, voice="my-MM-ThihaNeural", rate="+12%").save(str(mp3_tmp))

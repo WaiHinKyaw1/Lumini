@@ -209,8 +209,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     setBlurPosition(smart.pos);
     setBlurThickness(smart.thick);
     if (smart.width) setBlurWidth(smart.width);
-    setSubtitleY(smart.pos);
-    setSubtitleHeight(smart.thick);
   };
 
   // ElevenLabs Pro Key (Optional)
@@ -1059,13 +1057,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', icon: '🎙️', tag: 'Classic Narrator' },
                       { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', icon: '🎬', tag: 'Team Alpha Baritone' },
                       { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', icon: '⚡', tag: 'Energetic Youth' },
-                      { id: 'my-MM-NilarNeural', name: 'Nilar', mmName: 'နီလာ', icon: '🌸', tag: 'Natural Female' },
-                      { id: 'my-MM-SuSuNeural', name: 'Su Su', mmName: 'ဆုဆု', icon: '🎭', tag: 'Drama Female' },
-                      { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန် (Gemini)', icon: '🤖', tag: 'Cinematic Deep' },
-                      { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ် (Gemini)', icon: '⚡', tag: 'Viral Energetic' },
-                      { id: 'eleven-brian', name: 'Brian', mmName: 'ဘရိုင်ယန် (11Labs)', icon: '🎙️', tag: 'Deep Recap' },
-                      { id: 'eleven-george', name: 'George', mmName: 'ဂျော့ဂျ် (11Labs)', icon: '🎬', tag: 'Warm Story' },
-                      { id: 'eleven-roger', name: 'Roger', mmName: 'ရော်ဂျာ (11Labs)', icon: '📻', tag: 'Resonant Baritone' },
+                      { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန်', icon: '🤖', tag: 'Gemini · Cinematic' },
+                      { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ်', icon: '🔥', tag: 'Gemini · Viral Energy' },
+                      { id: 'gemini-fenrir', name: 'Fenrir', mmName: 'ဖင်းရီယာ', icon: '🐺', tag: 'Gemini · Dark Deep' },
+                      { id: 'gemini-orus', name: 'Orus', mmName: 'အိုးရပ်စ်', icon: '🌌', tag: 'Gemini · Epic Baritone' },
+                      { id: 'gemini-aoede', name: 'Aoede', mmName: 'အာအိုးဒီ', icon: '✨', tag: 'Gemini · Smooth' },
                     ].map((v) => (
                       <div
                         key={v.id}
@@ -1523,8 +1519,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                               setBlurPosition(smart.pos);
                               setBlurThickness(smart.thick);
                               if (smart.width) setBlurWidth(smart.width);
-                              setSubtitleY(smart.pos);
-                              setSubtitleHeight(smart.thick);
                             }
                           }
                         }}
