@@ -329,7 +329,12 @@ def translate_with_gemini(
 
     try:
         from google import genai
-        client = genai.Client(api_key=api_key)
+        from google.genai import types
+        # Prevent a stalled Gemini socket from freezing the whole One Click job at 30%.
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=45000),
+        )
     except ImportError:
         raise RuntimeError("google-genai not installed. Run: pip install google-genai")
 
@@ -379,17 +384,15 @@ Now translate these segments (#{batch_start + 1} to #{batch_end}):
 
 Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
 
-        progress_pct = 30 + int((batch_start / len(chunks)) * 25)
+        progress_pct = 31 + int((batch_start / max(1, len(chunks))) * 24)
         update_job(job_id, progress=progress_pct,
                    message=f"Translating segments {batch_start + 1}-{batch_end} of {len(chunks)}...")
 
-        candidate_models = [
-            os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
-            "gemini-3.8-flash",
-            "gemini-3.5-flash",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-latest",
-        ]
+        configured_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip()
+        candidate_models = []
+        for model_name in [configured_model, "gemini-2.5-flash", "gemini-2.0-flash"]:
+            if model_name and model_name not in candidate_models:
+                candidate_models.append(model_name)
 
         last_error = None
         for attempt, chosen_model in enumerate(candidate_models):
@@ -436,8 +439,9 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
                 break
             except Exception as e:
                 last_error = e
+                print(f"[Gemini] {chosen_model} attempt {attempt + 1} failed: {e}")
                 if attempt < len(candidate_models) - 1:
-                    time.sleep(1.5)
+                    time.sleep(1.0)
                     continue
 
         if last_error:
