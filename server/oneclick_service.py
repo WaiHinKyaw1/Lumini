@@ -127,17 +127,22 @@ def update_job(job_id: str, **kwargs):
 
 # ─────────────────────────── Step 1: Whisper Transcription ───────────────────────────
 
-def transcribe_with_whisper(audio_path: Path, job_dir: Path, job_id: str) -> list[dict]:
-    """Extract English speech from audio using Groq Whisper (ultra-fast ~2s) or local Whisper fallback."""
+def transcribe_with_whisper(audio_path: Path, job_dir: Path, job_id: str, source_lang: str = "auto") -> list[dict]:
+    """Extract speech from audio using Groq Whisper (ultra-fast ~2s) or local Whisper fallback."""
     update_job(job_id, step="transcription", progress=10, message="Speech recognition starting...")
 
     groq_api_key = os.environ.get("GROQ_API_KEY", "").strip()
     segments = []
 
+    is_chinese = str(source_lang).strip().lower() in ["zh", "chinese", "mandarin"]
+    is_english = str(source_lang).strip().lower() in ["en", "english"]
+    groq_lang = "zh" if is_chinese else ("en" if is_english else None)
+
     # 1. Groq Whisper (Fastest: ~2 seconds)
     if groq_api_key:
         try:
-            update_job(job_id, progress=12, message="Transcribing with ultra-fast Whisper AI...")
+            lang_label = "Chinese" if is_chinese else ("English" if is_english else "Multi")
+            update_job(job_id, progress=12, message=f"Transcribing with ultra-fast Whisper AI ({lang_label})...")
             from groq import Groq
             groq_client = Groq(api_key=groq_api_key)
 
@@ -151,12 +156,16 @@ def transcribe_with_whisper(audio_path: Path, job_dir: Path, job_id: str) -> lis
             )
             upload_target = fast_audio if fast_audio.is_file() else audio_path
 
+            transcribe_extra = {}
+            if groq_lang:
+                transcribe_extra["language"] = groq_lang
+
             with open(upload_target, "rb") as af:
                 resp = groq_client.audio.transcriptions.create(
                     file=af,
                     model="whisper-large-v3-turbo",
                     response_format="verbose_json",
-                    language="en",
+                    **transcribe_extra,
                 )
 
             raw_segs = getattr(resp, "segments", [])
@@ -183,12 +192,19 @@ def transcribe_with_whisper(audio_path: Path, job_dir: Path, job_id: str) -> lis
         except ImportError:
             raise RuntimeError("Whisper not installed. Run: pip install openai-whisper")
 
-        model = whisper.load_model("base.en")
+        # Use base multilingual model for non-English / Chinese, base.en only for pure English
+        model_name = "base.en" if is_english else "base"
+        model = whisper.load_model(model_name)
+        transcribe_args = {
+            "word_timestamps": True,
+            "verbose": False,
+        }
+        if groq_lang:
+            transcribe_args["language"] = groq_lang
+
         result = model.transcribe(
             str(audio_path),
-            word_timestamps=True,
-            language="en",
-            verbose=False,
+            **transcribe_args,
         )
 
         for seg in result.get("segments", []):
@@ -224,12 +240,12 @@ def split_long_segment(seg: dict, max_dur: float = 4.2) -> list[dict]:
     if total_dur <= max_dur and len(words) <= 12:
         return [seg]
 
-    # Split strictly on sentence terminators (. ! ?)
-    parts = re.split(r'(?<=[.!?])\s+', text)
+    # Split strictly on sentence terminators (. ! ? 。 ！？ \n)
+    parts = re.split(r'(?<=[.!?。！？\n])\s*', text)
     parts = [p.strip() for p in parts if p.strip()]
     if not parts or len(parts) == 1:
         # If no period, split on comma or semicolon pause
-        parts = re.split(r'(?<=[,;])\s+', text)
+        parts = re.split(r'(?<=[,;，；、])\s*', text)
         parts = [p.strip() for p in parts if p.strip()]
 
     if not parts or len(parts) == 1:
@@ -319,8 +335,10 @@ def translate_with_gemini(
     job_dir: Path,
     job_id: str,
     batch_size: int = 40,
+    dubbing_mode: str = "movie_recap",
+    source_lang: str = "auto",
 ) -> list[dict]:
-    """Translate English segments to Myanmar Burmese using Gemini."""
+    """Translate segments to Myanmar Burmese using Gemini (Drama Dubbing or Recap)."""
     update_job(job_id, step="translation", progress=30, message="Gemini translation starting...")
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY", "")
@@ -341,7 +359,43 @@ def translate_with_gemini(
     # Build full story context for Gemini
     full_text = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(chunks))
 
-    system_prompt = """သင်သည် မြန်မာနိုင်ငံတွင် အလွန်နာမည်ကြီးသော TikTok & Facebook Movie Recap Channel (ဥပမာ- King Burma, Channel 99, Movie Guide) တို့၏ ထိပ်တန်း ဇာတ်လမ်းပြောပြသူ (Master Movie Storyteller & Narrator) ဖြစ်သည်။
+    mode_str = str(dubbing_mode or "movie_recap").strip().lower()
+
+    if mode_str == "drama_dialogue":
+        system_prompt = """သင်သည် တရုတ်ဇာတ်လမ်းတိုများ (Douyin, TikTok, Kuaishou, ReelShort, DramaBox Chinese Short Dramas) ကို Studio 99 နှင့် Team Alpha စတိုင်ဖြင့် မြန်မာစကားပြော ဇာတ်ကောင်အသံသွင်းပေးရမည့် ထိပ်တန်း အသံသရုပ်ဆောင် (Professional Myanmar Drama Dubbing Artist) ဖြစ်သည်။
+
+ရည်ရွယ်ချက်: မူရင်းစကားပြော စာသားများကို သဘာဝကျပြီး စိတ်ခံစားမှုအပြည့်ပါသော "မြန်မာစကားပြော ဇာတ်ကောင် ဒိုင်ယာလော့ဂ် (Burmese Spoken Character Dialogue Dubbing)" အဖြစ် ပြောင်းလဲပေးရမည်။
+
+အလွန် အရေးကြီးသော စည်းမျဉ်းများ (တိကျစွာ လိုက်နာပါ):
+၁။ ဇာတ်ကောင် စကားပြော ဒိုင်ယာလော့ဂ် စစ်စစ် (Authentic Drama Spoken Dialogue):
+   - ဇာတ်ကြောင်းပြန်ဟန် မဟုတ်ပါ၊ ဇာတ်ကောင်ကိုယ်တိုင် ပြောနေသည့် စကားစစ်စစ် ဖြစ်ရမည်။
+   - စာအုပ်ကြီး စာစကားများ ("သည်"၊ "၏"၊ "၌"၊ "၍"၊ "သောကြောင့်"၊ "ဖြစ်သည်"၊ "ရာတွင်") လုံးဝ (လုံးဝ) မသုံးရ။
+   - သဘာဝကျသော လူပြောစကား သုံးပါ (ဥပမာ: "မင်း ဘာစကားပြောလိုက်တာလဲ!", "ငါ့ကို ဒီလို လာမဆက်ဆံနဲ့!", "သခင်လေး... ကျမ တောင်းပန်ပါတယ်", "သူဌေးကြီး... ဒီကိစ္စကို ကျွန်တော် ရှင်းပေးပါ့မယ်!", "မင်း တကယ်ပဲ ငါ့ကို မမှတ်မိတော့ဘူးလား?")။
+   - အခေါ်အဝေါ်များကို တရုတ်ဒရမ်မာ လူကြိုက်များသော မြန်မာစကားလုံးများ သုံးပါ (ဥပမာ: "သခင်လေး", "သူဌေးကြီး", "သခင်မကြီး", "အဘိုးကြီး", "မမ", "ဆရာကြီး", "ကောင်မလေး", "မင်းသမီး")။
+
+၂။ အချိန်ကိုက် လိုက်ဖက်မှု (Pacing & Subtitle Fit):
+   - စာသား အရှည်လွန်းပါက အသံသွင်းရာတွင် မမီနိုင်သောကြောင့် တိုတိုပြတ်ပြတ် လိုရင်းထိရောက်အောင် ရေးပါ။
+   - Segment တစ်ခုလျှင် ခန့်မှန်း မြန်မာစာလုံး ၁၀ - ၂၂ လုံးအတွင်းသာ ထိန်းပါ။
+   - 1 Single Line စာတန်းထိုးအတွက် အဆင်ပြေစေရမည်။
+
+၃။ Output Format:
+   - Return ONLY a valid JSON array: [{"id": 1, "mm": "သဘာဝကျသော မြန်မာစကားပြော ဒိုင်ယာလော့ဂ် စာသား"}, ...]
+   - No markdown fences outside JSON, no explanation, no English."""
+    elif mode_str == "drama_recap":
+        system_prompt = """သင်သည် တရုတ်ဇာတ်လမ်းတွဲများ (Chinese Short Dramas) ကို Team Alpha & Studio 99 စတိုင်ဖြင့် အလွန်သွက်လက်ပြီး ဆွဲဆောင်မှုရှိစွာ ဇာတ်လမ်းပြန်ပြောပြပေးရမည့် ထိပ်တန်း Drama Recapper ဖြစ်သည်။
+
+အလွန် အရေးကြီးသော စည်းမျဉ်းများ:
+၁။ Team Alpha စတိုင် အထာကျကျ ဇာတ်ရှိန်မြှင့်တင်ခြင်း:
+   - "ဒီတစ်ခါမှာတော့..."၊ "ရုတ်တရက်ဆိုသလိုပဲ..."၊ "တကယ်တော့ သူဟာ..."၊ "အဲဒီအချိန်မှာ မထင်မှတ်ဘဲ..." စသည့် ဆွဲဆောင်မှုအပြည့်ပါသော ဇာတ်လမ်းပြောဟန် သုံးပါ။
+   - ပရိသတ်ကို စက္ကန့်မလပ် ဆွဲဆောင်ထားနိုင်မည့် စကားလုံးအသုံးအနှုန်းများ သုံးပါ။
+   - စာအုပ်ကြီးစကားလုံးများ ("သည်"၊ "၏"၊ "၌"၊ "၍") လုံးဝမသုံးရ။
+   - Segment တစ်ခုလျှင် မြန်မာစာလုံး ၁၂ - ၂၂ လုံးအတွင်း တိုတိုရှင်းရှင်း လိုရင်းထိရောက်စွာ ရေးပါ။
+
+၂။ Output Format:
+   - Return ONLY a valid JSON array: [{"id": 1, "mm": "တိုရှင်း လိုရင်း မြန်မာဇာတ်လမ်းပြော စာသား"}, ...]
+   - No markdown fences outside JSON, no explanation, no English."""
+    else:
+        system_prompt = """သင်သည် မြန်မာနိုင်ငံတွင် အလွန်နာမည်ကြီးသော TikTok & Facebook Movie Recap Channel (ဥပမာ- King Burma, Channel 99, Movie Guide) တို့၏ ထိပ်တန်း ဇာတ်လမ်းပြောပြသူ (Master Movie Storyteller & Narrator) ဖြစ်သည်။
 ရုပ်ရှင်ကို ပရိသတ် စိတ်ဝင်တစား ရင်ခုန်စွာ နားထောင်နိုင်မည့် သဘာဝကျပြီး ဆွဲဆောင်မှုအပြည့်ရှိသော "ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော (Burmese Narrator Voiceover)" အဖြစ် ပြန်ဆိုပေးရမည်။
 
 အလွန် အရေးကြီးသော စည်းမျဉ်းများ (တိကျစွာ လိုက်နာပါ):
@@ -463,11 +517,24 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
         translated_mm = ""
         if clean_en:
             try:
-                single_prompt = (
-                    "Translate this English sentence into natural spoken Myanmar movie recap narration (ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော):\n"
-                    f"\"{clean_en}\"\n"
-                    "Rules: Return ONLY the natural spoken Myanmar narration. Strictly NO English words. NO quotes."
-                )
+                if mode_str == "drama_dialogue":
+                    single_prompt = (
+                        "Translate this sentence/dialogue into natural spoken Burmese drama character dialogue (တရုတ်ဒရမ်မာ ဇာတ်ကောင် စကားပြော ဒိုင်ယာလော့ဂ်):\n"
+                        f"\"{clean_en}\"\n"
+                        "Rules: Return ONLY natural spoken Myanmar dialogue. NO bookish words (သည်၊ ၏၊ ၌၊ ၍၊ သောကြောင့်). NO quotes."
+                    )
+                elif mode_str == "drama_recap":
+                    single_prompt = (
+                        "Translate this sentence into Team Alpha fast-paced spoken Myanmar drama recap narration (မြန်မာစကားပြော ဒရမ်မာ recap):\n"
+                        f"\"{clean_en}\"\n"
+                        "Rules: Return ONLY natural spoken Myanmar narration. NO bookish words. NO quotes."
+                    )
+                else:
+                    single_prompt = (
+                        "Translate this English sentence into natural spoken Myanmar movie recap narration (ဇာတ်ကြောင်းပြန် မြန်မာစကားပြော):\n"
+                        f"\"{clean_en}\"\n"
+                        "Rules: Return ONLY the natural spoken Myanmar narration. Strictly NO English words. NO quotes."
+                    )
                 r = client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=single_prompt,
@@ -1651,6 +1718,7 @@ def render_smart_sync_video(
     logo_scale: float = 12.0,
     logo_opacity: float = 1.0,
     include_original_audio: bool = False,
+    bgm_volume: float = 0.18,
     hook_title: str = "",
 ) -> Path:
     """Professional Single-Pass Smart Sync Video Engine:
@@ -1993,7 +2061,8 @@ def render_smart_sync_video(
     # Audio mixing chain
     vol_filter = f"volume={voice_volume}" if voice_volume != 1.0 else "volume=1.0"
     if has_orig_audio and orig_audio_idx > 0:
-        filter_parts.append(f"[{orig_audio_idx}:a]volume=0.12,apad[abg];[1:a]{vol_filter}[avoice];[avoice][abg]amix=inputs=2:duration=first[aout]")
+        safe_bgm_vol = max(0.02, min(0.60, float(bgm_volume)))
+        filter_parts.append(f"[{orig_audio_idx}:a]volume={safe_bgm_vol:.2f},apad[abg];[1:a]{vol_filter}[avoice];[avoice][abg]amix=inputs=2:duration=first[aout]")
     else:
         filter_parts.append(f"[1:a]{vol_filter}[aout]")
 
@@ -2264,11 +2333,14 @@ def run_oneclick_pipeline(
     logo_scale: float = 12.0,
     logo_opacity: float = 1.0,
     include_original_audio: bool = False,
+    bgm_volume: float = 0.18,
     voice_sample_path: Optional[Path] = None,
     voice_id: Optional[str] = None,
     elevenlabs_api_key: Optional[str] = None,
     enable_intro_hook: bool = True,
     intro_hook_text: Optional[str] = None,
+    source_lang: str = "auto",
+    dubbing_mode: str = "drama_dialogue",
     *args,
     **kwargs,
 ):
@@ -2327,7 +2399,7 @@ def run_oneclick_pipeline(
             raise RuntimeError("ဗီဒီယိုဖိုင်တွင် အသံလိုင်း (Audio track) မပါရှိပါ သို့မဟုတ် ဖတ်မရပါ။ စကားပြောပါဝင်သော အသံပါသည့် ဗီဒီယိုကို အသုံးပြုပေးပါ။")
 
         # Step 2: Whisper transcription
-        segments = transcribe_with_whisper(audio_path, job_dir, job_id)
+        segments = transcribe_with_whisper(audio_path, job_dir, job_id, source_lang=source_lang)
 
         # Step 3: Smart segmentation & Contiguous Timeline Division (Exact Git Algorithm)
         update_job(job_id, step="segmentation", progress=28,
@@ -2336,8 +2408,8 @@ def run_oneclick_pipeline(
         video_dur = probe_duration(video_path)
         chunks = assign_midpoint_boundaries(raw_chunks, video_dur)
 
-        # Step 4: Gemini translation (Spoken storytelling style)
-        translated = translate_with_gemini(chunks, job_dir, job_id)
+        # Step 4: Gemini translation (Spoken storytelling or Drama acting style)
+        translated = translate_with_gemini(chunks, job_dir, job_id, dubbing_mode=dubbing_mode, source_lang=source_lang)
         hook_title = ""
 
         # Step 5: Voice synthesis (Smart Acoustic Cloned Voice, ElevenLabs, or Natural Edge TTS)
@@ -2407,6 +2479,7 @@ def run_oneclick_pipeline(
             logo_scale=logo_scale,
             logo_opacity=logo_opacity,
             include_original_audio=include_original_audio,
+            bgm_volume=bgm_volume,
             hook_title=hook_title,
         )
 
@@ -2543,12 +2616,15 @@ async def start_job(
     logo_scale: float = Form(12.0),
     logo_opacity: float = Form(1.0),
     include_original_audio: bool = Form(False),
+    bgm_volume: float = Form(0.18),
     voice_sample: Optional[UploadFile] = File(default=None),
     voice_sample_preset: Optional[str] = Form(default=None),
     voice_id: Optional[str] = Form(default=None),
     elevenlabs_api_key: Optional[str] = Form(default=None),
     enable_intro_hook: bool = Form(False),
     intro_hook_text: Optional[str] = Form(default=None),
+    source_lang: str = Form("auto"),
+    dubbing_mode: str = Form("drama_dialogue"),
 ):
     """Upload video, use pre-downloaded temp_id, or provide YouTube/TikTok URL and start OneClick pipeline."""
     job_id = str(uuid.uuid4())[:12]
@@ -2643,6 +2719,9 @@ async def start_job(
         "watermark_text": watermark_text,
         "has_logo": bool(logo_path),
         "include_original_audio": include_original_audio,
+        "bgm_volume": bgm_volume,
+        "source_lang": source_lang,
+        "dubbing_mode": dubbing_mode,
         "has_voice_sample": bool(voice_sample_path),
         "enable_intro_hook": enable_intro_hook,
         "intro_hook_text": intro_hook_text,
@@ -2680,11 +2759,14 @@ async def start_job(
         logo_scale,
         logo_opacity,
         include_original_audio,
+        bgm_volume,
         voice_sample_path,
         voice_id,
         elevenlabs_api_key,
         enable_intro_hook,
         intro_hook_text,
+        source_lang,
+        dubbing_mode,
     )
 
     return {

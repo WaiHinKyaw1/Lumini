@@ -7,6 +7,7 @@ export enum ContentType {
   VIDEO_INSIGHTS = 'VIDEO_INSIGHTS',
   MOVIE_RECAP = 'MOVIE_RECAP',
   ONECLICK_RECAP = 'ONECLICK_RECAP',
+  DRAMA_DUBBING = 'DRAMA_DUBBING',
   SUBTITLE = 'SUBTITLE',
   SOCIAL_GEN = 'SOCIAL_GEN',
   AUTO_CAPTION = 'AUTO_CAPTION',
@@ -67,6 +68,7 @@ export interface CreditCosts {
   [ContentType.VIDEO_INSIGHTS]: number;
   [ContentType.MOVIE_RECAP]: number;
   [ContentType.ONECLICK_RECAP]: number;
+  [ContentType.DRAMA_DUBBING]: number;
   [ContentType.SUBTITLE]: number;
   [ContentType.SOCIAL_GEN]: number;
   [ContentType.AUTO_CAPTION]: number;
@@ -87,6 +89,7 @@ export const CREDIT_COSTS: CreditCosts = {
   [ContentType.VIDEO_INSIGHTS]: 10,
   [ContentType.MOVIE_RECAP]: 15,
   [ContentType.ONECLICK_RECAP]: 20,
+  [ContentType.DRAMA_DUBBING]: 20,
   [ContentType.SUBTITLE]: 12,
   [ContentType.SOCIAL_GEN]: 5,
   [ContentType.AUTO_CAPTION]: 15,

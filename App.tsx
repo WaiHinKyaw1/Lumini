@@ -31,6 +31,7 @@ const VideoInsights = lazy(() => import('./pages/VideoInsights'));
 const ThumbnailGen = lazy(() => import('./pages/ThumbnailGen'));
 const SubtitleStudio = lazy(() => import('./pages/SubtitleStudio'));
 const OneClick = lazy(() => import('./pages/OneClick'));
+const DramaDubbing = lazy(() => import('./pages/DramaDubbing'));
 const Profile = lazy(() => import('./pages/Profile'));
 
 const INITIAL_STATS: UserStats = {
@@ -306,6 +307,7 @@ const App: React.FC = () => {
                   case 'voiceover': return <Voiceover onSpendCredits={spendCredits} />;
                   case 'recap': return <MovieRecap onSpendCredits={spendCredits} />;
                   case 'oneclick': return <OneClick onSpendCredits={spendCredits} onNavigate={setCurrentPath} />;
+                  case 'dramadubbing': return <DramaDubbing onSpendCredits={spendCredits} onNavigate={setCurrentPath} />;
                   case 'profile': return <Profile stats={stats} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} onLogout={handleLogout} />;
                   default: return <Dashboard onAction={setCurrentPath} stats={stats} onOpenCredits={() => setIsCreditModalOpen(true)} />;
                 }

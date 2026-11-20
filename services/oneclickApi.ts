@@ -232,6 +232,9 @@ export interface OneClickJobOptions {
   elevenlabsApiKey?: string;
   enableIntroHook?: boolean;
   introHookText?: string;
+  sourceLang?: 'auto' | 'zh' | 'en';
+  dubbingMode?: 'drama_dialogue' | 'drama_recap' | 'movie_recap';
+  bgmVolume?: number;
 }
 
 export const extractCleanUrl = (raw: string): string => {
@@ -348,6 +351,15 @@ export async function startOneClickJob(
   formData.append('enable_intro_hook', String(options.enableIntroHook === true));
   if (options.introHookText) {
     formData.append('intro_hook_text', options.introHookText.trim());
+  }
+  if (options.sourceLang) {
+    formData.append('source_lang', options.sourceLang);
+  }
+  if (options.dubbingMode) {
+    formData.append('dubbing_mode', options.dubbingMode);
+  }
+  if (options.bgmVolume !== undefined) {
+    formData.append('bgm_volume', String(options.bgmVolume));
   }
 
   return new Promise((resolve, reject) => {
