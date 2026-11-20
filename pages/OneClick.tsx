@@ -481,6 +481,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'subtitle-move' | 'subtitle-resize-top' | 'subtitle-resize-bottom' | 'subtitle-resize-left' | 'subtitle-resize-right' | 'logo-move' | 'logo-resize',
     e: React.PointerEvent
   ) => {
+    // On mobile touch devices, prevent body tap from hijacking scroll or jumping boxes.
+    // Allow touch dragging ONLY on explicit resize/move handles, not entire box surfaces.
+    if (e.pointerType === 'touch' && (type === 'blur-move' || type === 'subtitle-move')) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setActiveDrag(type);
@@ -736,7 +741,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const isProcessing = jobStatus?.status === 'processing' || jobStatus?.status === 'queued';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-16 px-2 sm:px-4">
+    <div className="w-full max-w-full overflow-x-hidden max-w-6xl mx-auto space-y-6 animate-fade-in pb-16 px-2 sm:px-4">
       {/* Top Header Card */}
       <div className="rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-xl p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1185,7 +1190,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
                   ဗီဒီယို အရွယ်အစား (Aspect Ratio)
                 </label>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
                   {[
                     { id: 'original', label: 'Original' },
                     { id: '16:9', label: '16:9' },
@@ -1197,7 +1202,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       key={r.id}
                       type="button"
                       onClick={() => handleRatioSelect(r.id)}
-                      className={`py-1.5 rounded-lg border text-xs font-bold transition-all ${selectedRatio === r.id
+                      className={`py-1.5 px-0.5 rounded-lg border text-[11px] sm:text-xs font-bold transition-all text-center truncate ${selectedRatio === r.id
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                         : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
                         }`}
@@ -1270,13 +1275,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   </div>
 
                   {/* Quick Blur Presets */}
-                  <div className="grid grid-cols-5 gap-1 text-[10px]">
+                  <div className="grid grid-cols-5 gap-1 text-[9px] sm:text-[10px]">
                     {[
-                      { label: 'အောက်ခြေ', pos: 82, thick: 14, width: 100 },
-                      { label: 'ဇာတ်ကား', pos: 66, thick: 15, width: 100 },
-                      { label: 'ဗဟို', pos: 60, thick: 16, width: 100 },
-                      { label: 'အပြည့် 100%', pos: 82, thick: 14, width: 100 },
-                      { label: 'ဘောင်ကျဉ်း', pos: 80, thick: 14, width: 65 },
+                      { label: 'Bottom', pos: 82, thick: 14, width: 100 },
+                      { label: 'Movie', pos: 66, thick: 15, width: 100 },
+                      { label: 'Center', pos: 60, thick: 16, width: 100 },
+                      { label: 'Full', pos: 82, thick: 14, width: 100 },
+                      { label: 'Narrow', pos: 80, thick: 14, width: 65 },
                     ].map((preset, idx) => (
                       <button
                         key={idx}
@@ -1487,7 +1492,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
-                className="relative w-full h-[390px] sm:h-[430px] bg-zinc-950/90 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-2 touch-none select-none"
+                className="relative w-full h-[270px] sm:h-[420px] bg-zinc-950/90 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-2 touch-pan-y select-none"
               >
                 {(filePreviewUrl || (inputMode === 'url' && videoUrl.trim())) ? (
                   <div

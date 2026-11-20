@@ -334,7 +334,7 @@ def translate_with_gemini(
     chunks: list[dict],
     job_dir: Path,
     job_id: str,
-    batch_size: int = 40,
+    batch_size: int = 15,
     dubbing_mode: str = "movie_recap",
     source_lang: str = "auto",
 ) -> list[dict]:
@@ -351,7 +351,7 @@ def translate_with_gemini(
         # Prevent a stalled Gemini socket from freezing the whole One Click job at 30%.
         client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=45000),
+            http_options=types.HttpOptions(timeout=60000),
         )
     except ImportError:
         raise RuntimeError("google-genai not installed. Run: pip install google-genai")
@@ -442,15 +442,14 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
         update_job(job_id, progress=progress_pct,
                    message=f"Translating segments {batch_start + 1}-{batch_end} of {len(chunks)}...")
 
-        configured_model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
+        configured_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
         candidate_models = []
         for model_name in [
             configured_model,
+            "gemini-2.5-flash-lite",
+            "gemini-3.5-flash-lite",
             "gemini-3.8-flash",
             "gemini-3.5-flash",
-            "gemini-3.7-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-2.5-flash-lite",
             "gemini-flash-latest",
         ]:
             if model_name and model_name not in candidate_models:
@@ -501,9 +500,14 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
                 break
             except Exception as e:
                 last_error = e
-                print(f"[Gemini] {chosen_model} attempt {attempt + 1} failed: {e}")
+                err_msg = str(e)
+                print(f"[Gemini] {chosen_model} attempt {attempt + 1} failed: {err_msg[:120]}")
+                is_demand_or_limit = any(code in err_msg for code in ["503", "UNAVAILABLE", "504", "DEADLINE_EXCEEDED", "429", "RESOURCE_EXHAUSTED", "demand"])
                 if attempt < len(candidate_models) - 1:
-                    time.sleep(1.0)
+                    wait_sec = (2.5 * (attempt + 1)) if is_demand_or_limit else 1.0
+                    if is_demand_or_limit:
+                        print(f"[Gemini] Demand spike / limit detected. Backing off {wait_sec:.1f}s before trying next model...")
+                    time.sleep(wait_sec)
                     continue
 
         if last_error:
@@ -600,12 +604,11 @@ def generate_story_hook_title(full_story_text: str, client) -> str:
     )
     prompt = f"ဒီဇာတ်လမ်းအကျဉ်းကို ဖတ်ပြီး ဗီဒီယိုအစ Thumbnail အတွက် ဆွဲဆောင်မှုအရှိဆုံး ၁ ကြောင်းတည်းသော မြန်မာ Hook ခေါင်းစဉ်တစ်ခု ရေးပေးပါ:\n\n{full_story_text[:1200]}"
     candidate_models = [
-        os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+        os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash-lite",
         "gemini-3.8-flash",
         "gemini-3.5-flash",
-        "gemini-3.7-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-2.5-flash-lite",
         "gemini-flash-latest",
     ]
     for model in candidate_models:
