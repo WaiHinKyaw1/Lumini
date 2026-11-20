@@ -2269,6 +2269,8 @@ def run_oneclick_pipeline(
     elevenlabs_api_key: Optional[str] = None,
     enable_intro_hook: bool = True,
     intro_hook_text: Optional[str] = None,
+    *args,
+    **kwargs,
 ):
     """Run the complete OneClick Recap pipeline."""
     job_dir = JOBS_DIR / job_id
