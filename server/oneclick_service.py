@@ -2134,9 +2134,9 @@ def extract_clean_url(raw_text: str) -> str:
 
 
 def resolve_media_url(url: str) -> str:
-    """Resolve redirect for shortlinks like xhslink.com (Rednote), vt.tiktok.com, youtu.be."""
+    """Resolve redirect for shortlinks like xhslink.com (Rednote), vt.tiktok.com, vm.tiktok.com, v.douyin.com, youtu.be."""
     clean_url = extract_clean_url(url)
-    if "xhslink.com" in clean_url or "vt.tiktok.com" in clean_url:
+    if any(k in clean_url for k in ["xhslink.com", "vt.tiktok.com", "vm.tiktok.com", "v.douyin.com"]):
         try:
             import urllib.request
             req = urllib.request.Request(
@@ -2240,26 +2240,78 @@ def download_rednote_fallback(url: str, output_path: Path) -> bool:
     return False
 
 
+def download_tiktok_fallback(url: str, output_path: Path) -> bool:
+    """Direct scraper fallback for TikTok and Douyin videos using TikWM public API."""
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
+
+        clean = extract_clean_url(url)
+        data = urllib.parse.urlencode({"url": clean, "hd": 1}).encode("utf-8")
+        req = urllib.request.Request(
+            "https://www.tikwm.com/api/",
+            data=data,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            }
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            j = json.loads(resp.read().decode("utf-8"))
+
+        if j.get("code") == 0 and j.get("data"):
+            v_url = j["data"].get("play") or j["data"].get("wmplay")
+            if v_url:
+                if v_url.startswith("/"):
+                    v_url = f"https://www.tikwm.com{v_url}"
+                dl_req = urllib.request.Request(
+                    v_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                        "Referer": "https://www.tikwm.com/",
+                    }
+                )
+                with urllib.request.urlopen(dl_req, timeout=45) as v_resp, open(output_path, "wb") as f:
+                    shutil.copyfileobj(v_resp, f)
+                if output_path.is_file() and output_path.stat().st_size > 1024:
+                    print(f"[TikTokFallback] Downloaded {output_path.stat().st_size} bytes via TikWM")
+                    return True
+    except Exception as e:
+        print(f"[TikTokFallback] Note: {e}")
+    return False
+
+
 def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
-    """Download video from YouTube, TikTok, Rednote (Xiaohongshu), Facebook or direct URL."""
+    """Download video from YouTube, TikTok, Douyin, Rednote (Xiaohongshu), Facebook or direct URL."""
     clean_url = extract_clean_url(url)
     resolved_url = resolve_media_url(clean_url)
 
     is_rednote = any(d in resolved_url.lower() for d in ["xhslink.com", "xiaohongshu.com", "rednote"])
-    platform_name = "Rednote (小红书)" if is_rednote else ("TikTok" if "tiktok.com" in resolved_url else "YouTube / Web")
+    is_tiktok_or_douyin = any(d in resolved_url.lower() for d in ["tiktok.com", "douyin.com", "tikwm.com"])
+    platform_name = "Rednote (小红书)" if is_rednote else ("TikTok / Douyin" if is_tiktok_or_douyin else "YouTube / Web")
 
     update_job(job_id, step="download", progress=3,
                message=f"Downloading video from {platform_name} link...")
 
     mp4_path = job_dir / "source.mp4"
 
-    # For Rednote (Xiaohongshu), attempt direct scraper FIRST (yt-dlp lacks mobile xhs cookies)
+    # For Rednote (Xiaohongshu), attempt direct scraper FIRST
     if is_rednote:
         print(f"[Rednote] Direct stream extraction for {resolved_url[:60]}...")
         if download_rednote_fallback(resolved_url, mp4_path):
             print(f"[Rednote] Download successful: {mp4_path.stat().st_size} bytes")
             return mp4_path
         print("[Rednote] Direct extraction failed, falling back to yt-dlp...")
+
+    # For TikTok / Douyin, attempt TikWM direct extraction FIRST
+    if is_tiktok_or_douyin:
+        print(f"[TikTok] Direct API extraction for {resolved_url[:60]}...")
+        if download_tiktok_fallback(resolved_url, mp4_path):
+            print(f"[TikTok] Download successful: {mp4_path.stat().st_size} bytes")
+            return mp4_path
+        print("[TikTok] Direct API failed, falling back to yt-dlp...")
 
     ffmpeg_bin = find_ffmpeg()
     ffmpeg_dir = str(Path(ffmpeg_bin).parent)
@@ -2276,12 +2328,17 @@ def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
         "--no-check-certificates",
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "--ffmpeg-location", ffmpeg_dir,
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "-f", "b/bestvideo*+bestaudio/best[ext=mp4]/best",
         "--merge-output-format", "mp4",
         "--max-filesize", "500M",
+    ]
+    if is_tiktok_or_douyin:
+        cmd.extend(["--extractor-args", "tiktok:app_info=true;api_hostname=api22-normal-c-useast2a.tiktokv.com"])
+
+    cmd.extend([
         "-o", str(out_template),
         resolved_url,
-    ]
+    ])
 
     result = subprocess.run(
         cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
@@ -2300,6 +2357,12 @@ def download_media_from_url(url: str, job_dir: Path, job_id: str) -> Path:
     if is_rednote:
         print("[Rednote] Attempting direct Rednote video stream extraction fallback...")
         if download_rednote_fallback(resolved_url, mp4_path):
+            return mp4_path
+
+    # If TikTok and not yet successful, retry fallback
+    if is_tiktok_or_douyin:
+        print("[TikTok] Attempting direct TikWM extraction fallback...")
+        if download_tiktok_fallback(resolved_url, mp4_path):
             return mp4_path
 
     err = (result.stderr or result.stdout or "Download failed").strip()
@@ -2759,14 +2822,11 @@ async def start_job(
         logo_scale,
         logo_opacity,
         include_original_audio,
-        bgm_volume,
         voice_sample_path,
         voice_id,
         elevenlabs_api_key,
         enable_intro_hook,
         intro_hook_text,
-        source_lang,
-        dubbing_mode,
     )
 
     return {
