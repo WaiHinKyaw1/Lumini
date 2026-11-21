@@ -1310,8 +1310,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                       <input
                         type="range"
-                        min={50}
-                        max={95}
+                        min={30}
+                        max={96}
                         value={blurPosition}
                         onChange={(e) => setBlurPosition(Number(e.target.value))}
                         className="w-full accent-amber-500"
@@ -1325,8 +1325,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                       <input
                         type="range"
-                        min={6}
-                        max={35}
+                        min={2}
+                        max={40}
                         value={blurThickness}
                         onChange={(e) => setBlurThickness(Number(e.target.value))}
                         className="w-full accent-amber-500"
@@ -1340,7 +1340,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                       <input
                         type="range"
-                        min={30}
+                        min={20}
                         max={100}
                         value={blurWidth}
                         onChange={(e) => setBlurWidth(Number(e.target.value))}
@@ -1355,7 +1355,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                       <input
                         type="range"
-                        min={10}
+                        min={2}
                         max={100}
                         value={blurIntensity}
                         onChange={(e) => setBlurIntensity(Number(e.target.value))}
@@ -1583,10 +1583,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           transform: 'translateZ(0)',
                         }}
                         onPointerDown={(e) => handlePointerDown('blur-move', e)}
-                        className={`absolute z-10 flex flex-col items-center justify-center overflow-visible shadow-2xl transition-shadow ${blurWidth >= 98
-                          ? 'border-y-2 border-amber-400/80'
-                          : 'border-2 border-amber-400/90 shadow-amber-500/10'
-                          } ${activeDrag === 'blur-move' ? 'cursor-grabbing ring-2 ring-amber-400' : 'cursor-grab hover:border-amber-300'}`}
+                        className={`absolute z-10 flex flex-col items-center justify-center overflow-visible transition-shadow ${blurWidth >= 98
+                          ? 'border-y border-amber-400/40'
+                          : 'border border-dashed border-amber-400/50 shadow-sm'
+                          } ${activeDrag === 'blur-move' ? 'cursor-grabbing ring-1 ring-amber-400' : 'cursor-grab hover:border-amber-400'}`}
                         title="Click & drag to reposition blur box on video"
                       >
 
@@ -1594,10 +1594,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         {/* Frosted Glass Background */}
                         <div
                           style={{
-                            backdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
-                            WebkitBackdropFilter: `blur(${Math.max(6, Math.round(blurIntensity * 0.35))}px)`,
-                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.78, Math.max(0.40, (blurIntensity / 100) * 0.85))})`,
-                            // borderRadius: blurWidth < 98 ? '14px' : '0px',
+                            backdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
+                            WebkitBackdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
+                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.60, Math.max(0.12, (blurIntensity / 100) * 0.60))})`,
                             transform: 'translateZ(0)',
                             willChange: 'transform',
                           }}

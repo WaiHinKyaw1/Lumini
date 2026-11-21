@@ -69,6 +69,8 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
   const [enableSubtitles, setEnableSubtitles] = useState(true);
   const [enableBlur, setEnableBlur] = useState(true);
   const [blurPosition, setBlurPosition] = useState(82);
+  const [blurThickness, setBlurThickness] = useState(12);
+  const [blurIntensity, setBlurIntensity] = useState(30);
   const [subtitleY, setSubtitleY] = useState(82);
 
   // Preview Player
@@ -234,10 +236,13 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
           enableSubtitles,
           enableBlur,
           blurPosition,
-          blurThickness: 12,
+          blurThickness,
           blurWidth: 88,
-          blurIntensity: 35,
+          blurIntensity,
+          subtitleX: 50,
           subtitleY,
+          subtitleWidth: 88,
+          subtitleHeight: 14,
           subtitleStyle: 'font-akkhayar',
           includeOriginalAudio: true,
           bgmVolume: Number((bgmVolume / 100).toFixed(2)),
@@ -267,7 +272,7 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+    <div className="w-full max-w-full overflow-x-hidden max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5 min-w-0">
       {/* Top Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
         <div>
@@ -406,15 +411,17 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
                     <div
                       style={{
                         position: 'absolute',
-                        top: `${blurPosition - 6}%`,
-                        height: '12%',
+                        top: `${blurPosition - blurThickness / 2}%`,
+                        height: `${blurThickness}%`,
                         left: '6%',
                         width: '88%',
+                        backdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
+                        WebkitBackdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
                       }}
-                      className="border border-dashed border-amber-400/80 bg-black/60 backdrop-blur-md flex items-center justify-center pointer-events-none z-10"
+                      className="border border-dashed border-amber-400/40 bg-black/40 flex items-center justify-center pointer-events-none z-10"
                     >
                       <span className="text-[10px] text-amber-300 font-bold bg-black/70 px-1.5 py-0.5 rounded">
-                        Chinese Subtitle Mask ({blurPosition}%)
+                        Mask ({blurPosition}%)
                       </span>
                     </div>
                   )}
@@ -582,7 +589,7 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
             </div>
 
             {/* Chinese Blur Bar */}
-            <div className="space-y-1 pt-2 border-t border-zinc-800">
+            <div className="space-y-2 pt-2 border-t border-zinc-800">
               <div className="flex justify-between items-center">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -596,14 +603,50 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
                 {enableBlur && <span className="font-mono text-amber-500">{blurPosition}% Y</span>}
               </div>
               {enableBlur && (
-                <input
-                  type="range"
-                  min={70}
-                  max={92}
-                  value={blurPosition}
-                  onChange={(e) => setBlurPosition(Number(e.target.value))}
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+                      <span>Position Y:</span>
+                      <span>{blurPosition}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={30}
+                      max={96}
+                      value={blurPosition}
+                      onChange={(e) => setBlurPosition(Number(e.target.value))}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+                      <span>Thickness:</span>
+                      <span>{blurThickness}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={35}
+                      value={blurThickness}
+                      onChange={(e) => setBlurThickness(Number(e.target.value))}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+                      <span>Intensity:</span>
+                      <span>{blurIntensity}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={100}
+                      value={blurIntensity}
+                      onChange={(e) => setBlurIntensity(Number(e.target.value))}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                </div>
               )}
             </div>
 
@@ -624,8 +667,8 @@ const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
               {enableSubtitles && (
                 <input
                   type="range"
-                  min={70}
-                  max={92}
+                  min={30}
+                  max={96}
                   value={subtitleY}
                   onChange={(e) => setSubtitleY(Number(e.target.value))}
                   className="w-full accent-amber-500 cursor-pointer"

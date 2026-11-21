@@ -1848,6 +1848,10 @@ def render_smart_sync_video(
         blur_thickness=blur_thickness,
         blur_width=blur_width,
         blur_x=blur_x,
+        subtitle_x=subtitle_x,
+        subtitle_y=subtitle_y,
+        subtitle_width=subtitle_width,
+        subtitle_height=subtitle_height,
         subtitle_style=subtitle_style,
         hook_title=hook_title,
     )
@@ -1989,54 +1993,55 @@ def render_smart_sync_video(
 
     if enable_blur:
         b_pos_f = float(b_pos)
-        b_thick_f = float(blur_thickness) if str(blur_thickness).replace('.', '', 1).isdigit() else 14.0
-        b_intense_f = float(blur_intensity) if str(blur_intensity).replace('.', '', 1).isdigit() else 30.0
-        b_width_f = float(blur_width) if str(blur_width).replace('.', '', 1).isdigit() else 100.0
+        try:
+            b_thick_f = float(blur_thickness) if blur_thickness is not None else 14.0
+        except (ValueError, TypeError):
+            b_thick_f = 14.0
+        try:
+            b_intense_f = float(blur_intensity) if blur_intensity is not None else 30.0
+        except (ValueError, TypeError):
+            b_intense_f = 30.0
+        try:
+            b_width_f = float(blur_width) if blur_width is not None else 100.0
+        except (ValueError, TypeError):
+            b_width_f = 100.0
 
-        thickness_pct = max(0.04, min(0.40, b_thick_f / 100.0))
+        thickness_pct = max(0.01, min(0.40, b_thick_f / 100.0))
         top_pct = max(0.0, min(1.0 - thickness_pct, (b_pos_f - b_thick_f / 2.0) / 100.0))
         width_pct = max(0.20, min(1.0, b_width_f / 100.0))
 
         blur_y = int(round(canvas_h * top_pct / 2.0)) * 2
-        blur_h = max(8, int(round(canvas_h * thickness_pct / 2.0)) * 2)
+        blur_h = max(4, int(round(canvas_h * thickness_pct / 2.0)) * 2)
         if blur_y + blur_h > canvas_h:
-            blur_h = max(8, canvas_h - blur_y)
-        blur_bottom = blur_y + blur_h
+            blur_h = max(4, canvas_h - blur_y)
 
         blur_w = max(40, int(round(canvas_w * width_pct / 2.0)) * 2)
-        if blur_x is not None and str(blur_x).replace('.', '', 1).isdigit():
-            blur_x_f = float(blur_x)
+        if blur_x is not None:
+            try:
+                blur_x_f = float(blur_x)
+            except (ValueError, TypeError):
+                blur_x_f = 50.0
             blur_x_pos = max(0, min(canvas_w - blur_w, int(round(canvas_w * blur_x_f / 100.0 / 2.0)) * 2))
         else:
             # Auto-center horizontally matching preview
             blur_x_pos = int(round((canvas_w - blur_w) / 2.0 / 2.0)) * 2
-        blur_right = blur_x_pos + blur_w
 
-        luma_rad = max(16, min(42, int(b_intense_f * 0.95)))
-        chroma_rad = max(8, int(luma_rad * 0.6))
-        tint_opacity = min(0.78, max(0.40, (b_intense_f / 100.0) * 0.85))
+        luma_rad = max(2, min(42, int(b_intense_f * 0.85)))
+        chroma_rad = max(1, int(luma_rad * 0.6))
 
         if width_pct >= 0.98:
             blur_chain = (
                 f"{current_v}split=2[vmain][vblur];"
                 f"[vblur]crop=w={canvas_w}:h={blur_h}:x=0:y={blur_y},"
-                f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
-                f"[vmain][blurBand]overlay=x=0:y={blur_y},"
-                f"drawbox=x=0:y={blur_y}:w={canvas_w}:h={blur_h}:color=white@0.08:t=fill,"
-                f"drawbox=x=0:y={blur_y}:w={canvas_w}:h=2:color=white@0.30:t=fill,"
-                f"drawbox=x=0:y={blur_bottom - 2}:w={canvas_w}:h=2:color=white@0.30:t=fill[vblurred]"
+                f"boxblur=luma_radius={luma_rad}:luma_power=2:chroma_radius={chroma_rad}:chroma_power=2[blurBand];"
+                f"[vmain][blurBand]overlay=x=0:y={blur_y}[vblurred]"
             )
         else:
             blur_chain = (
                 f"{current_v}split=2[vmain][vblur];"
                 f"[vblur]crop=w={blur_w}:h={blur_h}:x={blur_x_pos}:y={blur_y},"
-                f"boxblur=luma_radius={luma_rad}:luma_power=3:chroma_radius={chroma_rad}:chroma_power=3[blurBand];"
-                f"[vmain][blurBand]overlay=x={blur_x_pos}:y={blur_y},"
-                f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h={blur_h}:color=white@0.08:t=fill,"
-                f"drawbox=x={blur_x_pos}:y={blur_y}:w={blur_w}:h=2:color=white@0.35:t=fill,"
-                f"drawbox=x={blur_x_pos}:y={blur_bottom - 2}:w={blur_w}:h=2:color=white@0.35:t=fill,"
-                f"drawbox=x={blur_x_pos}:y={blur_y}:w=2:h={blur_h}:color=white@0.35:t=fill,"
-                f"drawbox=x={blur_right - 2}:y={blur_y}:w=2:h={blur_h}:color=white@0.35:t=fill[vblurred]"
+                f"boxblur=luma_radius={luma_rad}:luma_power=2:chroma_radius={chroma_rad}:chroma_power=2[blurBand];"
+                f"[vmain][blurBand]overlay=x={blur_x_pos}:y={blur_y}[vblurred]"
             )
         filter_parts.append(blur_chain)
         current_v = "[vblurred]"
