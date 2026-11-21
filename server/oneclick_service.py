@@ -1514,8 +1514,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         text = str(r.get("narration", "")).strip()
         if not text:
             continue
-        start_time = float(r.get("sub_start", r.get("start", 0.0)))
-        end_time = float(r.get("sub_end", start_time + float(r.get("tts_duration", 2.0))))
+        st = r.get("sub_start")
+        if st is None:
+            st = r.get("start", 0.0)
+        start_time = float(st if st is not None else 0.0)
+
+        et = r.get("sub_end")
+        if et is None:
+            tts_d = r.get("tts_duration")
+            et = start_time + float(tts_d if tts_d is not None else 2.0)
+        end_time = float(et if et is not None else start_time + 2.0)
 
         cues = format_burmese_dialogue_cues(
             text, start_time, end_time, font_size, max_avail_w, is_portrait
@@ -1556,8 +1564,16 @@ def generate_burmese_srt(subtitles_timing: list[dict], output_srt: Path) -> Path
         text = str(seg.get("narration", seg.get("translated", ""))).strip()
         if not text:
             continue
-        start_t = float(seg.get("sub_start", seg.get("start", 0.0)))
-        end_t = float(seg.get("sub_end", start_t + float(seg.get("tts_duration", 2.2))))
+        st = seg.get("sub_start")
+        if st is None:
+            st = seg.get("start", 0.0)
+        start_t = float(st if st is not None else 0.0)
+
+        et = seg.get("sub_end")
+        if et is None:
+            tts_d = seg.get("tts_duration")
+            et = start_t + float(tts_d if tts_d is not None else 2.2)
+        end_t = float(et if et is not None else start_t + 2.2)
         if end_t <= start_t:
             end_t = start_t + 1.8
 
@@ -1775,7 +1791,8 @@ def render_smart_sync_video(
     for seg in tts_results:
         af = Path(seg.get("tts_audio", ""))
         if af.is_file():
-            dur = float(seg.get("tts_duration", 0.0))
+            dur_raw = seg.get("tts_duration")
+            dur = float(dur_raw) if dur_raw is not None else 0.0
             if dur <= 0:
                 dur = probe_duration(af)
                 seg["tts_duration"] = dur
@@ -1806,7 +1823,8 @@ def render_smart_sync_video(
     subtitles_timing = []
     cum_timeline = 0.0
     for seg in active_tts:
-        dur = float(seg.get("tts_duration", 0.0))
+        dur_raw = seg.get("tts_duration")
+        dur = float(dur_raw) if dur_raw is not None else 0.0
         if dur <= 0:
             dur = probe_duration(Path(seg["tts_audio"]))
         subtitles_timing.append({
@@ -1818,7 +1836,10 @@ def render_smart_sync_video(
 
     # Step 3: Generate Subtitles locked to speech timestamps
     ass_path = job_dir / "burmese_subtitles.ass"
-    b_pos = float(blur_position) if str(blur_position).replace('.', '', 1).isdigit() else 78.0
+    try:
+        b_pos = float(blur_position) if blur_position is not None else 78.0
+    except (ValueError, TypeError):
+        b_pos = 78.0
     generate_burmese_ass(
         subtitles_timing,
         ass_path,
@@ -1885,8 +1906,15 @@ def render_smart_sync_video(
 
     video_parts = []
     for i in range(N):
-        v_start = float(active_tts[i].get("video_start", active_tts[i].get("start", -1.0)))
-        v_end = float(active_tts[i].get("video_end", active_tts[i].get("end", -1.0)))
+        vs = active_tts[i].get("video_start")
+        if vs is None:
+            vs = active_tts[i].get("start", -1.0)
+        v_start = float(vs) if vs is not None else -1.0
+
+        ve = active_tts[i].get("video_end")
+        if ve is None:
+            ve = active_tts[i].get("end", -1.0)
+        v_end = float(ve) if ve is not None else -1.0
 
         if v_start >= 0.0 and v_end > v_start:
             v_trim_start = max(0.0, min(vTotal - 0.05, v_start))
@@ -2082,7 +2110,10 @@ def render_smart_sync_video(
     # Audio mixing chain
     vol_filter = f"volume={voice_volume}" if voice_volume != 1.0 else "volume=1.0"
     if has_orig_audio and orig_audio_idx > 0:
-        safe_bgm_vol = max(0.02, min(0.60, float(bgm_volume)))
+        try:
+            safe_bgm_vol = max(0.02, min(0.60, float(bgm_volume if bgm_volume is not None else 0.18)))
+        except (ValueError, TypeError):
+            safe_bgm_vol = 0.18
         filter_parts.append(f"[{orig_audio_idx}:a]volume={safe_bgm_vol:.2f},apad[abg];[1:a]{vol_filter}[avoice];[avoice][abg]amix=inputs=2:duration=first[aout]")
     else:
         filter_parts.append(f"[1:a]{vol_filter}[aout]")
@@ -2817,37 +2848,40 @@ async def start_job(
     # Start pipeline in background
     background_tasks.add_task(
         run_oneclick_pipeline,
-        job_id,
-        video_path,
-        video_url,
-        voice,
-        speed,
-        ratio,
-        enable_subtitles,
-        enable_blur,
-        blur_position,
-        blur_thickness,
-        blur_intensity,
-        blur_width,
-        blur_x,
-        subtitle_x,
-        subtitle_y,
-        subtitle_width,
-        subtitle_height,
-        subtitle_style,
-        watermark_text,
-        logo_path,
-        logo_x,
-        logo_y,
-        logo_align,
-        logo_scale,
-        logo_opacity,
-        include_original_audio,
-        voice_sample_path,
-        voice_id,
-        elevenlabs_api_key,
-        enable_intro_hook,
-        intro_hook_text,
+        job_id=job_id,
+        video_path=video_path,
+        video_url=video_url,
+        voice=voice,
+        speed=speed,
+        ratio=ratio,
+        enable_subtitles=enable_subtitles,
+        enable_blur=enable_blur,
+        blur_position=blur_position,
+        blur_thickness=blur_thickness,
+        blur_intensity=blur_intensity,
+        blur_width=blur_width,
+        blur_x=blur_x,
+        subtitle_x=subtitle_x,
+        subtitle_y=subtitle_y,
+        subtitle_width=subtitle_width,
+        subtitle_height=subtitle_height,
+        subtitle_style=subtitle_style,
+        watermark_text=watermark_text,
+        logo_path=logo_path,
+        logo_x=logo_x,
+        logo_y=logo_y,
+        logo_align=logo_align,
+        logo_scale=logo_scale,
+        logo_opacity=logo_opacity,
+        include_original_audio=include_original_audio,
+        bgm_volume=bgm_volume,
+        voice_sample_path=voice_sample_path,
+        voice_id=voice_id,
+        elevenlabs_api_key=elevenlabs_api_key,
+        enable_intro_hook=enable_intro_hook,
+        intro_hook_text=intro_hook_text,
+        source_lang=source_lang,
+        dubbing_mode=dubbing_mode,
     )
 
     return {
