@@ -188,9 +188,44 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
         </div>
       </div>
 
+      {/* Quick Mobile Shortcuts (Visible only on mobile) */}
+      <div className="grid grid-cols-2 gap-2.5 sm:hidden">
+        <button
+          onClick={() => onAction('oneclick')}
+          className="p-3 rounded-2xl bg-gradient-to-br from-indigo-600/20 via-purple-600/20 to-indigo-600/10 border border-indigo-500/30 text-left active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shadow-md shadow-indigo-600/30">
+              ⚡
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">
+              Auto
+            </span>
+          </div>
+          <p className="font-bold text-xs text-slate-900 dark:text-white">OneClick Recap</p>
+          <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5 truncate">EN to MM AI Recap</p>
+        </button>
+
+        <button
+          onClick={() => onAction('dramadubbing')}
+          className="p-3 rounded-2xl bg-gradient-to-br from-amber-600/20 via-orange-600/20 to-amber-600/10 border border-amber-500/30 text-left active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-md shadow-amber-600/30">
+              🎬
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+              Drama
+            </span>
+          </div>
+          <p className="font-bold text-xs text-slate-900 dark:text-white">တရုတ်ကား Dubbing</p>
+          <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5 truncate">ဇာတ်ကောင် အသံသွင်း</p>
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap py-1 -mx-2 px-2 sm:mx-0 sm:px-0 sm:flex-wrap">
           {[
             { id: 'all', label: 'All' },
             { id: 'video', label: 'Video' },
@@ -200,7 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
             <button
               key={tab.id}
               onClick={() => setActiveCategoryFilter(tab.id)}
-              className={`px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
+              className={`px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-colors border whitespace-nowrap flex-shrink-0 ${
                 activeCategoryFilter === tab.id
                   ? 'bg-accent text-white border-accent'
                   : 'bg-white dark:bg-[#0c0c0e] border-gray-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white'

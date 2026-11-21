@@ -238,6 +238,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const [urlVideoMeta, setUrlVideoMeta] = useState<{ duration?: number; width?: number; height?: number } | null>(null);
 
   const [includeOriginalAudio, setIncludeOriginalAudio] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'source' | 'voice' | 'style'>('source');
 
   // Video Preview State (Throttled for zero playback lag)
   const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
@@ -741,9 +742,19 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const isProcessing = jobStatus?.status === 'processing' || jobStatus?.status === 'queued';
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden max-w-6xl mx-auto space-y-6 animate-fade-in pb-16 px-2 sm:px-4">
+    <div className="w-full max-w-full overflow-x-hidden max-w-6xl mx-auto space-y-6 animate-fade-in pb-24 lg:pb-16 px-2 sm:px-4">
       {/* Top Header Card */}
       <div className="rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-xl p-5 sm:p-6 shadow-sm">
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={() => onNavigate('dashboard')}
+            className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-white transition-colors"
+          >
+            <span>←</span>
+            <span>Dashboard သို့ ပြန်သွားမည်</span>
+          </button>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -910,12 +921,50 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
       {/* WORKFLOW VIEW */}
       {!isCompleted && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-5 sm:gap-6 items-start">
           {/* LEFT COLUMN: STREAMLINED & CLEAN CONFIGURATION */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className="order-2 lg:order-1 w-full lg:col-span-7 space-y-4">
+            {/* Mobile Navigation Segment Pills (Visible only on mobile) */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileTab('source')}
+                className={`py-2 px-1 rounded-xl text-xs font-bold text-center transition-all ${
+                  mobileTab === 'source'
+                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-400'
+                }`}
+              >
+                📹 Source
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileTab('voice')}
+                className={`py-2 px-1 rounded-xl text-xs font-bold text-center transition-all ${
+                  mobileTab === 'voice'
+                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-400'
+                }`}
+              >
+                🎙️ Voice
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileTab('style')}
+                className={`py-2 px-1 rounded-xl text-xs font-bold text-center transition-all ${
+                  mobileTab === 'style'
+                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-400'
+                }`}
+              >
+                ✨ Mask & Sub
+              </button>
+            </div>
 
             {/* STEP 1: VIDEO SOURCE */}
-            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3">
+            <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3 ${
+              mobileTab === 'source' ? 'block' : 'hidden lg:block'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">1</span>
@@ -1027,7 +1076,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
             </div>
 
             {/* STEP 2: NARRATOR VOICE & PACING */}
-            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3">
+            <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3 ${
+              mobileTab === 'voice' ? 'block' : 'hidden lg:block'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">2</span>
@@ -1175,7 +1226,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
 
             {/* STEP 3: STYLE, SUBTITLES & FROSTED BLUR */}
-            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-4">
+            <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-4 ${
+              mobileTab === 'style' ? 'block' : 'hidden lg:block'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">3</span>
@@ -1475,7 +1528,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
           </div>
 
           {/* RIGHT COLUMN: INTERACTIVE PREVIEW & GENERATE (Sticky like Movie Recap) */}
-          <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-4">
+          <div className="order-1 lg:order-2 w-full lg:col-span-5 space-y-4 lg:sticky lg:top-4">
             <div className="rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-5 shadow-sm space-y-3.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
@@ -1777,12 +1830,12 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 </div>
               )}
 
-              {/* ACTION GENERATE BUTTON */}
+              {/* ACTION GENERATE BUTTON (Desktop) */}
               <button
                 type="button"
                 onClick={handleStart}
                 disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
-                className={`w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
+                className={`hidden lg:block w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
                   ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
                   : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
                   }`}
@@ -1803,6 +1856,47 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Mobile Fixed Bottom Action Bar */}
+      {!isCompleted && (
+        <div className="fixed bottom-0 inset-x-0 p-3 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-zinc-800 z-50 lg:hidden shadow-2xl flex items-center gap-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+          {onNavigate && (
+            <button
+              type="button"
+              onClick={() => onNavigate('dashboard')}
+              aria-label="Dashboard"
+              title="Dashboard သို့ ပြန်သွားမည်"
+              className="p-3.5 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-bold text-sm hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
+            >
+              🏠
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
+            className={`flex-1 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-lg ${
+              !hasVideo || isProcessing || isUploading || !serverStatus?.online
+                ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
+                : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-indigo-500/30 active:scale-[0.99]'
+            }`}
+          >
+            {isUploading ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner size="sm" showLabel={false} />
+                {uploadProgress >= 100 ? 'Starting Pipeline...' : `Uploading (${uploadProgress}%)...`}
+              </span>
+            ) : isProcessing ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner size="sm" showLabel={false} />
+                {STEP_LABELS[jobStatus?.step || ''] || 'Generating Recap...'}
+              </span>
+            ) : (
+              '⚡ Generate Recap (15 CR)'
+            )}
+          </button>
         </div>
       )}
     </div>

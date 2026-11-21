@@ -62,7 +62,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-paper dark:bg-obsidian text-slate-800 dark:text-zinc-100 transition-colors duration-300 flex flex-col font-sans">
 
       {/* Global Header */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-obsidian/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 px-4 py-2 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white/90 dark:bg-obsidian/90 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 px-3 sm:px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -272,9 +272,84 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
         </div>
       </aside>
 
-      <section className="flex-1 px-2 sm:px-4 py-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0 transition-all">
+      <section className="flex-1 px-2 sm:px-4 py-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0 transition-all pb-24 lg:pb-6">
         {children}
       </section>
+
+      {/* Mobile Bottom Navigation Bar (Visible on mobile across all standard pages) */}
+      {currentPath !== 'oneclick' && currentPath !== 'dramadubbing' && (
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-xl border-t border-slate-200 dark:border-zinc-800/80 px-2 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl flex items-center justify-around">
+          <button
+            onClick={() => handleNavClick('dashboard')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+              currentPath === 'dashboard'
+                ? 'text-accent font-bold scale-105'
+                : 'text-slate-500 dark:text-zinc-400'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="text-[10px] mt-0.5">Home</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('oneclick')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+              currentPath === 'oneclick'
+                ? 'text-indigo-600 dark:text-indigo-400 font-bold scale-105'
+                : 'text-slate-500 dark:text-zinc-400'
+            }`}
+          >
+            <div className="relative">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="absolute -top-1 -right-2 px-1 py-0.2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-[7px] font-black rounded-full leading-tight">HOT</span>
+            </div>
+            <span className="text-[10px] mt-0.5">OneClick</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('dramadubbing')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+              currentPath === 'dramadubbing'
+                ? 'text-amber-500 font-bold scale-105'
+                : 'text-slate-500 dark:text-zinc-400'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span className="text-[10px] mt-0.5">တရုတ်ကား</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('voiceover')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+              currentPath === 'voiceover'
+                ? 'text-fuchsia-500 font-bold scale-105'
+                : 'text-slate-500 dark:text-zinc-400'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            <span className="text-[10px] mt-0.5">Voice</span>
+          </button>
+
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-zinc-400 transition-all hover:text-slate-800 dark:hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span className="text-[10px] mt-0.5">Menu</span>
+          </button>
+        </nav>
+      )}
 
     </div>
   );
