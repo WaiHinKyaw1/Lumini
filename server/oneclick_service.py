@@ -442,14 +442,13 @@ Return ONLY valid JSON array: [{{"id": {batch_start + 1}, "mm": "..."}}, ...]"""
         update_job(job_id, progress=progress_pct,
                    message=f"Translating segments {batch_start + 1}-{batch_end} of {len(chunks)}...")
 
-        configured_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
+        configured_model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
         candidate_models = []
         for model_name in [
             configured_model,
-            "gemini-2.5-flash-lite",
-            "gemini-3.5-flash-lite",
             "gemini-3.8-flash",
             "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
             "gemini-flash-latest",
         ]:
             if model_name and model_name not in candidate_models:
@@ -604,11 +603,10 @@ def generate_story_hook_title(full_story_text: str, client) -> str:
     )
     prompt = f"ဒီဇာတ်လမ်းအကျဉ်းကို ဖတ်ပြီး ဗီဒီယိုအစ Thumbnail အတွက် ဆွဲဆောင်မှုအရှိဆုံး ၁ ကြောင်းတည်းသော မြန်မာ Hook ခေါင်းစဉ်တစ်ခု ရေးပေးပါ:\n\n{full_story_text[:1200]}"
     candidate_models = [
-        os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
-        "gemini-2.5-flash-lite",
-        "gemini-3.5-flash-lite",
+        os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
         "gemini-3.8-flash",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
         "gemini-flash-latest",
     ]
     for model in candidate_models:
@@ -2126,7 +2124,7 @@ def render_smart_sync_video(
     has_orig_audio = bool(include_original_audio and src_audio_path.is_file())
     orig_audio_idx = -1
     if has_orig_audio:
-        orig_audio_idx = len(cmd_inputs) // 2
+        orig_audio_idx = cmd_inputs.count("-i")
         cmd_inputs.extend(["-i", str(src_audio_path)])
 
     # Audio mixing chain
