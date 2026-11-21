@@ -48,7 +48,7 @@ const VOICES = [
   { id: 'fenrir', name: 'Gemini Fenrir', tag: 'Cinematic Recap' },
 ];
 
-const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits }) => {
+const DramaDubbing: React.FC<DramaDubbingProps> = ({ onSpendCredits, onNavigate }) => {
   const [serverStatus, setServerStatus] = useState<OneClickHealthResponse | null>(null);
   const [isCheckingServer, setIsCheckingServer] = useState(true);
 
