@@ -225,7 +225,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onAction, stats, onOpenCredits })
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap py-1 -mx-2 px-2 sm:mx-0 sm:px-0 sm:flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap py-1 w-full sm:w-auto sm:flex-wrap">
           {[
             { id: 'all', label: 'All' },
             { id: 'video', label: 'Video' },

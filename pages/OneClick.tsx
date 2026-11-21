@@ -40,6 +40,11 @@ import {
   Volume2,
   ChevronDown,
   ChevronUp,
+  Mic,
+  SlidersHorizontal,
+  Home,
+  Sparkles,
+  ChevronLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -482,11 +487,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'subtitle-move' | 'subtitle-resize-top' | 'subtitle-resize-bottom' | 'subtitle-resize-left' | 'subtitle-resize-right' | 'logo-move' | 'logo-resize',
     e: React.PointerEvent
   ) => {
-    // On mobile touch devices, prevent body tap from hijacking scroll or jumping boxes.
-    // Allow touch dragging ONLY on explicit resize/move handles, not entire box surfaces.
-    if (e.pointerType === 'touch' && (type === 'blur-move' || type === 'subtitle-move')) {
-      return;
-    }
     e.preventDefault();
     e.stopPropagation();
     setActiveDrag(type);
@@ -504,64 +504,70 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
       logoY,
       logoScale,
     };
-    try {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    } catch { }
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!activeDrag || !previewBoxRef.current) return;
-    const rect = previewBoxRef.current.getBoundingClientRect();
-    if (rect.height <= 0 || rect.width <= 0) return;
+  useEffect(() => {
+    if (!activeDrag) return;
 
-    const deltaX = e.clientX - dragStartXRef.current;
-    const deltaY = e.clientY - dragStartYRef.current;
-    const deltaXPercent = (deltaX / rect.width) * 100;
-    const deltaYPercent = (deltaY / rect.height) * 100;
+    const onPointerMove = (e: PointerEvent) => {
+      if (!previewBoxRef.current) return;
+      const rect = previewBoxRef.current.getBoundingClientRect();
+      if (rect.height <= 0 || rect.width <= 0) return;
 
-    if (activeDrag === 'blur-move') {
-      const newPos = Math.round(Math.max(8, Math.min(96, dragStartValRef.current.pos + deltaYPercent)));
-      setBlurPosition(newPos);
-    } else if (activeDrag === 'blur-resize-top') {
-      const newThick = Math.round(Math.max(4, Math.min(40, dragStartValRef.current.thick - deltaYPercent * 2)));
-      setBlurThickness(newThick);
-    } else if (activeDrag === 'blur-resize-bottom') {
-      const newThick = Math.round(Math.max(4, Math.min(40, dragStartValRef.current.thick + deltaYPercent * 2)));
-      setBlurThickness(newThick);
-    } else if (activeDrag === 'blur-resize-left') {
-      const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
-      setBlurWidth(newWidth);
-    } else if (activeDrag === 'blur-resize-right') {
-      const newWidth = Math.round(Math.max(30, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
-      setBlurWidth(newWidth);
-    } else if (activeDrag === 'subtitle-move') {
-      setSubtitleX(Math.round(Math.max(subtitleWidth / 2, Math.min(100 - subtitleWidth / 2, dragStartValRef.current.subtitleX + deltaXPercent))));
-      setSubtitleY(Math.round(Math.max(subtitleHeight / 2, Math.min(100 - subtitleHeight / 2, dragStartValRef.current.subtitleY + deltaYPercent))));
-    } else if (activeDrag === 'subtitle-resize-left' || activeDrag === 'subtitle-resize-right') {
-      const direction = activeDrag === 'subtitle-resize-left' ? -1 : 1;
-      setSubtitleWidth(Math.round(Math.max(25, Math.min(95, dragStartValRef.current.subtitleWidth + direction * deltaXPercent * 2))));
-    } else if (activeDrag === 'subtitle-resize-top' || activeDrag === 'subtitle-resize-bottom') {
-      const direction = activeDrag === 'subtitle-resize-top' ? -1 : 1;
-      setSubtitleHeight(Math.round(Math.max(8, Math.min(35, dragStartValRef.current.subtitleHeight + direction * deltaYPercent * 2))));
-    } else if (activeDrag === 'logo-move') {
-      const newLogoX = Math.round(Math.max(0, Math.min(100 - logoScale, dragStartValRef.current.logoX + deltaXPercent)));
-      const newLogoY = Math.round(Math.max(0, Math.min(96, dragStartValRef.current.logoY + deltaYPercent)));
-      setLogoX(newLogoX);
-      setLogoY(newLogoY);
-    } else if (activeDrag === 'logo-resize') {
-      const newScale = Math.round(Math.max(4, Math.min(50, dragStartValRef.current.logoScale + deltaXPercent)));
-      setLogoScale(newScale);
-    }
-  };
+      const deltaX = e.clientX - dragStartXRef.current;
+      const deltaY = e.clientY - dragStartYRef.current;
+      const deltaXPercent = (deltaX / rect.width) * 100;
+      const deltaYPercent = (deltaY / rect.height) * 100;
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (activeDrag) {
-      try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch { }
+      if (activeDrag === 'blur-move') {
+        const newPos = Math.round(Math.max(8, Math.min(96, dragStartValRef.current.pos + deltaYPercent)));
+        setBlurPosition(newPos);
+      } else if (activeDrag === 'blur-resize-top') {
+        const newThick = Math.round(Math.max(2, Math.min(40, dragStartValRef.current.thick - deltaYPercent * 2)));
+        setBlurThickness(newThick);
+      } else if (activeDrag === 'blur-resize-bottom') {
+        const newThick = Math.round(Math.max(2, Math.min(40, dragStartValRef.current.thick + deltaYPercent * 2)));
+        setBlurThickness(newThick);
+      } else if (activeDrag === 'blur-resize-left') {
+        const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
+        setBlurWidth(newWidth);
+      } else if (activeDrag === 'blur-resize-right') {
+        const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
+        setBlurWidth(newWidth);
+      } else if (activeDrag === 'subtitle-move') {
+        setSubtitleX(Math.round(Math.max(10, Math.min(90, dragStartValRef.current.subtitleX + deltaXPercent))));
+        setSubtitleY(Math.round(Math.max(10, Math.min(96, dragStartValRef.current.subtitleY + deltaYPercent))));
+      } else if (activeDrag === 'subtitle-resize-left' || activeDrag === 'subtitle-resize-right') {
+        const direction = activeDrag === 'subtitle-resize-left' ? -1 : 1;
+        setSubtitleWidth(Math.round(Math.max(20, Math.min(95, dragStartValRef.current.subtitleWidth + direction * deltaXPercent * 2))));
+      } else if (activeDrag === 'subtitle-resize-top' || activeDrag === 'subtitle-resize-bottom') {
+        const direction = activeDrag === 'subtitle-resize-top' ? -1 : 1;
+        setSubtitleHeight(Math.round(Math.max(6, Math.min(35, dragStartValRef.current.subtitleHeight + direction * deltaYPercent * 2))));
+      } else if (activeDrag === 'logo-move') {
+        const newLogoX = Math.round(Math.max(0, Math.min(100 - logoScale, dragStartValRef.current.logoX + deltaXPercent)));
+        const newLogoY = Math.round(Math.max(0, Math.min(96, dragStartValRef.current.logoY + deltaYPercent)));
+        setLogoX(newLogoX);
+        setLogoY(newLogoY);
+      } else if (activeDrag === 'logo-resize') {
+        const newScale = Math.round(Math.max(4, Math.min(50, dragStartValRef.current.logoScale + deltaXPercent)));
+        setLogoScale(newScale);
+      }
+    };
+
+    const onPointerUp = () => {
       setActiveDrag(null);
-    }
-  };
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [activeDrag, subtitleWidth, subtitleHeight, logoScale]);
 
   const handleFetchUrlVideo = async () => {
     const cleanUrl = extractCleanUrl(videoUrl);
@@ -924,43 +930,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
         <div className="flex flex-col lg:grid lg:grid-cols-12 gap-5 sm:gap-6 items-start">
           {/* LEFT COLUMN: STREAMLINED & CLEAN CONFIGURATION */}
           <div className="order-2 lg:order-1 w-full lg:col-span-7 space-y-4">
-            {/* Mobile Navigation Segment Pills (Visible only on mobile) */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 lg:hidden">
-              <button
-                type="button"
-                onClick={() => setMobileTab('source')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold text-center transition-all ${
-                  mobileTab === 'source'
-                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
-                    : 'text-slate-500 dark:text-zinc-400'
-                }`}
-              >
-                📹 Source
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileTab('voice')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold text-center transition-all ${
-                  mobileTab === 'voice'
-                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
-                    : 'text-slate-500 dark:text-zinc-400'
-                }`}
-              >
-                🎙️ Voice
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileTab('style')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold text-center transition-all ${
-                  mobileTab === 'style'
-                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
-                    : 'text-slate-500 dark:text-zinc-400'
-                }`}
-              >
-                ✨ Mask & Sub
-              </button>
-            </div>
-
             {/* STEP 1: VIDEO SOURCE */}
             <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3 ${
               mobileTab === 'source' ? 'block' : 'hidden lg:block'
@@ -1109,15 +1078,15 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', icon: '👑', tag: 'TikTok Pro' },
-                      { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', icon: '🎙️', tag: 'Classic Narrator' },
-                      { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', icon: '🎬', tag: 'Team Alpha Baritone' },
-                      { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', icon: '⚡', tag: 'Energetic Youth' },
-                      { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန်', icon: '🤖', tag: 'Gemini · Cinematic' },
-                      { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ်', icon: '🔥', tag: 'Gemini · Viral Energy' },
-                      { id: 'gemini-fenrir', name: 'Fenrir', mmName: 'ဖင်းရီယာ', icon: '🐺', tag: 'Gemini · Dark Deep' },
-                      { id: 'gemini-orus', name: 'Orus', mmName: 'အိုးရပ်စ်', icon: '🌌', tag: 'Gemini · Epic Baritone' },
-                      { id: 'gemini-aoede', name: 'Aoede', mmName: 'အာအိုးဒီ', icon: '✨', tag: 'Gemini · Smooth' },
+                      { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', tag: 'TikTok Pro' },
+                      { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', tag: 'Classic Narrator' },
+                      { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', tag: 'Baritone' },
+                      { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', tag: 'Youth' },
+                      { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန်', tag: 'Gemini Cinematic' },
+                      { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ်', tag: 'Gemini Energy' },
+                      { id: 'gemini-fenrir', name: 'Fenrir', mmName: 'ဖင်းရီယာ', tag: 'Gemini Deep' },
+                      { id: 'gemini-orus', name: 'Orus', mmName: 'အိုးရပ်စ်', tag: 'Gemini Epic' },
+                      { id: 'gemini-aoede', name: 'Aoede', mmName: 'အာအိုးဒီ', tag: 'Gemini Smooth' },
                     ].map((v) => (
                       <div
                         key={v.id}
@@ -1129,7 +1098,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                            {v.icon} {v.mmName}
+                            {v.mmName}
                           </span>
                           <button
                             type="button"
@@ -1141,7 +1110,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                             title="နမူနာအသံ နားထောင်မည်"
                           >
                             <Volume2 className="w-2.5 h-2.5" />
-                            <span>{sampleAudioPlaying === v.id ? 'ရပ်မည်' : sampleAudioLoading === v.id ? '...' : 'နားထောင်'}</span>
+                            <span>{sampleAudioPlaying === v.id ? 'Stop' : sampleAudioLoading === v.id ? '...' : 'Play'}</span>
                           </button>
                         </div>
                         <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
@@ -1527,13 +1496,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
           </div>
 
-          {/* RIGHT COLUMN: INTERACTIVE PREVIEW & GENERATE (Sticky like Movie Recap) */}
-          <div className="order-1 lg:order-2 w-full lg:col-span-5 space-y-4 lg:sticky lg:top-4">
-            <div className="rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-5 shadow-sm space-y-3.5">
+          {/* RIGHT COLUMN: INTERACTIVE PREVIEW & GENERATE (Sticky at top on mobile, right column on desktop) */}
+          <div className="order-1 lg:order-2 w-full lg:col-span-5 space-y-3 sticky top-0 lg:top-4 z-30 lg:z-10 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md pt-1 pb-1">
+            <div className="rounded-2xl lg:rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-3 sm:p-5 shadow-sm space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-indigo-400" />
-                  Live Canvas Preview & Calibrator
+                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                  Live Preview & Calibrator
                 </span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
                   {formatTimeSimple(previewCurrentTime)} / {formatTimeSimple(previewDuration)}
@@ -1542,10 +1511,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
               {/* Video Screen Container - Responsive Aspect Ratio with Direct Canvas Calibrator */}
               <div
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
-                className="relative w-full h-[270px] sm:h-[420px] bg-zinc-950/90 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-2 touch-pan-y select-none"
+                className="relative w-full h-[195px] sm:h-[300px] lg:h-[420px] bg-zinc-950/90 rounded-xl sm:rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-1 sm:p-2 select-none"
               >
                 {(filePreviewUrl || (inputMode === 'url' && videoUrl.trim())) ? (
                   <div
@@ -1764,6 +1730,46 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 </div>
               )}
 
+              {/* Mobile Navigation Segment Tabs (Pinned directly under preview on mobile) */}
+              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('source')}
+                  className={`py-1.5 px-1 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
+                    mobileTab === 'source'
+                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-400'
+                  }`}
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Source</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('voice')}
+                  className={`py-1.5 px-1 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
+                    mobileTab === 'voice'
+                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-400'
+                  }`}
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>Voice</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('style')}
+                  className={`py-1.5 px-1 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
+                    mobileTab === 'style'
+                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-400'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Mask & Sub</span>
+                </button>
+              </div>
+
               {/* In-Progress Card */}
               {(isUploading || isProcessing || isFailed) && (
                 <div className="p-4 rounded-2xl border border-indigo-500/20 bg-slate-50 dark:bg-zinc-800/80 shadow-md space-y-2.5">
@@ -1868,19 +1874,19 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               onClick={() => onNavigate('dashboard')}
               aria-label="Dashboard"
               title="Dashboard သို့ ပြန်သွားမည်"
-              className="p-3.5 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-bold text-sm hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
+              className="p-3 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-bold hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
             >
-              🏠
+              <Home className="w-4 h-4" />
             </button>
           )}
           <button
             type="button"
             onClick={handleStart}
             disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
-            className={`flex-1 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-lg ${
+            className={`flex-1 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2 ${
               !hasVideo || isProcessing || isUploading || !serverStatus?.online
                 ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
-                : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-indigo-500/30 active:scale-[0.99]'
+                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
             }`}
           >
             {isUploading ? (
@@ -1894,7 +1900,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 {STEP_LABELS[jobStatus?.step || ''] || 'Generating Recap...'}
               </span>
             ) : (
-              '⚡ Generate Recap (15 CR)'
+              <>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Generate Recap (15 CR)</span>
+              </>
             )}
           </button>
         </div>
