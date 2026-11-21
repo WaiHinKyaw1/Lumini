@@ -2057,12 +2057,28 @@ def render_smart_sync_video(
 
     if has_logo_file:
         cmd_inputs.extend(["-i", str(logo_path)])
-        scale_pct = max(0.04, min(0.50, float(logo_scale) / 100.0))
+        try:
+            ls = float(logo_scale) if logo_scale is not None else 14.0
+        except (ValueError, TypeError):
+            ls = 14.0
+        scale_pct = max(0.04, min(0.50, ls / 100.0))
         target_w = max(40, int(canvas_w * scale_pct))
-        opacity = max(0.1, min(1.0, float(logo_opacity)))
-        y_pct = max(0.0, min(1.0, float(logo_y) / 100.0))
+        try:
+            lop = float(logo_opacity) if logo_opacity is not None else 100.0
+        except (ValueError, TypeError):
+            lop = 100.0
+        opacity = max(0.1, min(1.0, lop / 100.0 if lop > 1.0 else lop))
+        try:
+            ly = float(logo_y) if logo_y is not None else 6.0
+        except (ValueError, TypeError):
+            ly = 6.0
+        y_pct = max(0.0, min(1.0, ly / 100.0))
         if logo_x is not None:
-            x_pct = max(0.0, min(1.0, float(logo_x) / 100.0))
+            try:
+                lx = float(logo_x)
+            except (ValueError, TypeError):
+                lx = 80.0
+            x_pct = max(0.0, min(1.0, lx / 100.0))
             x_expr = f"min(main_w-overlay_w,max(0,main_w*{x_pct:.4f}))"
             y_expr = f"min(main_h-overlay_h,max(0,main_h*{y_pct:.4f}))"
         else:
@@ -2086,8 +2102,14 @@ def render_smart_sync_video(
         safe_wm = watermark_text.strip().replace("'", "").replace(":", "")
         wm_size = 32 if not is_portrait else 26
         if logo_x is not None:
-            x_pct = max(0.0, min(1.0, float(logo_x) / 100.0))
-            y_pct = max(0.0, min(1.0, float(logo_y) / 100.0))
+            try:
+                x_pct = max(0.0, min(1.0, float(logo_x) / 100.0))
+            except (ValueError, TypeError):
+                x_pct = 0.80
+            try:
+                y_pct = max(0.0, min(1.0, float(logo_y) / 100.0 if logo_y is not None else 0.06))
+            except (ValueError, TypeError):
+                y_pct = 0.06
             x_pos = f"min(w-tw-20,max(20,w*{x_pct:.4f}))"
             y_pos = f"min(h-th-20,max(20,h*{y_pct:.4f}))"
         else:
