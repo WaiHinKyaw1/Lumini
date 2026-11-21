@@ -1602,14 +1602,14 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           transform: 'translateZ(0)',
                         }}
                         onPointerDown={(e) => handlePointerDown('blur-move', e)}
-                        className={`absolute z-10 flex flex-col items-center justify-center overflow-visible transition-shadow ${blurWidth >= 98
-                          ? 'border-y border-amber-400/40'
-                          : 'border border-dashed border-amber-400/50 shadow-sm'
-                          } ${activeDrag === 'blur-move' ? 'cursor-grabbing ring-1 ring-amber-400' : 'cursor-grab hover:border-amber-400'}`}
+                        className={`absolute flex flex-col items-center justify-center overflow-visible transition-shadow ${
+                          activeDrag && activeDrag.startsWith('blur') ? 'z-30 ring-2 ring-amber-400' : 'z-10'
+                        } ${blurWidth >= 98
+                          ? 'border-y-2 border-amber-400/70'
+                          : 'border-2 border-dashed border-amber-400/80 shadow-md'
+                          } ${activeDrag === 'blur-move' ? 'cursor-grabbing' : 'cursor-grab hover:border-amber-400'}`}
                         title="Click & drag to reposition blur box on video"
                       >
-
-
                         {/* Frosted Glass Background */}
                         <div
                           style={{
@@ -1622,7 +1622,27 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           className="absolute inset-0 pointer-events-none"
                         />
 
+                        {/* Center Drag Handle Badge */}
+                        <div
+                          onPointerDown={(e) => handlePointerDown('blur-move', e)}
+                          className="px-2 py-0.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-[9px] font-black uppercase tracking-wider cursor-grab active:cursor-grabbing shadow-lg flex items-center gap-1 z-20 select-none"
+                        >
+                          <span>↕ Blur ({blurPosition}%)</span>
+                        </div>
 
+                        {/* Blur 4-direction Resize Handles */}
+                        <div onPointerDown={(e) => handlePointerDown('blur-resize-top', e)} className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-3.5 cursor-ns-resize flex items-center justify-center z-20" title="Drag to adjust blur height">
+                          <span className="w-6 h-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
+                        </div>
+                        <div onPointerDown={(e) => handlePointerDown('blur-resize-bottom', e)} className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-8 h-3.5 cursor-ns-resize flex items-center justify-center z-20" title="Drag to adjust blur height">
+                          <span className="w-6 h-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
+                        </div>
+                        <div onPointerDown={(e) => handlePointerDown('blur-resize-left', e)} className="absolute -left-2 top-1/2 -translate-y-1/2 h-8 w-3.5 cursor-ew-resize flex items-center justify-center z-20" title="Drag to adjust blur width">
+                          <span className="h-6 w-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
+                        </div>
+                        <div onPointerDown={(e) => handlePointerDown('blur-resize-right', e)} className="absolute -right-2 top-1/2 -translate-y-1/2 h-8 w-3.5 cursor-ew-resize flex items-center justify-center z-20" title="Drag to adjust blur width">
+                          <span className="h-6 w-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
+                        </div>
                       </div>
                     )}
 
@@ -1638,14 +1658,26 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           height: `${subtitleHeight}%`,
                         }}
                         onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
-                        className={`absolute z-[15] flex items-center justify-center rounded-xl border-2 border-cyan-300/90 bg-black/35 px-2 shadow-xl backdrop-blur-[2px] ${activeDrag === 'subtitle-move' ? 'cursor-grabbing ring-2 ring-cyan-300' : 'cursor-grab'}`}
+                        className={`absolute flex flex-col items-center justify-center rounded-xl border-2 border-cyan-300/90 bg-black/40 px-2 shadow-xl backdrop-blur-[2px] ${
+                          activeDrag && activeDrag.startsWith('subtitle') ? 'z-30 ring-2 ring-cyan-300' : 'z-20'
+                        } ${activeDrag === 'subtitle-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
                         title="Drag to position Burmese subtitle box"
                       >
-                        <span className="pointer-events-none text-center text-[clamp(8px,1.5vw,15px)] font-bold leading-tight text-amber-300 drop-shadow-[0_2px_1px_rgba(0,0,0,.9)]">မြန်မာစာတန်းထိုး preview</span>
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-left', e)} className="absolute -left-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white" />
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-right', e)} className="absolute -right-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white" />
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-top', e)} className="absolute -top-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white" />
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-bottom', e)} className="absolute -bottom-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white" />
+                        <span className="pointer-events-none text-center text-[clamp(8px,1.5vw,14px)] font-bold leading-tight text-amber-300 drop-shadow-[0_2px_1px_rgba(0,0,0,.9)]">မြန်မာစာတန်းထိုး preview</span>
+                        
+                        {/* Subtitle Drag Handle Badge */}
+                        <div
+                          onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
+                          className="mt-1 px-1.5 py-0.2 rounded bg-cyan-400 hover:bg-cyan-300 text-black text-[8px] font-black uppercase tracking-wider cursor-grab active:cursor-grabbing shadow select-none"
+                        >
+                          <span>↕ Sub ({subtitleY}%)</span>
+                        </div>
+
+                        {/* Subtitle 4 Resize Handles */}
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-left', e)} className="absolute -left-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle width" />
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-right', e)} className="absolute -right-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle width" />
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-top', e)} className="absolute -top-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle height" />
+                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-bottom', e)} className="absolute -bottom-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle height" />
                       </div>
                     )}
                     {/* DRAGGABLE & RESIZABLE LOGO WATERMARK OVERLAY */}
@@ -1907,6 +1939,14 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
             )}
           </button>
         </div>
+      )}
+
+      {/* Fullscreen Transparent Drag Guard (prevents iframes or video from capturing cursor while dragging on PC/Mobile) */}
+      {activeDrag && (
+        <div
+          className="fixed inset-0 z-[9999] cursor-grabbing select-none"
+          style={{ pointerEvents: 'auto' }}
+        />
       )}
     </div>
   );
