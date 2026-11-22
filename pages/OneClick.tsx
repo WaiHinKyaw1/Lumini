@@ -13,7 +13,6 @@ import {
   fetchOneClickUrlVideo,
   getOneClickVoiceSampleUrl,
   extractCleanUrl,
-  type OneClickVoice,
   type OneClickSpeed,
   type OneClickRatio,
   type OneClickJobStatus,
@@ -32,19 +31,24 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Download,
   RotateCcw,
   RefreshCw,
   FileText,
   Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
   ChevronDown,
   ChevronUp,
   Mic,
   SlidersHorizontal,
   Home,
   Sparkles,
-  ChevronLeft,
+  Type,
+  Shield,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -65,70 +69,129 @@ const STEP_LABELS: Record<string, string> = {
   rendering: 'Timeline Sync Video Rendering...',
 };
 
+type DragType =
+  | 'blur-move'
+  | 'blur-resize-n'
+  | 'blur-resize-s'
+  | 'blur-resize-w'
+  | 'blur-resize-e'
+  | 'blur-resize-nw'
+  | 'blur-resize-ne'
+  | 'blur-resize-sw'
+  | 'blur-resize-se'
+  | 'subtitle-move'
+  | 'subtitle-resize-n'
+  | 'subtitle-resize-s'
+  | 'subtitle-resize-w'
+  | 'subtitle-resize-e'
+  | 'subtitle-resize-nw'
+  | 'subtitle-resize-ne'
+  | 'subtitle-resize-sw'
+  | 'subtitle-resize-se'
+  | 'logo-move'
+  | 'logo-resize-nw'
+  | 'logo-resize-ne'
+  | 'logo-resize-sw'
+  | 'logo-resize-se';
+
 const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const [serverStatus, setServerStatus] = useState<OneClickHealthResponse | null>(null);
   const [isCheckingServer, setIsCheckingServer] = useState(true);
 
-  // Mode: Upload file or URL
+  // 3 Primary Studio Inspector Tabs: 'blur' | 'text' | 'logo'
+  const [activeInspectorTab, setActiveInspectorTab] = useState<'blur' | 'text' | 'logo'>('blur');
+
+  // Input Mode: File Upload or Link
   const [inputMode, setInputMode] = useState<'upload' | 'url'>('upload');
   const [videoUrl, setVideoUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Settings
-  const [selectedVoice, setSelectedVoice] = useState('my-MM-KingBurma');
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  // Collapsible Sections
+  const [isVoiceSectionOpen, setIsVoiceSectionOpen] = useState(false);
+  const [isRatioSectionOpen, setIsRatioSectionOpen] = useState(false);
 
-  const applyPreset = (preset: 'alpha' | 'tiktok' | 'youtube') => {
-    if (preset === 'alpha') {
-      setSelectedRatio('9:16');
-      setEnableBlur(true);
-      setBlurWidth(85);
-      setBlurThickness(15);
-      setBlurPosition(82);
-      setSubtitleStyle('font-akkhayar');
-      toast.success('Team Alpha Style (9:16 + Blur + Akkhayar) သတ်မှတ်ပြီးပါပြီ');
-    } else if (preset === 'tiktok') {
-      setSelectedRatio('9:16');
-      setEnableBlur(false);
-      setSubtitleStyle('font-akkhayar');
-      toast.success('TikTok / Shorts Style (9:16) သတ်မှတ်ပြီးပါပြီ');
-    } else if (preset === 'youtube') {
-      setSelectedRatio('original');
-      setEnableBlur(false);
-      toast.success('Original / YouTube Style သတ်မှတ်ပြီးပါပြီ');
-    }
-  };
+  // Voice & Narration Settings
+  const [selectedVoice, setSelectedVoice] = useState('my-MM-KingBurma');
   const [voiceMode, setVoiceMode] = useState<'preset' | 'custom-sample'>('preset');
   const [voiceSampleFile, setVoiceSampleFile] = useState<File | null>(null);
   const [voiceSampleUrl, setVoiceSampleUrl] = useState<string | null>(null);
-  const [selectedSpeed, setSelectedSpeed] = useState('+35%');
-  const [selectedRatio, setSelectedRatio] = useState<string>('original');
-  const [enableSubtitles, setEnableSubtitles] = useState(true);
-  const [subtitleStyle, setSubtitleStyle] = useState('font-akkhayar');
+  const [selectedSpeed, setSelectedSpeed] = useState<string>('+35%');
+  const [includeOriginalAudio, setIncludeOriginalAudio] = useState(false);
 
-  // Frosted Glass Blur Settings (Team Alpha Style 2D Box)
+  // Output Aspect Ratio
+  const [selectedRatio, setSelectedRatio] = useState<string>('original');
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
+
+  // 1. Frosted Glass Blur Settings (Shared State)
   const [enableBlur, setEnableBlur] = useState(true);
   const [blurPosition, setBlurPosition] = useState<number>(82);
   const [blurThickness, setBlurThickness] = useState<number>(14);
   const [blurWidth, setBlurWidth] = useState<number>(100);
   const [blurIntensity, setBlurIntensity] = useState<number>(35);
+
+  // 2. Burmese Subtitles Settings (Shared State)
+  const [enableSubtitles, setEnableSubtitles] = useState(true);
   const [subtitleX, setSubtitleX] = useState<number>(50);
   const [subtitleY, setSubtitleY] = useState<number>(82);
   const [subtitleWidth, setSubtitleWidth] = useState<number>(68);
   const [subtitleHeight, setSubtitleHeight] = useState<number>(14);
+  const [subtitleStyle, setSubtitleStyle] = useState('font-akkhayar');
+  const [previewSubtitleText, setPreviewSubtitleText] = useState('သူမရဲ့ ဘဝမှာ မထင်မှတ်ထားတဲ့ အဖြစ်အပျက်တစ်ခု ဖြစ်လာခဲ့ပါတယ်');
 
-  // URL mode auto blur setting & Video aspect ratio detection
-  const [urlBlurMode, setUrlBlurMode] = useState<'auto' | 'manual'>('auto');
-  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
+  // 3. Channel Logo / Watermark Settings (Shared State)
+  const [enableLogo, setEnableLogo] = useState(true);
+  const [watermarkText, setWatermarkText] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoX, setLogoX] = useState<number>(80);
+  const [logoY, setLogoY] = useState<number>(6);
+  const [logoAlign, setLogoAlign] = useState<'left' | 'center' | 'right'>('right');
+  const [logoScale, setLogoScale] = useState<number>(14);
+  const [logoOpacity, setLogoOpacity] = useState<number>(100);
 
-  // Direct Drag Calibrator State on Video Canvas
+  // ElevenLabs Key
+  const [elevenApiKey, setElevenApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('lumini_elevenlabs_key') || 'sk_219a1341d802e55ab02509adffa20bbdc8c1489070b1dfa4';
+    } catch {
+      return 'sk_219a1341d802e55ab02509adffa20bbdc8c1489070b1dfa4';
+    }
+  });
+  const [showKeyInput, setShowKeyInput] = useState(false);
+
+  // URL Pre-Download States
+  const [isDownloadingUrl, setIsDownloadingUrl] = useState(false);
+  const [downloadedTempId, setDownloadedTempId] = useState<string | null>(null);
+  const [urlVideoMeta, setUrlVideoMeta] = useState<{ duration?: number; width?: number; height?: number } | null>(null);
+
+  // Video Preview State (Throttled for zero playback lag)
+  const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
+  const [previewDuration, setPreviewDuration] = useState(0);
+  const [previewIsPlaying, setPreviewIsPlaying] = useState(false);
+  const [previewVolume, setPreviewVolume] = useState<number>(1);
+  const [previewIsMuted, setPreviewIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Direct Canvas Calibrator Drag State
+  const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewBoxRef = useRef<HTMLDivElement>(null);
-  const [activeDrag, setActiveDrag] = useState<'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'subtitle-move' | 'subtitle-resize-top' | 'subtitle-resize-bottom' | 'subtitle-resize-left' | 'subtitle-resize-right' | 'logo-move' | 'logo-resize' | null>(null);
+  const [activeDrag, setActiveDrag] = useState<DragType | null>(null);
   const dragStartXRef = useRef<number>(0);
   const dragStartYRef = useRef<number>(0);
-  const dragStartValRef = useRef<{ pos: number; thick: number; width: number; subtitleX: number; subtitleY: number; subtitleWidth: number; subtitleHeight: number; logoX: number; logoY: number; logoScale: number }>({
+  const dragStartValRef = useRef<{
+    pos: number;
+    thick: number;
+    width: number;
+    subtitleX: number;
+    subtitleY: number;
+    subtitleWidth: number;
+    subtitleHeight: number;
+    logoX: number;
+    logoY: number;
+    logoScale: number;
+  }>({
     pos: 82,
     thick: 14,
     width: 100,
@@ -140,115 +203,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     logoY: 6,
     logoScale: 14,
   });
-
-  // Detect YouTube Video ID for instant live preview
-  const youtubeId = useMemo(() => {
-    if (inputMode !== 'url' || !videoUrl.trim()) return null;
-    const match = videoUrl.trim().match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
-    return match ? match[1] : null;
-  }, [inputMode, videoUrl]);
-
-  // Detect TikTok Video ID or URL for live TikTok preview
-  const tiktokId = useMemo(() => {
-    if (inputMode !== 'url' || !videoUrl.trim()) return null;
-    const match = videoUrl.trim().match(/(?:video\/|v\/)(\d{15,22})/i);
-    return match ? match[1] : null;
-  }, [inputMode, videoUrl]);
-
-  const isTikTokUrl = useMemo(() => {
-    if (inputMode !== 'url' || !videoUrl.trim()) return false;
-    return /tiktok\.com/i.test(videoUrl.trim());
-  }, [inputMode, videoUrl]);
-
-  const isRednoteUrl = useMemo(() => {
-    if (inputMode !== 'url' || !videoUrl.trim()) return false;
-    return /xhslink\.com|xiaohongshu\.com|rednote/i.test(videoUrl.trim());
-  }, [inputMode, videoUrl]);
-
-  const isYouTubeShort = useMemo(() => {
-    return Boolean(videoUrl && /youtube\.com\/shorts\//i.test(videoUrl));
-  }, [videoUrl]);
-
-  // Target aspect ratio for canvas preview - 100% matches backend rendering canvas dimensions
-  const targetRatioValue = useMemo<number>(() => {
-    if (selectedRatio === '16:9') return 16 / 9;
-    if (selectedRatio === '9:16') return 9 / 16;
-    if (selectedRatio === '1:1') return 1.0;
-    if (selectedRatio === '4:5') return 4 / 5;
-    if (naturalAspect && Number.isFinite(naturalAspect) && naturalAspect > 0) {
-      return naturalAspect;
-    }
-    return (isTikTokUrl || isYouTubeShort || isRednoteUrl) ? 9 / 16 : 16 / 9;
-  }, [selectedRatio, naturalAspect, isTikTokUrl, isYouTubeShort, isRednoteUrl]);
-
-  // Intelligent blur positioning that accounts for canvas padding when video aspect ratio != canvas ratio
-  const getSmartBlurForRatio = useCallback((ratioId: string, vidAspect: number | null): { pos: number; thick: number; width?: number } => {
-    const vAspect = vidAspect && vidAspect > 0 ? vidAspect : 16 / 9;
-    let cAspect = 16 / 9;
-    if (ratioId === '9:16') cAspect = 9 / 16;
-    else if (ratioId === '1:1') cAspect = 1.0;
-    else if (ratioId === '4:5') cAspect = 4 / 5;
-    else if (ratioId === '16:9') cAspect = 16 / 9;
-    else cAspect = vAspect;
-
-    // If video is letterboxed vertically (black bars top & bottom in output canvas):
-    if (vAspect > cAspect + 0.05) {
-      const vHeightPct = cAspect / vAspect;
-      const topPadPct = (1.0 - vHeightPct) / 2.0;
-      // Position blur directly over subtitles at bottom of video
-      const subPosPct = topPadPct + 0.82 * vHeightPct;
-      const thickPct = Math.max(6, Math.min(22, Math.round(14 * vHeightPct)));
-      return { pos: Math.round(subPosPct * 100), thick: thickPct, width: 100 };
-    } else if (vAspect < cAspect - 0.05) {
-      // Pillarboxed horizontally (black bars left & right)
-      const vWidthPct = vAspect / cAspect;
-      const wPct = Math.max(30, Math.min(100, Math.round(vWidthPct * 100)));
-      return { pos: 82, thick: 14, width: wPct };
-    }
-    return { pos: 82, thick: 14, width: 100 };
-  }, []);
-
-  const handleRatioSelect = (ratioId: string) => {
-    setSelectedRatio(ratioId);
-    const smart = getSmartBlurForRatio(ratioId, naturalAspect);
-    setBlurPosition(smart.pos);
-    setBlurThickness(smart.thick);
-    if (smart.width) setBlurWidth(smart.width);
-  };
-
-  // ElevenLabs Pro Key (Optional)
-  const [elevenApiKey, setElevenApiKey] = useState<string>(() => {
-    try {
-      return localStorage.getItem('lumini_elevenlabs_key') || 'sk_219a1341d802e55ab02509adffa20bbdc8c1489070b1dfa4';
-    } catch {
-      return 'sk_219a1341d802e55ab02509adffa20bbdc8c1489070b1dfa4';
-    }
-  });
-  const [showKeyInput, setShowKeyInput] = useState(false);
-
-  // Logo / Watermark Settings (Movie Recap style)
-  const [enableLogo, setEnableLogo] = useState(true);
-  const [watermarkText, setWatermarkText] = useState('');
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoX, setLogoX] = useState<number>(80);
-  const [logoY, setLogoY] = useState<number>(6);
-  const [logoAlign, setLogoAlign] = useState<'left' | 'center' | 'right'>('right');
-  const [logoScale, setLogoScale] = useState<number>(14);
-  const [logoOpacity, setLogoOpacity] = useState<number>(100);
-
-  // URL Pre-Download States
-  const [isDownloadingUrl, setIsDownloadingUrl] = useState(false);
-  const [downloadedTempId, setDownloadedTempId] = useState<string | null>(null);
-  const [urlVideoMeta, setUrlVideoMeta] = useState<{ duration?: number; width?: number; height?: number } | null>(null);
-
-  const [includeOriginalAudio, setIncludeOriginalAudio] = useState(false);
-  const [mobileTab, setMobileTab] = useState<'source' | 'voice' | 'style'>('source');
-
-  // Video Preview State (Throttled for zero playback lag)
-  const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
-  const [previewDuration, setPreviewDuration] = useState(0);
-  const [previewIsPlaying, setPreviewIsPlaying] = useState(false);
 
   // Job & Progress
   const [jobId, setJobId] = useState<string | null>(null);
@@ -273,6 +227,134 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   // Determine if video source has been provided
   const hasVideo = (inputMode === 'url' && (Boolean(downloadedTempId) || Boolean(videoUrl.trim()))) || (inputMode === 'upload' && Boolean(file));
 
+  // Detect YouTube Video ID
+  const youtubeId = useMemo(() => {
+    if (inputMode !== 'url' || !videoUrl.trim()) return null;
+    const match = videoUrl.trim().match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
+    return match ? match[1] : null;
+  }, [inputMode, videoUrl]);
+
+  // Detect TikTok Video ID or URL
+  const tiktokId = useMemo(() => {
+    if (inputMode !== 'url' || !videoUrl.trim()) return null;
+    const match = videoUrl.trim().match(/(?:video\/|v\/)(\d{15,22})/i);
+    return match ? match[1] : null;
+  }, [inputMode, videoUrl]);
+
+  const isTikTokUrl = useMemo(() => {
+    if (inputMode !== 'url' || !videoUrl.trim()) return false;
+    return /tiktok\.com/i.test(videoUrl.trim());
+  }, [inputMode, videoUrl]);
+
+  const isRednoteUrl = useMemo(() => {
+    if (inputMode !== 'url' || !videoUrl.trim()) return false;
+    return /xhslink\.com|xiaohongshu\.com|rednote/i.test(videoUrl.trim());
+  }, [inputMode, videoUrl]);
+
+  const isYouTubeShort = useMemo(() => {
+    return Boolean(videoUrl && /youtube\.com\/shorts\//i.test(videoUrl));
+  }, [videoUrl]);
+
+  // Target aspect ratio for canvas preview
+  const targetRatioValue = useMemo<number>(() => {
+    if (selectedRatio === '16:9') return 16 / 9;
+    if (selectedRatio === '9:16') return 9 / 16;
+    if (selectedRatio === '1:1') return 1.0;
+    if (selectedRatio === '4:5') return 4 / 5;
+    if (naturalAspect && Number.isFinite(naturalAspect) && naturalAspect > 0) {
+      return naturalAspect;
+    }
+    return isTikTokUrl || isYouTubeShort || isRednoteUrl ? 9 / 16 : 16 / 9;
+  }, [selectedRatio, naturalAspect, isTikTokUrl, isYouTubeShort, isRednoteUrl]);
+
+  // Intelligent blur positioning based on aspect ratio
+  const getSmartBlurForRatio = useCallback((ratioId: string, vidAspect: number | null): { pos: number; thick: number; width?: number } => {
+    const vAspect = vidAspect && vidAspect > 0 ? vidAspect : 16 / 9;
+    let cAspect = 16 / 9;
+    if (ratioId === '9:16') cAspect = 9 / 16;
+    else if (ratioId === '1:1') cAspect = 1.0;
+    else if (ratioId === '4:5') cAspect = 4 / 5;
+    else if (ratioId === '16:9') cAspect = 16 / 9;
+    else cAspect = vAspect;
+
+    if (vAspect > cAspect + 0.05) {
+      const vHeightPct = cAspect / vAspect;
+      const topPadPct = (1.0 - vHeightPct) / 2.0;
+      const subPosPct = topPadPct + 0.82 * vHeightPct;
+      const thickPct = Math.max(6, Math.min(22, Math.round(14 * vHeightPct)));
+      return { pos: Math.round(subPosPct * 100), thick: thickPct, width: 100 };
+    } else if (vAspect < cAspect - 0.05) {
+      const vWidthPct = vAspect / cAspect;
+      const wPct = Math.max(30, Math.min(100, Math.round(vWidthPct * 100)));
+      return { pos: 82, thick: 14, width: wPct };
+    }
+    return { pos: 82, thick: 14, width: 100 };
+  }, []);
+
+  const handleRatioSelect = (ratioId: string) => {
+    setSelectedRatio(ratioId);
+    const smart = getSmartBlurForRatio(ratioId, naturalAspect);
+    setBlurPosition(smart.pos);
+    setBlurThickness(smart.thick);
+    if (smart.width) setBlurWidth(smart.width);
+  };
+
+  // Preset Handlers
+  const applyPreset = (preset: 'alpha' | 'tiktok' | 'youtube') => {
+    if (preset === 'alpha') {
+      setSelectedRatio('9:16');
+      setEnableBlur(true);
+      setBlurWidth(100);
+      setBlurThickness(14);
+      setBlurPosition(82);
+      setSubtitleX(50);
+      setSubtitleY(82);
+      setSubtitleWidth(68);
+      setSubtitleHeight(14);
+      setSubtitleStyle('font-akkhayar');
+      toast.success('Team Alpha Style (9:16 + Blur + Akkhayar) သတ်မှတ်ပြီးပါပြီ');
+    } else if (preset === 'tiktok') {
+      setSelectedRatio('9:16');
+      setEnableBlur(false);
+      setSubtitleX(50);
+      setSubtitleY(84);
+      setSubtitleStyle('font-akkhayar');
+      toast.success('TikTok / Shorts Style (9:16) သတ်မှတ်ပြီးပါပြီ');
+    } else if (preset === 'youtube') {
+      setSelectedRatio('original');
+      setEnableBlur(false);
+      setSubtitleX(50);
+      setSubtitleY(88);
+      toast.success('Original / YouTube Style သတ်မှတ်ပြီးပါပြီ');
+    }
+  };
+
+  // Reset Section Handlers
+  const handleResetBlur = () => {
+    setBlurPosition(82);
+    setBlurThickness(14);
+    setBlurWidth(100);
+    setBlurIntensity(35);
+    toast.success('Blur setting များကို မူလအတိုင်း ပြန်သတ်မှတ်လိုက်ပါသည်');
+  };
+
+  const handleResetSubtitle = () => {
+    setSubtitleX(50);
+    setSubtitleY(82);
+    setSubtitleWidth(68);
+    setSubtitleHeight(14);
+    setSubtitleStyle('font-akkhayar');
+    toast.success('စာတန်းထိုး setting များကို မူလအတိုင်း ပြန်သတ်မှတ်လိုက်ပါသည်');
+  };
+
+  const handleResetLogo = () => {
+    setLogoX(80);
+    setLogoY(6);
+    setLogoScale(14);
+    setLogoOpacity(100);
+    toast.success('Logo setting များကို မူလအတိုင်း ပြန်သတ်မှတ်လိုက်ပါသည်');
+  };
+
   // Load and monitor server status
   const checkServer = useCallback(async (silent = false) => {
     if (!silent) setIsCheckingServer(true);
@@ -294,12 +376,20 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
   useEffect(() => {
     checkServer();
-    // Auto-poll every 8 seconds if worker is offline or restarting
     const interval = setInterval(() => {
       checkServer(true);
     }, 8000);
     return () => clearInterval(interval);
   }, [checkServer]);
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -435,12 +525,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     if (e.dataTransfer.files?.[0]) handleFileSelect(e.dataTransfer.files[0]);
   };
 
-  // High performance throttled time update to eliminate mobile & PC playback lag
   const handleTimeUpdate = () => {
     const v = previewVideoRef.current;
     if (!v) return;
     const now = performance.now();
-    if (now - lastTimeRef.current >= 160) {
+    if (now - lastTimeRef.current >= 150) {
       lastTimeRef.current = now;
       setPreviewCurrentTime(v.currentTime);
     }
@@ -449,11 +538,42 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const togglePreviewPlay = () => {
     if (!previewVideoRef.current) return;
     if (previewVideoRef.current.paused) {
-      previewVideoRef.current.play().then(() => setPreviewIsPlaying(true)).catch(() => { });
+      previewVideoRef.current.play().then(() => setPreviewIsPlaying(true)).catch(() => {});
     } else {
       previewVideoRef.current.pause();
       setPreviewIsPlaying(false);
       setPreviewCurrentTime(previewVideoRef.current.currentTime);
+    }
+  };
+
+  const handleToggleMute = () => {
+    if (!previewVideoRef.current) return;
+    const newMuted = !previewIsMuted;
+    setPreviewIsMuted(newMuted);
+    previewVideoRef.current.muted = newMuted;
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setPreviewVolume(val);
+    if (previewVideoRef.current) {
+      previewVideoRef.current.volume = val;
+      if (val === 0) {
+        setPreviewIsMuted(true);
+        previewVideoRef.current.muted = true;
+      } else if (previewIsMuted) {
+        setPreviewIsMuted(false);
+        previewVideoRef.current.muted = false;
+      }
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    if (!previewContainerRef.current) return;
+    if (!document.fullscreenElement) {
+      previewContainerRef.current.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
     }
   };
 
@@ -482,11 +602,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Canvas Direct Drag Calibration Handlers (Mouse & Touch for live adjustment on video)
-  const handlePointerDown = (
-    type: 'blur-move' | 'blur-resize-top' | 'blur-resize-bottom' | 'blur-resize-left' | 'blur-resize-right' | 'subtitle-move' | 'subtitle-resize-top' | 'subtitle-resize-bottom' | 'subtitle-resize-left' | 'subtitle-resize-right' | 'logo-move' | 'logo-resize',
-    e: React.PointerEvent
-  ) => {
+  // Canvas Direct Pointer Down Handlers
+  const handlePointerDown = (type: DragType, e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setActiveDrag(type);
@@ -506,6 +623,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     };
   };
 
+  // Direct Drag and 2D Free Corner/Edge Resizing
   useEffect(() => {
     if (!activeDrag) return;
 
@@ -519,37 +637,93 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
       const deltaXPercent = (deltaX / rect.width) * 100;
       const deltaYPercent = (deltaY / rect.height) * 100;
 
+      // Blur Drag & Resizing
       if (activeDrag === 'blur-move') {
-        const newPos = Math.round(Math.max(8, Math.min(96, dragStartValRef.current.pos + deltaYPercent)));
+        const newPos = Math.round(Math.max(5, Math.min(95, dragStartValRef.current.pos + deltaYPercent)));
         setBlurPosition(newPos);
-      } else if (activeDrag === 'blur-resize-top') {
-        const newThick = Math.round(Math.max(2, Math.min(40, dragStartValRef.current.thick - deltaYPercent * 2)));
+      } else if (activeDrag === 'blur-resize-n') {
+        const newThick = Math.round(Math.max(2, Math.min(50, dragStartValRef.current.thick - deltaYPercent * 2)));
         setBlurThickness(newThick);
-      } else if (activeDrag === 'blur-resize-bottom') {
-        const newThick = Math.round(Math.max(2, Math.min(40, dragStartValRef.current.thick + deltaYPercent * 2)));
+      } else if (activeDrag === 'blur-resize-s') {
+        const newThick = Math.round(Math.max(2, Math.min(50, dragStartValRef.current.thick + deltaYPercent * 2)));
         setBlurThickness(newThick);
-      } else if (activeDrag === 'blur-resize-left') {
+      } else if (activeDrag === 'blur-resize-w') {
         const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
         setBlurWidth(newWidth);
-      } else if (activeDrag === 'blur-resize-right') {
+      } else if (activeDrag === 'blur-resize-e') {
         const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
         setBlurWidth(newWidth);
-      } else if (activeDrag === 'subtitle-move') {
-        setSubtitleX(Math.round(Math.max(10, Math.min(90, dragStartValRef.current.subtitleX + deltaXPercent))));
-        setSubtitleY(Math.round(Math.max(10, Math.min(96, dragStartValRef.current.subtitleY + deltaYPercent))));
-      } else if (activeDrag === 'subtitle-resize-left' || activeDrag === 'subtitle-resize-right') {
-        const direction = activeDrag === 'subtitle-resize-left' ? -1 : 1;
-        setSubtitleWidth(Math.round(Math.max(20, Math.min(95, dragStartValRef.current.subtitleWidth + direction * deltaXPercent * 2))));
-      } else if (activeDrag === 'subtitle-resize-top' || activeDrag === 'subtitle-resize-bottom') {
-        const direction = activeDrag === 'subtitle-resize-top' ? -1 : 1;
-        setSubtitleHeight(Math.round(Math.max(6, Math.min(35, dragStartValRef.current.subtitleHeight + direction * deltaYPercent * 2))));
-      } else if (activeDrag === 'logo-move') {
-        const newLogoX = Math.round(Math.max(0, Math.min(100 - logoScale, dragStartValRef.current.logoX + deltaXPercent)));
-        const newLogoY = Math.round(Math.max(0, Math.min(96, dragStartValRef.current.logoY + deltaYPercent)));
-        setLogoX(newLogoX);
-        setLogoY(newLogoY);
-      } else if (activeDrag === 'logo-resize') {
+      } else if (activeDrag === 'blur-resize-nw') {
+        const newThick = Math.round(Math.max(2, Math.min(50, dragStartValRef.current.thick - deltaYPercent * 2)));
+        const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
+        setBlurThickness(newThick);
+        setBlurWidth(newWidth);
+      } else if (activeDrag === 'blur-resize-ne') {
+        const newThick = Math.round(Math.max(2, Math.min(50, dragStartValRef.current.thick - deltaYPercent * 2)));
+        const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
+        setBlurThickness(newThick);
+        setBlurWidth(newWidth);
+      } else if (activeDrag === 'blur-resize-sw') {
+        const newThick = Math.round(Math.max(2, Math.min(50, dragStartValRef.current.thick + deltaYPercent * 2)));
+        const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width - deltaXPercent * 2)));
+        setBlurThickness(newThick);
+        setBlurWidth(newWidth);
+      } else if (activeDrag === 'blur-resize-se') {
+        const newThick = Math.round(Math.max(2, Math.min(50, dragStartValRef.current.thick + deltaYPercent * 2)));
+        const newWidth = Math.round(Math.max(20, Math.min(100, dragStartValRef.current.width + deltaXPercent * 2)));
+        setBlurThickness(newThick);
+        setBlurWidth(newWidth);
+      }
+      // Subtitle Drag & Resizing
+      else if (activeDrag === 'subtitle-move') {
+        const newX = Math.round(Math.max(5, Math.min(95, dragStartValRef.current.subtitleX + deltaXPercent)));
+        const newY = Math.round(Math.max(5, Math.min(95, dragStartValRef.current.subtitleY + deltaYPercent)));
+        setSubtitleX(newX);
+        setSubtitleY(newY);
+      } else if (activeDrag === 'subtitle-resize-n') {
+        const newH = Math.round(Math.max(4, Math.min(45, dragStartValRef.current.subtitleHeight - deltaYPercent * 2)));
+        setSubtitleHeight(newH);
+      } else if (activeDrag === 'subtitle-resize-s') {
+        const newH = Math.round(Math.max(4, Math.min(45, dragStartValRef.current.subtitleHeight + deltaYPercent * 2)));
+        setSubtitleHeight(newH);
+      } else if (activeDrag === 'subtitle-resize-w') {
+        const newW = Math.round(Math.max(15, Math.min(98, dragStartValRef.current.subtitleWidth - deltaXPercent * 2)));
+        setSubtitleWidth(newW);
+      } else if (activeDrag === 'subtitle-resize-e') {
+        const newW = Math.round(Math.max(15, Math.min(98, dragStartValRef.current.subtitleWidth + deltaXPercent * 2)));
+        setSubtitleWidth(newW);
+      } else if (activeDrag === 'subtitle-resize-nw') {
+        const newH = Math.round(Math.max(4, Math.min(45, dragStartValRef.current.subtitleHeight - deltaYPercent * 2)));
+        const newW = Math.round(Math.max(15, Math.min(98, dragStartValRef.current.subtitleWidth - deltaXPercent * 2)));
+        setSubtitleHeight(newH);
+        setSubtitleWidth(newW);
+      } else if (activeDrag === 'subtitle-resize-ne') {
+        const newH = Math.round(Math.max(4, Math.min(45, dragStartValRef.current.subtitleHeight - deltaYPercent * 2)));
+        const newW = Math.round(Math.max(15, Math.min(98, dragStartValRef.current.subtitleWidth + deltaXPercent * 2)));
+        setSubtitleHeight(newH);
+        setSubtitleWidth(newW);
+      } else if (activeDrag === 'subtitle-resize-sw') {
+        const newH = Math.round(Math.max(4, Math.min(45, dragStartValRef.current.subtitleHeight + deltaYPercent * 2)));
+        const newW = Math.round(Math.max(15, Math.min(98, dragStartValRef.current.subtitleWidth - deltaXPercent * 2)));
+        setSubtitleHeight(newH);
+        setSubtitleWidth(newW);
+      } else if (activeDrag === 'subtitle-resize-se') {
+        const newH = Math.round(Math.max(4, Math.min(45, dragStartValRef.current.subtitleHeight + deltaYPercent * 2)));
+        const newW = Math.round(Math.max(15, Math.min(98, dragStartValRef.current.subtitleWidth + deltaXPercent * 2)));
+        setSubtitleHeight(newH);
+        setSubtitleWidth(newW);
+      }
+      // Logo Drag & Resizing
+      else if (activeDrag === 'logo-move') {
+        const newX = Math.round(Math.max(0, Math.min(100 - dragStartValRef.current.logoScale, dragStartValRef.current.logoX + deltaXPercent)));
+        const newY = Math.round(Math.max(0, Math.min(95, dragStartValRef.current.logoY + deltaYPercent)));
+        setLogoX(newX);
+        setLogoY(newY);
+      } else if (activeDrag === 'logo-resize-se' || activeDrag === 'logo-resize-ne') {
         const newScale = Math.round(Math.max(4, Math.min(50, dragStartValRef.current.logoScale + deltaXPercent)));
+        setLogoScale(newScale);
+      } else if (activeDrag === 'logo-resize-sw' || activeDrag === 'logo-resize-nw') {
+        const newScale = Math.round(Math.max(4, Math.min(50, dragStartValRef.current.logoScale - deltaXPercent)));
         setLogoScale(newScale);
       }
     };
@@ -567,8 +741,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [activeDrag, subtitleWidth, subtitleHeight, logoScale]);
+  }, [activeDrag]);
 
+  // URL Video Fetching
   const handleFetchUrlVideo = async () => {
     const cleanUrl = extractCleanUrl(videoUrl);
     if (!cleanUrl) {
@@ -602,6 +777,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     }
   };
 
+  // Start OneClick Pipeline Job
   const handleStart = async () => {
     if (inputMode === 'upload') {
       if (!file) {
@@ -677,7 +853,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
       setJobId(resp.job_id);
       setIsUploading(false);
 
-      // Start polling
       if (pollRef.current) clearInterval(pollRef.current);
       let consecutivePollErrors = 0;
       pollRef.current = setInterval(async () => {
@@ -702,7 +877,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
           if (consecutivePollErrors >= 6) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
-            setError('ဗီဒီယို ပြုလုပ်ခြင်း ရပ်တန့်သွားပါသည် (Connection lost). ကျေးဇူးပြု၍ ဗီဒီယိုဖိုင် အသစ်ဖြင့် ပြန်လည် စတင်ပေးပါ။');
+            setError('ဗီဒီယို ပြုလုပ်ခြင်း ရပ်တန့်သွားပါသည် (Connection lost). ကျေးဇူးပြု၍ ပြန်လည် စတင်ပေးပါ။');
           }
         }
       }, 2000);
@@ -723,7 +898,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     if (filePreviewUrl && !filePreviewUrl.startsWith('http') && !filePreviewUrl.startsWith('/api')) {
       try {
         URL.revokeObjectURL(filePreviewUrl);
-      } catch { }
+      } catch {}
     }
     setFilePreviewUrl(null);
     setVideoUrl('');
@@ -747,10 +922,27 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const isFailed = jobStatus?.status === 'failed';
   const isProcessing = jobStatus?.status === 'processing' || jobStatus?.status === 'queued';
 
+  // Subtitle Font Family Resolver
+  const getSubtitleFontFamily = (styleId: string) => {
+    switch (styleId) {
+      case 'font-kunheing':
+        return "'AJKunheing', 'Noto Sans Myanmar', sans-serif";
+      case 'font-jojar':
+        return "'MyanmarJojar', 'Noto Sans Myanmar', sans-serif";
+      case 'font-myanmaros':
+        return "'MyanmarOS', 'Noto Sans Myanmar', sans-serif";
+      case 'font-padauk':
+        return "'Noto Sans Myanmar', sans-serif";
+      case 'font-akkhayar':
+      default:
+        return "'Akkhayar21', 'Noto Sans Myanmar', sans-serif";
+    }
+  };
+
   return (
-    <div className="w-full max-w-full overflow-x-hidden max-w-6xl mx-auto space-y-6 animate-fade-in pb-24 lg:pb-16 px-2 sm:px-4">
+    <div className="w-full max-w-full overflow-x-hidden max-w-6xl mx-auto space-y-5 animate-fade-in pb-24 lg:pb-16 px-2 sm:px-4">
       {/* Top Header Card */}
-      <div className="rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-xl p-5 sm:p-6 shadow-sm">
+      <div className="rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-xl p-4 sm:p-6 shadow-sm">
         {onNavigate && (
           <button
             type="button"
@@ -765,16 +957,16 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm">
-                1-Click Auto
+                Studio Editor
               </span>
-              <span className="text-xs font-mono text-zinc-400">EN → MM Movie Recap Engine</span>
+              <span className="text-xs font-mono text-zinc-400">Movie Recap & Dubbing Suite</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
               One Click English-to-Myanmar Recap
             </h1>
           </div>
 
-          {/* Server Status Pill (Click to re-check) */}
+          {/* Server Status Pill */}
           <button
             type="button"
             onClick={() => checkServer(false)}
@@ -788,34 +980,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
             <RefreshCw className={`w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-zinc-200 transition-transform ${isCheckingServer ? 'animate-spin' : ''}`} />
           </button>
         </div>
-
-        {/* MODE SELECTOR TABS: Upload UI (Movie Recap Style) vs URL Mode */}
-        {!isProcessing && !isUploading && !isCompleted && (
-          <div className="grid grid-cols-2 gap-2 mt-5 p-1.5 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 max-w-xl">
-            <button
-              type="button"
-              onClick={() => setInputMode('upload')}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${inputMode === 'upload'
-                ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                }`}
-            >
-              <Upload className="w-4 h-4 text-indigo-500" />
-              <span> Video Upload</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputMode('url')}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${inputMode === 'url'
-                ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                }`}
-            >
-              <Zap className="w-4 h-4 text-purple-500" />
-              <span>🔗 Link / URL</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {error && (
@@ -888,12 +1052,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 p-4 flex flex-col h-[320px]">
-              {/* Header with Copy Button */}
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-zinc-800">
                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
                   📝 Myanmar Script & Subtitles
                 </span>
-
                 {transcript && (
                   <button
                     onClick={handleCopyScript}
@@ -925,20 +1087,18 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
         </div>
       )}
 
-      {/* WORKFLOW VIEW */}
+      {/* MAIN STUDIO WORKFLOW */}
       {!isCompleted && (
         <div className="flex flex-col lg:grid lg:grid-cols-12 gap-5 sm:gap-6 items-start">
-          {/* LEFT COLUMN: STREAMLINED & CLEAN CONFIGURATION */}
+          {/* LEFT COLUMN: INSPECTOR SETTINGS (Scrollable on desktop & mobile) */}
           <div className="order-2 lg:order-1 w-full lg:col-span-7 space-y-4">
-            {/* STEP 1: VIDEO SOURCE */}
-            <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3 ${
-              mobileTab === 'source' ? 'block' : 'hidden lg:block'
-            }`}>
+            {/* VIDEO SOURCE SELECTOR & QUICK PRESETS */}
+            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">1</span>
                   <h2 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                    {inputMode === 'upload' ? 'ဗီဒီယို ဖိုင်တင်ရန်' : 'ဗီဒီယို Link ထည့်ရန်'}
+                    ဗီဒီယို ရင်းမြစ် (Video Source)
                   </h2>
                 </div>
                 {hasVideo && (
@@ -946,6 +1106,34 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <CheckCircle2 className="w-3.5 h-3.5" /> အဆင်သင့်ဖြစ်ပါပြီ
                   </span>
                 )}
+              </div>
+
+              {/* Source Mode Switcher */}
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60">
+                <button
+                  type="button"
+                  onClick={() => setInputMode('upload')}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    inputMode === 'upload'
+                      ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Video File Upload</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMode('url')}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    inputMode === 'url'
+                      ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5 text-purple-500" />
+                  <span>Link / URL</span>
+                </button>
               </div>
 
               {inputMode === 'upload' ? (
@@ -973,16 +1161,20 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   </div>
                 ) : (
                   <div
-                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-all ${isDragging
-                      ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/10'
-                      : 'border-slate-200 dark:border-zinc-700/80 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-zinc-800/40'
-                      }`}
+                    className={`rounded-xl border-2 border-dashed p-5 text-center cursor-pointer transition-all ${
+                      isDragging
+                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/10'
+                        : 'border-slate-200 dark:border-zinc-700/80 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-zinc-800/40'
+                    }`}
                   >
-                    <Upload className="w-6 h-6 mx-auto text-indigo-500 mb-2" />
+                    <Upload className="w-5 h-5 mx-auto text-indigo-500 mb-1.5" />
                     <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
                       English ဗီဒီယိုဖိုင် ရွေးချယ်ပါ သို့မဟုတ် ဆွဲထည့်ပါ
                     </p>
@@ -1042,478 +1234,797 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   )}
                 </div>
               )}
+
+              {/* Quick Preset Buttons */}
+              <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400">စတိုင် Presets:</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('alpha')}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold transition-all"
+                  >
+                    ✨ Team Alpha (9:16)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('tiktok')}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 text-[10px] font-bold transition-all"
+                  >
+                    📱 TikTok (9:16)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('youtube')}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 text-[10px] font-bold transition-all"
+                  >
+                    📺 YouTube (Original)
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* STEP 2: NARRATOR VOICE & PACING */}
-            <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-3 ${
-              mobileTab === 'voice' ? 'block' : 'hidden lg:block'
-            }`}>
+            {/* THE THREE DEDICATED STUDIO TABS: BLUR | TEXT | LOGO */}
+            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">2</span>
                   <h2 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                    ဇာတ်လမ်းပြော အသံနှင့် အမြန်နှုန်း
+                    Studio Inspector (Canvas Controls)
                   </h2>
-                </div>
-                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[10px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setVoiceMode('preset')}
-                    className={`px-2 py-0.5 rounded-md transition-all ${voiceMode === 'preset' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400'}`}
-                  >
-                    AI အသံများ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVoiceMode('custom-sample')}
-                    className={`px-2 py-0.5 rounded-md transition-all ${voiceMode === 'custom-sample' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400'}`}
-                  >
-                    Voice Clone
-                  </button>
                 </div>
               </div>
 
-              {/* Voice Cards */}
-              {voiceMode === 'preset' ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {[
-                      { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', tag: 'TikTok Pro' },
-                      { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', tag: 'Classic Narrator' },
-                      { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', tag: 'Baritone' },
-                      { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', tag: 'Youth' },
-                      { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန်', tag: 'Gemini Cinematic' },
-                      { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ်', tag: 'Gemini Energy' },
-                      { id: 'gemini-fenrir', name: 'Fenrir', mmName: 'ဖင်းရီယာ', tag: 'Gemini Deep' },
-                      { id: 'gemini-orus', name: 'Orus', mmName: 'အိုးရပ်စ်', tag: 'Gemini Epic' },
-                      { id: 'gemini-aoede', name: 'Aoede', mmName: 'အာအိုးဒီ', tag: 'Gemini Smooth' },
-                    ].map((v) => (
-                      <div
-                        key={v.id}
-                        onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
-                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
-                          ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
-                          : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
-                          }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                            {v.mmName}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => handlePlayVoiceSample(e, v.id)}
-                            className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 transition-all ${sampleAudioPlaying === v.id
-                              ? 'bg-indigo-600 text-white animate-pulse'
-                              : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white'
-                              }`}
-                            title="နမူနာအသံ နားထောင်မည်"
-                          >
-                            <Volume2 className="w-2.5 h-2.5" />
-                            <span>{sampleAudioPlaying === v.id ? 'Stop' : sampleAudioLoading === v.id ? '...' : 'Play'}</span>
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
-                      </div>
-                    ))}
-                  </div>
+              {/* 3 Main Tabs Header */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60">
+                <button
+                  type="button"
+                  onClick={() => setActiveInspectorTab('blur')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    activeInspectorTab === 'blur'
+                      ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-600/30'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Blur</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInspectorTab('text')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    activeInspectorTab === 'text'
+                      ? 'bg-cyan-500 text-white shadow-sm ring-1 ring-cyan-600/30'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <Type className="w-3.5 h-3.5" />
+                  <span>Text</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInspectorTab('logo')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    activeInspectorTab === 'logo'
+                      ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-700/30'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Logo</span>
+                </button>
+              </div>
 
-
-                </div>
-              ) : (
-                /* Custom Sample Upload */
-                <div className="p-3.5 rounded-xl border border-purple-500/30 bg-purple-50/30 dark:bg-purple-950/20 space-y-2.5">
-                  {voiceSampleFile ? (
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-800">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">🎵 {voiceSampleFile.name}</p>
-                        <p className="text-[10px] text-purple-600 dark:text-purple-400">✓ Voice Sample Activated</p>
-                      </div>
+              {/* TAB 1: BLUR ONLY */}
+              {activeInspectorTab === 'blur' && (
+                <div className="space-y-3.5 animate-fade-in">
+                  {/* ON/OFF Switch & Reset Button */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${enableBlur ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'}`} />
+                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                        Frosted Glass Blur Strip
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setVoiceSampleFile(null);
-                          if (voiceSampleUrl) URL.revokeObjectURL(voiceSampleUrl);
-                          setVoiceSampleUrl(null);
-                        }}
-                        className="text-xs font-bold text-rose-500 hover:underline ml-2"
+                        onClick={handleResetBlur}
+                        title="Reset Blur to default"
+                        className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-500 hover:text-amber-600 dark:text-zinc-400 dark:hover:text-amber-400 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-all flex items-center gap-1"
                       >
-                        ဖျက်မည်
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reset</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEnableBlur(!enableBlur)}
+                        className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
+                          enableBlur
+                            ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
+                            : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                        }`}
+                      >
+                        {enableBlur ? '✓ ON' : 'OFF'}
                       </button>
                     </div>
+                  </div>
+
+                  {enableBlur ? (
+                    <div className="space-y-3">
+                      {/* Quick Position Presets */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
+                          Quick Presets:
+                        </label>
+                        <div className="grid grid-cols-5 gap-1 text-[10px]">
+                          {[
+                            { label: 'Bottom', pos: 82, thick: 14, width: 100 },
+                            { label: 'Movie', pos: 66, thick: 15, width: 100 },
+                            { label: 'Center', pos: 60, thick: 16, width: 100 },
+                            { label: 'Full', pos: 82, thick: 14, width: 100 },
+                            { label: 'Narrow', pos: 80, thick: 14, width: 65 },
+                          ].map((preset, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setBlurPosition(preset.pos);
+                                setBlurThickness(preset.thick);
+                                setBlurWidth(preset.width);
+                              }}
+                              className={`py-1 px-1 rounded-md border text-center transition-all ${
+                                blurPosition === preset.pos && blurWidth === preset.width
+                                  ? 'border-amber-500 bg-amber-500 text-white font-bold shadow-sm'
+                                  : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 4 Interactive Real-time Sliders */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>နေရာ အမြင့် (Vertical Y):</span>
+                            <span className="text-amber-500 font-mono">{blurPosition}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={8}
+                            max={96}
+                            value={blurPosition}
+                            onChange={(e) => setBlurPosition(Number(e.target.value))}
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>အထူ (Thickness / Height):</span>
+                            <span className="text-amber-500 font-mono">{blurThickness}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={2}
+                            max={45}
+                            value={blurThickness}
+                            onChange={(e) => setBlurThickness(Number(e.target.value))}
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>အကျယ် (Width):</span>
+                            <span className="text-amber-500 font-mono">{blurWidth}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={20}
+                            max={100}
+                            value={blurWidth}
+                            onChange={(e) => setBlurWidth(Number(e.target.value))}
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>ဝေဝါးမှုအား (Intensity):</span>
+                            <span className="text-amber-500 font-mono">{blurIntensity}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={2}
+                            max={100}
+                            value={blurIntensity}
+                            onChange={(e) => setBlurIntensity(Number(e.target.value))}
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    <div
-                      onClick={() => voiceSampleInputRef.current?.click()}
-                      className="border border-dashed border-purple-300 dark:border-purple-800 rounded-xl p-4 text-center cursor-pointer hover:bg-purple-100/40 dark:hover:bg-purple-900/20 transition-all"
-                    >
-                      <p className="text-xs font-bold text-purple-900 dark:text-purple-200">
-                        🎧 နမူနာ အသံဖိုင် (MP3/WAV) ထည့်သွင်းပါ
-                      </p>
-                      <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">
-                        ၅ စက္ကန့်မှ ၁ မိနစ်အတွင်း ကြည်လင်သော အသံဖိုင်
-                      </p>
-                      <input
-                        ref={voiceSampleInputRef}
-                        type="file"
-                        accept="audio/*,.mp3,.wav,.m4a,.ogg"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) handleVoiceSampleSelect(e.target.files[0]);
-                        }}
-                        className="hidden"
-                      />
+                    <div className="py-6 text-center text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800">
+                      Frosted Blur ပိတ်ထားပါသည် (ဖွင့်ရန် ON နှိပ်ပါ)
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Speed Pills */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-zinc-800 text-xs">
-                <span className="font-bold text-slate-600 dark:text-zinc-400 text-[11px]">အမြန်နှုန်း:</span>
-                <div className="flex items-center gap-1">
-                  {[
-                    { value: '+0%', label: '1.0x ပုံမှန်' },
-                    { value: '+25%', label: '1.25x သွက်သွက်' },
-                    { value: '+35%', label: '1.35x Recap ✨' },
-                    { value: '+55%', label: '1.55x TikTok 🔥' },
-                  ].map((s) => (
-                    <button
-                      key={s.value}
-                      type="button"
-                      onClick={() => setSelectedSpeed(s.value)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${selectedSpeed === s.value
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
-                        }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-
-
-            {/* STEP 3: STYLE, SUBTITLES & FROSTED BLUR */}
-            <div className={`rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm space-y-4 ${
-              mobileTab === 'style' ? 'block' : 'hidden lg:block'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">3</span>
-                  <h2 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-                    ဗီဒီယို အရွယ်အစား၊ စာတန်းထိုးနှင့် Blur Setting
-                  </h2>
-                </div>
-              </div>
-
-              {/* Aspect Ratio Selector */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
-                  ဗီဒီယို အရွယ်အစား (Aspect Ratio)
-                </label>
-                <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
-                  {[
-                    { id: 'original', label: 'Original' },
-                    { id: '16:9', label: '16:9' },
-                    { id: '9:16', label: '9:16' },
-                    { id: '1:1', label: '1:1' },
-                    { id: '4:5', label: '4:5' },
-                  ].map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => handleRatioSelect(r.id)}
-                      className={`py-1.5 px-0.5 rounded-lg border text-[11px] sm:text-xs font-bold transition-all text-center truncate ${selectedRatio === r.id
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300'
-                        }`}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* TWO PROMINENT ON / OFF SWITCHES */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                {/* 1. Frosted Blur ON / OFF Switch */}
-                <div className={`p-3 rounded-xl border transition-all ${enableBlur ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-800/20'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                      <span className={`w-2.5 h-2.5 rounded-full ${enableBlur ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`} />
-                      Frosted Blur Strip
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setEnableBlur(!enableBlur)}
-                      className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${enableBlur
-                        ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
-                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-300'
-                        }`}
-                    >
-                      {enableBlur ? '✓ ON (ဖွင့်ထား)' : 'OFF (ပိတ်ထား)'}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1">
-                    မူရင်းဗီဒီယို စာတန်းဟောင်းများကို ဖုံးအုပ်ရန်
-                  </p>
-                </div>
-
-                {/* 2. Burmese Subtitles ON / OFF Switch */}
-                <div className={`p-3 rounded-xl border transition-all ${enableSubtitles ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-800/20'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                      <span className={`w-2.5 h-2.5 rounded-full ${enableSubtitles ? 'bg-cyan-400 animate-pulse' : 'bg-slate-400'}`} />
-                      မြန်မာစာတန်းထိုး (Subtitles)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setEnableSubtitles(!enableSubtitles)}
-                      className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${enableSubtitles
-                        ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-sm'
-                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-300'
-                        }`}
-                    >
-                      {enableSubtitles ? '✓ ON (ဖွင့်ထား)' : 'OFF (ပိတ်ထား)'}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1">
-                    ဗီဒီယိုပေါ်တွင် မြန်မာစာတန်း အလိုအလျောက် ထိုးမည်
-                  </p>
-                </div>
-              </div>
-
-              {/* FROSTED BLUR CONTROLS (Visible only when enableBlur is ON) */}
-              {enableBlur && (
-                <div className="p-3.5 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-300/60 dark:border-amber-700/40 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-800 dark:text-amber-300">
-                      Frosted Blur Settings (စိတ်ကြိုက်ချိန်ညှိမှု)
-                    </span>
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
-                      Preview ပေါ်တွင် Drag ဆွဲ၍လည်း ရွှေ့နိုင်သည်
-                    </span>
-                  </div>
-
-                  {/* Quick Blur Presets */}
-                  <div className="grid grid-cols-5 gap-1 text-[9px] sm:text-[10px]">
-                    {[
-                      { label: 'Bottom', pos: 82, thick: 14, width: 100 },
-                      { label: 'Movie', pos: 66, thick: 15, width: 100 },
-                      { label: 'Center', pos: 60, thick: 16, width: 100 },
-                      { label: 'Full', pos: 82, thick: 14, width: 100 },
-                      { label: 'Narrow', pos: 80, thick: 14, width: 65 },
-                    ].map((preset, idx) => (
+              {/* TAB 2: TEXT (SUBTITLE) ONLY */}
+              {activeInspectorTab === 'text' && (
+                <div className="space-y-3.5 animate-fade-in">
+                  {/* ON/OFF Switch & Reset Button */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200/60 dark:border-cyan-800/40">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${enableSubtitles ? 'bg-cyan-500 animate-pulse' : 'bg-slate-400'}`} />
+                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                        မြန်မာစာတန်းထိုး (Burmese Subtitles)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <button
-                        key={idx}
                         type="button"
-                        onClick={() => {
-                          setBlurPosition(preset.pos);
-                          setBlurThickness(preset.thick);
-                          setBlurWidth(preset.width);
-                        }}
-                        className={`py-1 px-1 rounded-md border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
-                          ? 'border-amber-500 bg-amber-500 text-white font-bold'
-                          : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-white dark:bg-zinc-900'
-                          }`}
+                        onClick={handleResetSubtitle}
+                        title="Reset Subtitle to default"
+                        className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-500 hover:text-cyan-600 dark:text-zinc-400 dark:hover:text-cyan-400 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30 transition-all flex items-center gap-1"
                       >
-                        {preset.label}
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reset</span>
                       </button>
-                    ))}
-                  </div>
-
-                  {/* 4 Interactive Sliders */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
-                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                        <span>နေရာ အမြင့် (Vertical Y):</span>
-                        <span className="text-amber-500 font-mono">{blurPosition}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={30}
-                        max={96}
-                        value={blurPosition}
-                        onChange={(e) => setBlurPosition(Number(e.target.value))}
-                        className="w-full accent-amber-500"
-                      />
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                        <span>အထူ (Thickness / Height):</span>
-                        <span className="text-amber-500 font-mono">{blurThickness}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={2}
-                        max={40}
-                        value={blurThickness}
-                        onChange={(e) => setBlurThickness(Number(e.target.value))}
-                        className="w-full accent-amber-500"
-                      />
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                        <span>အကျယ် (Width):</span>
-                        <span className="text-amber-500 font-mono">{blurWidth}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={20}
-                        max={100}
-                        value={blurWidth}
-                        onChange={(e) => setBlurWidth(Number(e.target.value))}
-                        className="w-full accent-amber-500"
-                      />
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800">
-                      <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
-                        <span>ဝေဝါးမှုအား (Intensity):</span>
-                        <span className="text-amber-500 font-mono">{blurIntensity}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={2}
-                        max={100}
-                        value={blurIntensity}
-                        onChange={(e) => setBlurIntensity(Number(e.target.value))}
-                        className="w-full accent-amber-500"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setEnableSubtitles(!enableSubtitles)}
+                        className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
+                          enableSubtitles
+                            ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-sm'
+                            : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                        }`}
+                      >
+                        {enableSubtitles ? '✓ ON' : 'OFF'}
+                      </button>
                     </div>
                   </div>
+
+                  {enableSubtitles ? (
+                    <div className="space-y-3">
+                      {/* Subtitle Preview Text Input */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
+                          နမူနာ စာတန်းထိုး (Sample Text Preview):
+                        </label>
+                        <input
+                          type="text"
+                          value={previewSubtitleText}
+                          onChange={(e) => setPreviewSubtitleText(e.target.value)}
+                          placeholder="နမူနာ စာတန်းထိုး စာသား ရိုက်ထည့်ပါ..."
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      {/* Font Family Selector */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
+                          မြန်မာစာလုံး ဖောင့် (Font Style):
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[
+                            { id: 'font-akkhayar', label: 'Akkhayar 21 ✨' },
+                            { id: 'font-kunheing', label: 'AJ Kunheing' },
+                            { id: 'font-jojar', label: 'Myanmar Jojar' },
+                            { id: 'font-padauk', label: 'Padauk White' },
+                          ].map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setSubtitleStyle(f.id)}
+                              className={`py-1.5 px-2 rounded-lg border text-center transition-all ${
+                                subtitleStyle === f.id
+                                  ? 'border-cyan-500 bg-cyan-500 text-white font-bold shadow-sm'
+                                  : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] bg-slate-50 dark:bg-zinc-800/40'
+                              }`}
+                            >
+                              <span className="block truncate">{f.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 4 Real-time Position & Size Sliders */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>နေရာ အလျား (Position X):</span>
+                            <span className="text-cyan-500 font-mono">{subtitleX}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={10}
+                            max={90}
+                            value={subtitleX}
+                            onChange={(e) => setSubtitleX(Number(e.target.value))}
+                            className="w-full accent-cyan-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>နေရာ အမြင့် (Position Y):</span>
+                            <span className="text-cyan-500 font-mono">{subtitleY}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={10}
+                            max={95}
+                            value={subtitleY}
+                            onChange={(e) => setSubtitleY(Number(e.target.value))}
+                            className="w-full accent-cyan-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>စာတန်း အကျယ် (Width):</span>
+                            <span className="text-cyan-500 font-mono">{subtitleWidth}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={20}
+                            max={95}
+                            value={subtitleWidth}
+                            onChange={(e) => setSubtitleWidth(Number(e.target.value))}
+                            className="w-full accent-cyan-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>စာတန်း အမြင့် (Height):</span>
+                            <span className="text-cyan-500 font-mono">{subtitleHeight}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={6}
+                            max={35}
+                            value={subtitleHeight}
+                            onChange={(e) => setSubtitleHeight(Number(e.target.value))}
+                            className="w-full accent-cyan-500 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800">
+                      မြန်မာစာတန်းထိုး ပိတ်ထားပါသည် (ဖွင့်ရန် ON နှိပ်ပါ)
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* BURMESE SUBTITLES CONTROLS (Visible only when enableSubtitles is ON) */}
-              {enableSubtitles && (
-                <div className="p-3.5 rounded-2xl bg-cyan-50/40 dark:bg-cyan-950/20 border border-cyan-300/60 dark:border-cyan-700/40 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-cyan-800 dark:text-cyan-300">
-                      မြန်မာစာတန်းထိုး Settings (Font & Position)
-                    </span>
-                    <span className="text-[10px] text-cyan-600 dark:text-cyan-400">
-                      Preview ပေါ်တွင် Drag ဆွဲ၍ ချိန်နိုင်သည်
-                    </span>
+              {/* TAB 3: LOGO ONLY */}
+              {activeInspectorTab === 'logo' && (
+                <div className="space-y-3.5 animate-fade-in">
+                  {/* ON/OFF Switch & Reset Button */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/40">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${enableLogo ? 'bg-indigo-500 animate-pulse' : 'bg-slate-400'}`} />
+                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                        Channel Logo / Watermark
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetLogo}
+                        title="Reset Logo to default"
+                        className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 transition-all flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reset</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEnableLogo(!enableLogo)}
+                        className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
+                          enableLogo
+                            ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
+                            : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                        }`}
+                      >
+                        {enableLogo ? '✓ ON' : 'OFF'}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Font Picker */}
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
-                      မြန်မာစာလုံး ဖောင့် (Font Style)
-                    </label>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[
-                        { id: 'font-akkhayar', label: 'Akkhayar 21 ✨' },
-                        { id: 'font-kunheing', label: 'AJ Kunheing' },
-                        { id: 'font-jojar', label: 'Myanmar Jojar' },
-                        { id: 'font-padauk', label: 'Padauk White' },
-                      ].map((f) => (
+                  {enableLogo ? (
+                    <div className="space-y-3">
+                      {/* Logo Image Upload / Preview */}
+                      {logoUrl ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700">
+                          <div className="flex items-center gap-2.5">
+                            <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain rounded-lg bg-black/40 p-1 border border-zinc-700" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[180px]">{logoFile?.name || 'Uploaded Logo'}</p>
+                              <p className="text-[10px] text-emerald-500 font-medium">✓ Active on Canvas</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveLogo}
+                            className="text-xs font-bold text-rose-500 hover:underline px-2 py-1"
+                          >
+                            ဖယ်ရှားမည်
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          key={f.id}
                           type="button"
-                          onClick={() => setSubtitleStyle(f.id)}
-                          className={`py-1.5 px-2 rounded-lg border text-center transition-all ${subtitleStyle === f.id
-                            ? 'border-cyan-500 bg-cyan-500 text-white font-bold shadow-sm'
-                            : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] bg-white dark:bg-zinc-900'
-                            }`}
+                          onClick={() => logoInputRef.current?.click()}
+                          className="w-full py-3 border border-dashed border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-all flex items-center justify-center gap-2"
                         >
-                          <span className="block truncate">{f.label}</span>
+                          <ImageIcon className="w-4 h-4 text-indigo-500" />
+                          <span>+ Channel Logo ပုံတင်ရန် (.png, .jpg, .webp)</span>
+                        </button>
+                      )}
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+
+                      {/* Text Watermark alternative */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
+                          သို့မဟုတ် Channel နာမည် စာသား:
+                        </label>
+                        <input
+                          type="text"
+                          value={watermarkText}
+                          onChange={(e) => setWatermarkText(e.target.value)}
+                          placeholder="ဥပမာ - Movie Recap / K Recap"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      {/* 4 Interactive Logo Sliders */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>နေရာ အလျား (Position X):</span>
+                            <span className="text-indigo-500 font-mono">{logoX}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={90}
+                            value={logoX}
+                            onChange={(e) => setLogoX(Number(e.target.value))}
+                            className="w-full accent-indigo-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>နေရာ အမြင့် (Position Y):</span>
+                            <span className="text-indigo-500 font-mono">{logoY}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={90}
+                            value={logoY}
+                            onChange={(e) => setLogoY(Number(e.target.value))}
+                            className="w-full accent-indigo-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>အရွယ်အစား (Scale):</span>
+                            <span className="text-indigo-500 font-mono">{logoScale}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={4}
+                            max={40}
+                            value={logoScale}
+                            onChange={(e) => setLogoScale(Number(e.target.value))}
+                            className="w-full accent-indigo-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
+                          <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                            <span>ကြည်လင်မှု (Opacity):</span>
+                            <span className="text-indigo-500 font-mono">{logoOpacity}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={10}
+                            max={100}
+                            value={logoOpacity}
+                            onChange={(e) => setLogoOpacity(Number(e.target.value))}
+                            className="w-full accent-indigo-500 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800">
+                      Channel Logo / Watermark ပိတ်ထားပါသည် (ဖွင့်ရန် ON နှိပ်ပါ)
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* COLLAPSIBLE ACCORDION: VOICEOVER & PACING */}
+            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setIsVoiceSectionOpen(!isVoiceSectionOpen)}
+                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-slate-50/50 dark:hover:bg-zinc-800/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">3</span>
+                  <div>
+                    <h2 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                      ဇာတ်လမ်းပြော အသံနှင့် အမြန်နှုန်း (Voice & Pacing)
+                    </h2>
+                    <p className="text-[10px] text-slate-400 dark:text-zinc-400">
+                      AI Narrator အသံရွေးချယ်မှု၊ Voice Clone နှင့် စကားပြောနှုန်း
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                    {selectedSpeed}
+                  </span>
+                  {isVoiceSectionOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </div>
+              </button>
+
+              {isVoiceSectionOpen && (
+                <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 dark:border-zinc-800 space-y-3.5">
+                  <div className="flex items-center justify-between pt-3">
+                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">အသံ အမျိုးအစား:</span>
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setVoiceMode('preset')}
+                        className={`px-2 py-0.5 rounded-md transition-all ${voiceMode === 'preset' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400'}`}
+                      >
+                        AI အသံများ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVoiceMode('custom-sample')}
+                        className={`px-2 py-0.5 rounded-md transition-all ${voiceMode === 'custom-sample' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400'}`}
+                      >
+                        Voice Clone
+                      </button>
+                    </div>
+                  </div>
+
+                  {voiceMode === 'preset' ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', tag: 'TikTok Pro' },
+                        { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', tag: 'Classic Narrator' },
+                        { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', tag: 'Baritone' },
+                        { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', tag: 'Youth' },
+                        { id: 'gemini-charon', name: 'Charon', mmName: 'ရှာရွန်', tag: 'Gemini Cinematic' },
+                        { id: 'gemini-puck', name: 'Puck', mmName: 'ပပ်ခ်', tag: 'Gemini Energy' },
+                        { id: 'gemini-fenrir', name: 'Fenrir', mmName: 'ဖင်းရီယာ', tag: 'Gemini Deep' },
+                        { id: 'gemini-orus', name: 'Orus', mmName: 'အိုးရပ်စ်', tag: 'Gemini Epic' },
+                        { id: 'gemini-aoede', name: 'Aoede', mmName: 'အာအိုးဒီ', tag: 'Gemini Smooth' },
+                      ].map((v) => (
+                        <div
+                          key={v.id}
+                          onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                            selectedVoice === v.id
+                              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
+                              : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                              {v.mmName}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => handlePlayVoiceSample(e, v.id)}
+                              className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 transition-all ${
+                                sampleAudioPlaying === v.id
+                                  ? 'bg-indigo-600 text-white animate-pulse'
+                                  : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white'
+                              }`}
+                              title="နမူနာအသံ နားထောင်မည်"
+                            >
+                              <Volume2 className="w-2.5 h-2.5" />
+                              <span>{sampleAudioPlaying === v.id ? 'Stop' : sampleAudioLoading === v.id ? '...' : 'Play'}</span>
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-xl border border-purple-500/30 bg-purple-50/30 dark:bg-purple-950/20 space-y-2.5">
+                      {voiceSampleFile ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-800">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">🎵 {voiceSampleFile.name}</p>
+                            <p className="text-[10px] text-purple-600 dark:text-purple-400">✓ Voice Sample Activated</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVoiceSampleFile(null);
+                              if (voiceSampleUrl) URL.revokeObjectURL(voiceSampleUrl);
+                              setVoiceSampleUrl(null);
+                            }}
+                            className="text-xs font-bold text-rose-500 hover:underline ml-2"
+                          >
+                            ဖျက်မည်
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => voiceSampleInputRef.current?.click()}
+                          className="border border-dashed border-purple-300 dark:border-purple-800 rounded-xl p-4 text-center cursor-pointer hover:bg-purple-100/40 dark:hover:bg-purple-900/20 transition-all"
+                        >
+                          <p className="text-xs font-bold text-purple-900 dark:text-purple-200">
+                            🎧 နမူနာ အသံဖိုင် (MP3/WAV) ထည့်သွင်းပါ
+                          </p>
+                          <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">
+                            ၅ စက္ကန့်မှ ၁ မိနစ်အတွင်း ကြည်လင်သော အသံဖိုင်
+                          </p>
+                          <input
+                            ref={voiceSampleInputRef}
+                            type="file"
+                            accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) handleVoiceSampleSelect(e.target.files[0]);
+                            }}
+                            className="hidden"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Speed Selector */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-zinc-800 text-xs">
+                    <span className="font-bold text-slate-600 dark:text-zinc-400 text-[11px]">အမြန်နှုန်း:</span>
+                    <div className="flex items-center gap-1">
+                      {[
+                        { value: '+0%', label: '1.0x ပုံမှန်' },
+                        { value: '+25%', label: '1.25x သွက်သွက်' },
+                        { value: '+35%', label: '1.35x Recap ✨' },
+                        { value: '+55%', label: '1.55x TikTok 🔥' },
+                      ].map((s) => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => setSelectedSpeed(s.value)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                            selectedSpeed === s.value
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+                          }`}
+                        >
+                          {s.label}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Subtitle Box Position Sliders */}
-                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
-                    <label className="font-bold text-slate-600 dark:text-zinc-300">X: {subtitleX}%<input type="range" min={10} max={90} value={subtitleX} onChange={(e) => setSubtitleX(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                    <label className="font-bold text-slate-600 dark:text-zinc-300">Y: {subtitleY}%<input type="range" min={8} max={92} value={subtitleY} onChange={(e) => setSubtitleY(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                    <label className="font-bold text-slate-600 dark:text-zinc-300">Width: {subtitleWidth}%<input type="range" min={25} max={95} value={subtitleWidth} onChange={(e) => setSubtitleWidth(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
-                    <label className="font-bold text-slate-600 dark:text-zinc-300">Height: {subtitleHeight}%<input type="range" min={8} max={35} value={subtitleHeight} onChange={(e) => setSubtitleHeight(Number(e.target.value))} className="w-full accent-cyan-600" /></label>
+                  {/* Original Audio Mix Toggle */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-zinc-800 text-xs">
+                    <div>
+                      <span className="font-bold text-slate-700 dark:text-zinc-300 text-[11px]">မူရင်းဗီဒီယို Background အသံ ရောစပ်မည်:</span>
+                      <p className="text-[10px] text-slate-400 dark:text-zinc-500">မူရင်းအသံကို 20% volume ဖြင့် အနောက်မှ ဖွင့်ထားမည်</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIncludeOriginalAudio(!includeOriginalAudio)}
+                      className={`text-[10px] font-bold px-3 py-1 rounded-lg transition-all ${
+                        includeOriginalAudio ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                      }`}
+                    >
+                      {includeOriginalAudio ? '✓ ON' : 'OFF'}
+                    </button>
                   </div>
                 </div>
               )}
-
-              {/* Channel Logo / Watermark */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">Channel Logo / Watermark</span>
-                  <button
-                    type="button"
-                    onClick={() => setEnableLogo(!enableLogo)}
-                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${enableLogo ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600'}`}
-                  >
-                    {enableLogo ? '✓ ဖွင့်ထားသည်' : 'ပိတ်ထားသည်'}
-                  </button>
-                </div>
-
-                {enableLogo && (
-                  <div className="space-y-2 pt-1">
-                    {logoUrl ? (
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700">
-                        <div className="flex items-center gap-2">
-                          <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain rounded" />
-                          <span className="text-xs font-bold truncate max-w-[150px]">{logoFile?.name || 'Logo'}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleRemoveLogo}
-                          className="text-xs font-bold text-rose-500 hover:underline"
-                        >
-                          ဖယ်ရှားမည်
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => logoInputRef.current?.click()}
-                        className="w-full py-2.5 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800"
-                      >
-                        + Logo ရုပ်ပုံ တင်ရန် (.png / .jpg)
-                      </button>
-                    )}
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                    />
-                    <input
-                      type="text"
-                      value={watermarkText}
-                      onChange={(e) => setWatermarkText(e.target.value)}
-                      placeholder="သို့မဟုတ် Channel နာမည် စာသားထည့်ပါ (ဥပမာ- Movie Channel)"
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400"
-                    />
-                  </div>
-                )}
-              </div>
             </div>
 
+            {/* COLLAPSIBLE ACCORDION: ASPECT RATIO */}
+            <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setIsRatioSectionOpen(!isRatioSectionOpen)}
+                className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-slate-50/50 dark:hover:bg-zinc-800/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">4</span>
+                  <div>
+                    <h2 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                      ဗီဒီယို အရွယ်အစား (Aspect Ratio)
+                    </h2>
+                    <p className="text-[10px] text-slate-400 dark:text-zinc-400">
+                      9:16 (Shorts/TikTok/Reels), 16:9 (YouTube), 1:1, 4:5
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                    {selectedRatio}
+                  </span>
+                  {isRatioSectionOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </div>
+              </button>
+
+              {isRatioSectionOpen && (
+                <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 dark:border-zinc-800 space-y-3">
+                  <div className="grid grid-cols-5 gap-1.5 pt-3">
+                    {[
+                      { id: 'original', label: 'Original' },
+                      { id: '16:9', label: '16:9 (YT)' },
+                      { id: '9:16', label: '9:16 (TikTok)' },
+                      { id: '1:1', label: '1:1 (Square)' },
+                      { id: '4:5', label: '4:5 (Insta)' },
+                    ].map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => handleRatioSelect(r.id)}
+                        className={`py-2 px-1 rounded-xl border text-[11px] font-bold transition-all text-center truncate ${
+                          selectedRatio === r.id
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* RIGHT COLUMN: INTERACTIVE PREVIEW & GENERATE (Sticky at top on mobile, right column on desktop) */}
+          {/* RIGHT COLUMN: STICKY LIVE PREVIEW & VIDEO PLAYER CONTROLS (Sticky on Mobile & Desktop) */}
           <div className="order-1 lg:order-2 w-full lg:col-span-5 space-y-3 sticky top-0 lg:top-4 z-30 lg:z-10 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md pt-1 pb-1">
-            <div className="rounded-2xl lg:rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-3 sm:p-5 shadow-sm space-y-2.5">
+            <div
+              ref={previewContainerRef}
+              className="rounded-2xl lg:rounded-3xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-3 sm:p-4 shadow-sm space-y-2.5"
+            >
+              {/* Studio Canvas Title & Timecode */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                  Live Preview & Calibrator
+                  Live Preview Studio
                 </span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
                   {formatTimeSimple(previewCurrentTime)} / {formatTimeSimple(previewDuration)}
                 </span>
               </div>
 
-              {/* Video Screen Container - Responsive Aspect Ratio with Direct Canvas Calibrator */}
+              {/* Video Screen Container */}
               <div
-                className="relative w-full h-[195px] sm:h-[300px] lg:h-[420px] bg-zinc-950/90 rounded-xl sm:rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-1 sm:p-2 select-none"
+                className="relative w-full h-[210px] sm:h-[300px] lg:h-[420px] bg-zinc-950 rounded-xl sm:rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-1 select-none"
               >
-                {(filePreviewUrl || (inputMode === 'url' && videoUrl.trim())) ? (
+                {filePreviewUrl || (inputMode === 'url' && videoUrl.trim()) ? (
                   <div
                     ref={previewBoxRef}
                     style={{
@@ -1523,9 +2034,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       height: targetRatioValue <= 1 ? '100%' : 'auto',
                       width: targetRatioValue > 1 ? '100%' : 'auto',
                     }}
-                    className="relative mx-auto flex items-center justify-center overflow-hidden bg-black rounded-xl border border-indigo-500/40 shadow-2xl transition-all duration-200 select-none"
+                    className="relative mx-auto flex items-center justify-center overflow-hidden bg-black rounded-lg border border-indigo-500/30 shadow-2xl transition-all duration-200 select-none"
                   >
-                    {/* Source Player: Upload File, YouTube Embed, TikTok Embed, or Direct Video URL */}
+                    {/* Source Player: Upload File, YouTube Embed, TikTok Embed, or Direct Video */}
                     {filePreviewUrl ? (
                       <video
                         ref={previewVideoRef}
@@ -1568,7 +2079,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         src={`https://www.tiktok.com/player/v1/${tiktokId}?autoplay=0&music_info=0&description=0`}
                         title="TikTok Preview"
                         className="w-full h-full object-contain border-0"
-                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                       />
                     ) : isTikTokUrl ? (
@@ -1589,28 +2100,27 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       />
                     )}
 
-
-
-                    {/* LIVE INTERACTIVE FROSTED GLASS BLUR BOX (Team Alpha Style - Direct Drag & 2D Resize on Video) */}
+                    {/* 1. LIVE FROSTED GLASS BLUR BOX (Team Alpha Style) */}
+                    {/* Acceptance Criteria 11: NO text or coordinate numbers appear inside Blur selection! */}
                     {enableBlur && (
                       <div
                         style={{
                           top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
                           height: `${blurThickness}%`,
                           left: blurWidth >= 100 ? '0%' : `${Math.max(0, Math.min(100 - blurWidth, (100 - blurWidth) / 2))}%`,
-                          width: `${Math.min(100, Math.max(25, blurWidth))}%`,
+                          width: `${Math.min(100, Math.max(20, blurWidth))}%`,
                           transform: 'translateZ(0)',
                         }}
+                        onClick={() => setActiveInspectorTab('blur')}
                         onPointerDown={(e) => handlePointerDown('blur-move', e)}
-                        className={`absolute flex flex-col items-center justify-center overflow-visible transition-shadow ${
-                          activeDrag && activeDrag.startsWith('blur') ? 'z-30 ring-2 ring-amber-400' : 'z-10'
-                        } ${blurWidth >= 98
-                          ? 'border-y-2 border-amber-400/70'
-                          : 'border-2 border-dashed border-amber-400/80 shadow-md'
-                          } ${activeDrag === 'blur-move' ? 'cursor-grabbing' : 'cursor-grab hover:border-amber-400'}`}
-                        title="Click & drag to reposition blur box on video"
+                        className={`absolute flex items-center justify-center overflow-visible transition-shadow ${
+                          activeInspectorTab === 'blur'
+                            ? 'z-25 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
+                            : 'z-10 border border-transparent'
+                        } ${activeDrag === 'blur-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        title="Click to select & drag to reposition blur"
                       >
-                        {/* Frosted Glass Background */}
+                        {/* Pure Frosted Glass Background */}
                         <div
                           style={{
                             backdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
@@ -1619,36 +2129,63 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                             transform: 'translateZ(0)',
                             willChange: 'transform',
                           }}
-                          className="absolute inset-0 pointer-events-none"
+                          className="absolute inset-0 pointer-events-none rounded-none"
                         />
 
-                        {/* Center Drag Handle Badge */}
-                        <div
-                          onPointerDown={(e) => handlePointerDown('blur-move', e)}
-                          className="px-2 py-0.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-[9px] font-black uppercase tracking-wider cursor-grab active:cursor-grabbing shadow-lg flex items-center gap-1 z-20 select-none"
-                        >
-                          <span>↕ Blur ({blurPosition}%)</span>
-                        </div>
+                        {/* Acceptance Criteria 14: Handles & Selection Borders visible ONLY when Blur tab is active */}
+                        {activeInspectorTab === 'blur' && !previewIsPlaying && (
+                          <>
+                            {/* 4 Corner Handles for 2D independent resizing */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-nw', e)}
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Top-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-ne', e)}
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Top-Right"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-sw', e)}
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-se', e)}
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Right"
+                            />
 
-                        {/* Blur 4-direction Resize Handles */}
-                        <div onPointerDown={(e) => handlePointerDown('blur-resize-top', e)} className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-3.5 cursor-ns-resize flex items-center justify-center z-20" title="Drag to adjust blur height">
-                          <span className="w-6 h-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
-                        </div>
-                        <div onPointerDown={(e) => handlePointerDown('blur-resize-bottom', e)} className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-8 h-3.5 cursor-ns-resize flex items-center justify-center z-20" title="Drag to adjust blur height">
-                          <span className="w-6 h-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
-                        </div>
-                        <div onPointerDown={(e) => handlePointerDown('blur-resize-left', e)} className="absolute -left-2 top-1/2 -translate-y-1/2 h-8 w-3.5 cursor-ew-resize flex items-center justify-center z-20" title="Drag to adjust blur width">
-                          <span className="h-6 w-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
-                        </div>
-                        <div onPointerDown={(e) => handlePointerDown('blur-resize-right', e)} className="absolute -right-2 top-1/2 -translate-y-1/2 h-8 w-3.5 cursor-ew-resize flex items-center justify-center z-20" title="Drag to adjust blur width">
-                          <span className="h-6 w-1 rounded-full bg-amber-400 border border-black/40 shadow-sm" />
-                        </div>
+                            {/* 4 Edge Handles */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-n', e)}
+                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-s', e)}
+                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-w', e)}
+                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-e', e)}
+                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                          </>
+                        )}
                       </div>
                     )}
 
-
-
-                    {/* INDEPENDENT DRAGGABLE & RESIZABLE BURMESE SUBTITLE BOX */}
+                    {/* 2. BURMESE SUBTITLE BOX */}
+                    {/* Acceptance Criteria 12: No extra editing labels inside */}
+                    {/* Acceptance Criteria 13: Actual subtitle content remains visible */}
                     {enableSubtitles && (
                       <div
                         style={{
@@ -1657,31 +2194,78 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           width: `${subtitleWidth}%`,
                           height: `${subtitleHeight}%`,
                         }}
+                        onClick={() => setActiveInspectorTab('text')}
                         onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
-                        className={`absolute flex flex-col items-center justify-center rounded-xl border-2 border-cyan-300/90 bg-black/40 px-2 shadow-xl backdrop-blur-[2px] ${
-                          activeDrag && activeDrag.startsWith('subtitle') ? 'z-30 ring-2 ring-cyan-300' : 'z-20'
+                        className={`absolute flex items-center justify-center px-2 transition-shadow select-none ${
+                          activeInspectorTab === 'text'
+                            ? 'z-25 border-2 border-cyan-400 bg-black/30 rounded-xl shadow-[0_0_12px_rgba(34,211,238,0.6)] backdrop-blur-[1px]'
+                            : 'z-20 border border-transparent'
                         } ${activeDrag === 'subtitle-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                        title="Drag to position Burmese subtitle box"
+                        title="Click to select & drag to position subtitles"
                       >
-                        <span className="pointer-events-none text-center text-[clamp(8px,1.5vw,14px)] font-bold leading-tight text-amber-300 drop-shadow-[0_2px_1px_rgba(0,0,0,.9)]">မြန်မာစာတန်းထိုး preview</span>
-                        
-                        {/* Subtitle Drag Handle Badge */}
-                        <div
-                          onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
-                          className="mt-1 px-1.5 py-0.2 rounded bg-cyan-400 hover:bg-cyan-300 text-black text-[8px] font-black uppercase tracking-wider cursor-grab active:cursor-grabbing shadow select-none"
+                        {/* Actual Subtitle Content rendered cleanly with chosen font */}
+                        <p
+                          style={{
+                            fontFamily: getSubtitleFontFamily(subtitleStyle),
+                          }}
+                          className="pointer-events-none text-center text-[clamp(10px,1.8vw,16px)] font-bold leading-snug text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] max-w-full truncate px-1"
                         >
-                          <span>↕ Sub ({subtitleY}%)</span>
-                        </div>
+                          {previewSubtitleText}
+                        </p>
 
-                        {/* Subtitle 4 Resize Handles */}
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-left', e)} className="absolute -left-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle width" />
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-right', e)} className="absolute -right-2 top-1/2 h-5 w-3 -translate-y-1/2 cursor-ew-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle width" />
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-top', e)} className="absolute -top-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle height" />
-                        <div onPointerDown={(e) => handlePointerDown('subtitle-resize-bottom', e)} className="absolute -bottom-2 left-1/2 h-3 w-5 -translate-x-1/2 cursor-ns-resize rounded-full bg-cyan-500 border border-white z-20" title="Resize subtitle height" />
+                        {/* Acceptance Criteria 14: Handles visible ONLY when Text tab is active */}
+                        {activeInspectorTab === 'text' && !previewIsPlaying && (
+                          <>
+                            {/* 4 Corner Handles for 2D independent resizing */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-nw', e)}
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Top-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-ne', e)}
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Top-Right"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-sw', e)}
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-se', e)}
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Right"
+                            />
+
+                            {/* 4 Edge Handles */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-n', e)}
+                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-cyan-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-s', e)}
+                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-cyan-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-w', e)}
+                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-cyan-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-e', e)}
+                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-cyan-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                          </>
+                        )}
                       </div>
                     )}
-                    {/* DRAGGABLE & RESIZABLE LOGO WATERMARK OVERLAY */}
-                    {enableLogo && logoUrl && (
+
+                    {/* 3. CHANNEL LOGO / WATERMARK OVERLAY */}
+                    {enableLogo && (logoUrl || watermarkText.trim()) && (
                       <div
                         style={{
                           position: 'absolute',
@@ -1689,49 +2273,72 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           left: `${logoX}%`,
                           width: `${logoScale}%`,
                         }}
+                        onClick={() => setActiveInspectorTab('logo')}
                         onPointerDown={(e) => handlePointerDown('logo-move', e)}
-                        className={`z-20 cursor-move max-h-[35%] group select-none ${activeDrag === 'logo-move' ? 'ring-2 ring-indigo-400 rounded-lg' : ''
-                          }`}
-                        title="Click & drag logo freely anywhere on video"
+                        className={`max-h-[35%] transition-shadow select-none ${
+                          activeInspectorTab === 'logo'
+                            ? 'z-25 border-2 border-indigo-400 p-0.5 rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.6)] cursor-grabbing'
+                            : 'z-20 border border-transparent cursor-pointer'
+                        }`}
+                        title="Click to select & drag logo"
                       >
-                        <img
-                          src={logoUrl}
-                          alt="Watermark"
-                          style={{ opacity: logoOpacity / 100 }}
-                          className="w-full h-auto object-contain pointer-events-none select-none rounded drop-shadow-md"
-                        />
+                        {logoUrl ? (
+                          <img
+                            src={logoUrl}
+                            alt="Watermark"
+                            style={{ opacity: logoOpacity / 100 }}
+                            className="w-full h-auto object-contain pointer-events-none select-none rounded drop-shadow-md"
+                          />
+                        ) : (
+                          <span
+                            style={{ opacity: logoOpacity / 100 }}
+                            className="text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded whitespace-nowrap block drop-shadow"
+                          >
+                            {watermarkText}
+                          </span>
+                        )}
 
-                        {/* Corner Resize Handle */}
-                        <div
-                          onPointerDown={(e) => handlePointerDown('logo-resize', e)}
-                          className="absolute -bottom-2 -right-2 w-5 h-5 bg-indigo-600 border-2 border-white rounded-full cursor-nwse-resize flex items-center justify-center shadow-lg hover:scale-125 transition-transform z-30"
-                          title="Drag corner to resize Logo"
-                        >
-                          <span className="text-[8px] text-white font-bold leading-none select-none">⤡</span>
-                        </div>
-
-                        {/* Coordinate Badge on Hover / Drag */}
-                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/90 text-white text-[9px] font-mono px-1.5 py-0.5 rounded shadow whitespace-nowrap pointer-events-none z-30 flex items-center gap-1.5">
-                          <span>X: {logoX}%</span>
-                          <span>Y: {logoY}%</span>
-                          <span>Size: {logoScale}%</span>
-                        </div>
+                        {/* Acceptance Criteria 14: Handles visible ONLY when Logo tab is active */}
+                        {activeInspectorTab === 'logo' && !previewIsPlaying && (
+                          <>
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-nw', e)}
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-ne', e)}
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-sw', e)}
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-se', e)}
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                          </>
+                        )}
                       </div>
                     )}
 
-                    {/* Play/Pause Button Overlay (For file video) */}
-                    {filePreviewUrl && (
+                    {/* Centered Big Play/Pause Toggle Overlay (when paused) */}
+                    {filePreviewUrl && !previewIsPlaying && (
                       <button
                         type="button"
                         onClick={togglePreviewPlay}
                         className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white flex items-center justify-center shadow-2xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-95 z-20 pointer-events-auto"
+                        title="Play"
                       >
-                        {previewIsPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                        <Play className="w-5 h-5 ml-0.5" />
                       </button>
                     )}
                   </div>
                 ) : (
-                  /* No Video Placeholder */
                   <div className="text-center p-6 space-y-2 text-zinc-500">
                     <Video className="w-8 h-8 mx-auto text-zinc-600 animate-pulse" />
                     <p className="text-xs font-medium">
@@ -1743,125 +2350,118 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 )}
               </div>
 
-              {/* Scrubber */}
-              {filePreviewUrl && previewDuration > 0 && (
-                <div className="space-y-1">
-                  <input
-                    type="range"
-                    min={0}
-                    max={previewDuration}
-                    step={0.05}
-                    value={previewCurrentTime}
-                    onChange={handlePreviewSeek}
-                    className="w-full accent-indigo-500 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
-                    <span>{formatTimeSimple(previewCurrentTime)}</span>
-                    <span>{formatTimeSimple(previewDuration)}</span>
+              {/* PROFESSIONAL PLAYER TOOLBAR: SEEK SCRUBBER, VOLUME, FULLSCREEN */}
+              {filePreviewUrl && (
+                <div className="space-y-1.5 pt-1">
+                  {/* Timeline Scrubber */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={togglePreviewPlay}
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white transition-colors"
+                      title={previewIsPlaying ? 'Pause' : 'Play'}
+                    >
+                      {previewIsPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={previewDuration || 1}
+                      step={0.05}
+                      value={previewCurrentTime}
+                      onChange={handlePreviewSeek}
+                      className="flex-1 accent-indigo-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg"
+                    />
+                    <span className="text-[10px] font-mono text-zinc-500 shrink-0">
+                      {formatTimeSimple(previewCurrentTime)}
+                    </span>
+                  </div>
+
+                  {/* Volume Control & Fullscreen Row */}
+                  <div className="flex items-center justify-between text-xs pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleToggleMute}
+                        className="text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                        title={previewIsMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {previewIsMuted || previewVolume === 0 ? (
+                          <VolumeX className="w-3.5 h-3.5 text-rose-500" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={previewIsMuted ? 0 : previewVolume}
+                        onChange={handleVolumeChange}
+                        className="w-16 sm:w-20 accent-indigo-500 h-1 bg-slate-200 dark:bg-zinc-700 rounded"
+                        title="Volume"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleToggleFullscreen}
+                        className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                        title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                      >
+                        {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Mobile Navigation Segment Tabs (Pinned directly under preview on mobile) */}
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 lg:hidden">
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('source')}
-                  className={`py-1.5 px-1 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
-                    mobileTab === 'source'
-                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-400'
-                  }`}
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  <span>Source</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('voice')}
-                  className={`py-1.5 px-1 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
-                    mobileTab === 'voice'
-                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-400'
-                  }`}
-                >
-                  <Mic className="w-3.5 h-3.5" />
-                  <span>Voice</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('style')}
-                  className={`py-1.5 px-1 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
-                    mobileTab === 'style'
-                      ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-400'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Mask & Sub</span>
-                </button>
-              </div>
-
-              {/* In-Progress Card */}
+              {/* In-Progress Notification & Progress Bar */}
               {(isUploading || isProcessing || isFailed) && (
-                <div className="p-4 rounded-2xl border border-indigo-500/20 bg-slate-50 dark:bg-zinc-800/80 shadow-md space-y-2.5">
+                <div className="p-3.5 rounded-xl border border-indigo-500/20 bg-slate-50 dark:bg-zinc-800/80 shadow-md space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-slate-800 dark:text-zinc-200">
                       {isUploading ? (
-                        <div className="flex flex-col">
-                          <span className="flex items-center gap-2">
-                            {/* <LoadingSpinner size="sm" showLabel={false} /> */}
-                            {uploadProgress >= 100
-                              ? 'Server သို့ ရောက်ရှိပြီး Pipeline စတင်နေပါပြီ...'
-                              : 'ဗီဒီယို Cloud ပေါ်သို့ တင်ပို့နေပါသည် (Uploading)...'}
-                          </span>
-                          {uploadBytes && uploadProgress < 100 && (
-                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-normal pl-6 mt-0.5">
-                              {(uploadBytes.loaded / (1024 * 1024)).toFixed(1)} MB / {(uploadBytes.total / (1024 * 1024)).toFixed(1)} MB ({uploadProgress}%)
-                            </span>
-                          )}
-                        </div>
+                        uploadProgress >= 100
+                          ? 'Server သို့ ရောက်ရှိပြီး Pipeline စတင်နေပါပြီ...'
+                          : 'ဗီဒီယို Cloud ပေါ်သို့ တင်ပို့နေပါသည်...'
                       ) : isProcessing ? (
-                        <span className="flex items-center gap-2">
-                          {/* <LoadingSpinner size="sm" showLabel={false} /> */}
-                          {STEP_LABELS[jobStatus?.step || ''] || jobStatus?.message || 'Processing on AWS...'}
-                        </span>
+                        STEP_LABELS[jobStatus?.step || ''] || jobStatus?.message || 'Processing on AWS...'
                       ) : (
-                        <span className="text-red-500 flex items-center gap-1.5 font-bold">
-                          <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span className="text-red-500 flex items-center gap-1 font-bold">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                           လုပ်ဆောင်မှု မအောင်မြင်ပါ
                         </span>
                       )}
                     </span>
-                    <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold text-sm">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold text-xs">
                       {isFailed
                         ? 'Error'
                         : isUploading
-                          ? `${uploadProgress}%`
-                          : jobStatus?.progress
-                            ? `${Math.max(0, jobStatus.progress)}%`
-                            : '0%'}
+                        ? `${uploadProgress}%`
+                        : `${Math.max(0, jobStatus?.progress || 0)}%`}
                     </span>
                   </div>
 
                   {isFailed && (jobStatus?.message || jobStatus?.error || error) && (
-                    <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] leading-relaxed break-words font-medium">
+                    <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] leading-relaxed break-words font-medium">
                       {jobStatus?.message || jobStatus?.error || error}
                     </div>
                   )}
 
-                  <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
+                  <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${isFailed
-                        ? 'bg-red-500 w-full'
-                        : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'
-                        }`}
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        isFailed ? 'bg-red-500 w-full' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'
+                      }`}
                       style={{
                         width: isFailed
                           ? '100%'
                           : isUploading
-                            ? `${Math.max(4, uploadProgress)}%`
-                            : `${Math.max(5, Math.min(100, jobStatus?.progress || 0))}%`
+                          ? `${Math.max(4, uploadProgress)}%`
+                          : `${Math.max(5, Math.min(100, jobStatus?.progress || 0))}%`,
                       }}
                     />
                   </div>
@@ -1873,10 +2473,11 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 type="button"
                 onClick={handleStart}
                 disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
-                className={`hidden lg:block w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
-                  ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
-                  : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
-                  }`}
+                className={`hidden lg:block w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${
+                  !hasVideo || isProcessing || isUploading || !serverStatus?.online
+                    ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
+                    : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
+                }`}
               >
                 {isUploading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1941,7 +2542,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
         </div>
       )}
 
-      {/* Fullscreen Transparent Drag Guard (prevents iframes or video from capturing cursor while dragging on PC/Mobile) */}
+      {/* Fullscreen Transparent Drag Guard (prevents iframes or video player from stealing cursor events during drag) */}
       {activeDrag && (
         <div
           className="fixed inset-0 z-[9999] cursor-grabbing select-none"
