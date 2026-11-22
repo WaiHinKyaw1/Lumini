@@ -46,6 +46,7 @@ import {
   Type,
   Shield,
   ArrowRight,
+  ChevronLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -534,7 +535,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const togglePreviewPlay = () => {
     if (!previewVideoRef.current) return;
     if (previewVideoRef.current.paused) {
-      previewVideoRef.current.play().then(() => setPreviewIsPlaying(true)).catch(() => {});
+      previewVideoRef.current.play().then(() => setPreviewIsPlaying(true)).catch(() => { });
     } else {
       previewVideoRef.current.pause();
       setPreviewIsPlaying(false);
@@ -567,9 +568,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   const handleToggleFullscreen = () => {
     if (!previewContainerRef.current) return;
     if (!document.fullscreenElement) {
-      previewContainerRef.current.requestFullscreen().catch(() => {});
+      previewContainerRef.current.requestFullscreen().catch(() => { });
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
   };
 
@@ -894,7 +895,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
     if (filePreviewUrl && !filePreviewUrl.startsWith('http') && !filePreviewUrl.startsWith('/api')) {
       try {
         URL.revokeObjectURL(filePreviewUrl);
-      } catch {}
+      } catch { }
     }
     setFilePreviewUrl(null);
     setVideoUrl('');
@@ -937,45 +938,35 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden max-w-4xl mx-auto space-y-3 animate-fade-in pb-28 lg:pb-16 px-2 sm:px-4">
-      {/* Top Header Card */}
-      <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-xl p-3.5 sm:p-5 shadow-sm">
-        {onNavigate && (
-          <button
-            type="button"
-            onClick={() => onNavigate('dashboard')}
-            className="mb-2.5 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-white transition-colors"
-          >
-            <span>←</span>
-            <span>Dashboard သို့ ပြန်သွားမည်</span>
-          </button>
-        )}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm">
-                Studio Editor
-              </span>
-              <span className="text-xs font-mono text-zinc-400">Movie Recap & Dubbing Suite</span>
-            </div>
-            <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1">
-              One Click English-to-Myanmar Recap
-            </h1>
-          </div>
+      {/* Compact Top Navigation Bar (Back Button on Left, AWS Online on Right) */}
+      <div className="flex items-center justify-between gap-2 py-1 px-1">
+        <button
+          type="button"
+          onClick={() => {
+            if (onNavigate) {
+              onNavigate('dashboard');
+            } else if (typeof window !== 'undefined' && window.history.length > 1) {
+              window.history.back();
+            }
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-bold text-slate-700 dark:text-zinc-200 shadow-sm transition-all active:scale-95 cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
+          <span>Back</span>
+        </button>
 
-          {/* Server Status Pill */}
-          <button
-            type="button"
-            onClick={() => checkServer(false)}
-            title="Click to re-check worker status"
-            className="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800/90 transition-colors cursor-pointer group"
-          >
-            <span className={`w-2 h-2 rounded-full ${serverStatus?.online ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
-              {isCheckingServer ? 'Checking Server...' : serverStatus?.online ? 'AWS EC2 Python Worker Online' : 'Worker Offline'}
-            </span>
-            <RefreshCw className={`w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-zinc-200 transition-transform ${isCheckingServer ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => checkServer(false)}
+          title="Click to re-check worker status"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 hover:bg-slate-100 dark:hover:bg-zinc-800 shadow-sm transition-all cursor-pointer group active:scale-95"
+        >
+          <span className={`w-2 h-2 rounded-full ${serverStatus?.online ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
+            {isCheckingServer ? 'Checking...' : serverStatus?.online ? 'AWS EC2 Online' : 'Worker Offline'}
+          </span>
+          <RefreshCw className={`w-3 h-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-zinc-200 transition-transform ${isCheckingServer ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {error && (
@@ -1183,7 +1174,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       />
                     )}
 
-                    {/* 1. LIVE FROSTED GLASS BLUR BOX (Pure Frosted Glass - No labels inside!) */}
+                    {/* 1. LIVE FROSTED GLASS BLUR BOX (Pure Frosted Glass - Always beneath Subtitles) */}
                     {enableBlur && (
                       <div
                         style={{
@@ -1192,12 +1183,13 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           left: blurWidth >= 100 ? '0%' : `${Math.max(0, Math.min(100 - blurWidth, (100 - blurWidth) / 2))}%`,
                           width: `${Math.min(100, Math.max(20, blurWidth))}%`,
                           transform: 'translateZ(0)',
+                          willChange: 'transform',
                         }}
                         onClick={() => setActiveTab('blur')}
                         onPointerDown={(e) => handlePointerDown('blur-move', e)}
                         className={`absolute flex items-center justify-center overflow-visible transition-shadow ${
                           activeTab === 'blur'
-                            ? 'z-25 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
+                            ? 'z-10 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
                             : 'z-10 border border-transparent'
                         } ${activeDrag === 'blur-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
                         title="Click to select Blur & drag to reposition"
@@ -1220,44 +1212,44 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                             {/* 4 Corner Handles for 2D independent resizing */}
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-nw', e)}
-                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-20 hover:scale-125 transition-transform"
                               title="Resize Top-Left"
                             />
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-ne', e)}
-                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-20 hover:scale-125 transition-transform"
                               title="Resize Top-Right"
                             />
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-sw', e)}
-                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-20 hover:scale-125 transition-transform"
                               title="Resize Bottom-Left"
                             />
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-se', e)}
-                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-20 hover:scale-125 transition-transform"
                               title="Resize Bottom-Right"
                             />
 
                             {/* 4 Edge Handles */}
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-n', e)}
-                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-20 hover:scale-125 transition-transform"
                               title="Adjust Height"
                             />
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-s', e)}
-                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-20 hover:scale-125 transition-transform"
                               title="Adjust Height"
                             />
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-w', e)}
-                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-20 hover:scale-125 transition-transform"
                               title="Adjust Width"
                             />
                             <div
                               onPointerDown={(e) => handlePointerDown('blur-resize-e', e)}
-                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-20 hover:scale-125 transition-transform"
                               title="Adjust Width"
                             />
                           </>
@@ -1265,7 +1257,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                     )}
 
-                    {/* 2. BURMESE SUBTITLE BOX (Clean text content only - No editing badges inside) */}
+                    {/* 2. BURMESE SUBTITLE BOX (Always on top of Blur: z-30) */}
                     {enableSubtitles && (
                       <div
                         style={{
@@ -1273,13 +1265,15 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           left: `${Math.max(0, Math.min(100 - subtitleWidth, subtitleX - subtitleWidth / 2))}%`,
                           width: `${subtitleWidth}%`,
                           height: `${subtitleHeight}%`,
+                          transform: 'translateZ(0)',
+                          willChange: 'transform',
                         }}
                         onClick={() => setActiveTab('text')}
                         onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
                         className={`absolute flex items-center justify-center px-2 transition-shadow select-none ${
                           activeTab === 'text'
-                            ? 'z-25 border-2 border-cyan-400 bg-black/30 rounded-xl shadow-[0_0_12px_rgba(34,211,238,0.6)] backdrop-blur-[1px]'
-                            : 'z-20 border border-transparent'
+                            ? 'z-30 border-2 border-cyan-400 bg-black/40 rounded-xl shadow-[0_0_12px_rgba(34,211,238,0.7)] backdrop-blur-[1px]'
+                            : 'z-30 border border-transparent'
                         } ${activeDrag === 'subtitle-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
                         title="Click to select Text & drag to position"
                       >
@@ -1287,7 +1281,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           style={{
                             fontFamily: getSubtitleFontFamily(subtitleStyle),
                           }}
-                          className="pointer-events-none text-center text-[clamp(10px,1.8vw,16px)] font-bold leading-snug text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] max-w-full truncate px-1"
+                          className="pointer-events-none text-center text-[clamp(11px,1.9vw,17px)] font-black leading-snug text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] max-w-full truncate px-1 tracking-wide"
                         >
                           {previewSubtitleText}
                         </p>
@@ -1343,7 +1337,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                     )}
 
-                    {/* 3. CHANNEL LOGO / WATERMARK OVERLAY */}
+                    {/* 3. CHANNEL LOGO / WATERMARK OVERLAY (Top layer: z-40) */}
                     {enableLogo && (logoUrl || watermarkText.trim()) && (
                       <div
                         style={{
@@ -1351,13 +1345,15 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           top: `${logoY}%`,
                           left: `${logoX}%`,
                           width: `${logoScale}%`,
+                          transform: 'translateZ(0)',
+                          willChange: 'transform',
                         }}
                         onClick={() => setActiveTab('logo')}
                         onPointerDown={(e) => handlePointerDown('logo-move', e)}
                         className={`max-h-[35%] transition-shadow select-none ${
                           activeTab === 'logo'
-                            ? 'z-25 border-2 border-indigo-400 p-0.5 rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.6)] cursor-grabbing'
-                            : 'z-20 border border-transparent cursor-pointer'
+                            ? 'z-40 border-2 border-indigo-400 p-0.5 rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.6)] cursor-grabbing'
+                            : 'z-40 border border-transparent cursor-pointer'
                         }`}
                         title="Click to select Logo & drag"
                       >
@@ -1501,11 +1497,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setActiveTab('setup')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  activeTab === 'setup'
-                    ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                }`}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'setup'
+                  ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                  }`}
               >
                 <Sliders className="w-3.5 h-3.5 text-indigo-500" />
                 <span className="truncate">Setup</span>
@@ -1514,11 +1509,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setActiveTab('blur')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  activeTab === 'blur'
-                    ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-600/30'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                }`}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'blur'
+                  ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-600/30'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                  }`}
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
                 <span className="truncate">Blur</span>
@@ -1527,11 +1521,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setActiveTab('text')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  activeTab === 'text'
-                    ? 'bg-cyan-500 text-white shadow-sm ring-1 ring-cyan-600/30'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                }`}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'text'
+                  ? 'bg-cyan-500 text-white shadow-sm ring-1 ring-cyan-600/30'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                  }`}
               >
                 <Type className="w-3.5 h-3.5" />
                 <span className="truncate">Text</span>
@@ -1540,11 +1533,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setActiveTab('logo')}
-                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  activeTab === 'logo'
-                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-700/30'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                }`}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'logo'
+                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-700/30'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                  }`}
               >
                 <Shield className="w-3.5 h-3.5" />
                 <span className="truncate">Logo</span>
@@ -1579,11 +1571,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => setEnableBlur(!enableBlur)}
-                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
-                        enableBlur
-                          ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
-                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
+                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${enableBlur
+                        ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-sm'
+                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                        }`}
                     >
                       {enableBlur ? '✓ ON' : 'OFF'}
                     </button>
@@ -1613,11 +1604,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                               setBlurThickness(preset.thick);
                               setBlurWidth(preset.width);
                             }}
-                            className={`py-1.5 px-1 rounded-lg border text-center transition-all ${
-                              blurPosition === preset.pos && blurWidth === preset.width
-                                ? 'border-amber-500 bg-amber-500 text-white font-bold shadow-sm'
-                                : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
-                            }`}
+                            className={`py-1.5 px-1 rounded-lg border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
+                              ? 'border-amber-500 bg-amber-500 text-white font-bold shadow-sm'
+                              : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
+                              }`}
                           >
                             {preset.label}
                           </button>
@@ -1725,11 +1715,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => setEnableSubtitles(!enableSubtitles)}
-                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
-                        enableSubtitles
-                          ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-sm'
-                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
+                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${enableSubtitles
+                        ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-sm'
+                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                        }`}
                     >
                       {enableSubtitles ? '✓ ON' : 'OFF'}
                     </button>
@@ -1768,11 +1757,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                             key={f.id}
                             type="button"
                             onClick={() => setSubtitleStyle(f.id)}
-                            className={`py-2 px-1 rounded-lg border text-center transition-all ${
-                              subtitleStyle === f.id
-                                ? 'border-cyan-500 bg-cyan-500 text-white font-bold shadow-sm'
-                                : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] bg-slate-50 dark:bg-zinc-800/40'
-                            }`}
+                            className={`py-2 px-1 rounded-lg border text-center transition-all ${subtitleStyle === f.id
+                              ? 'border-cyan-500 bg-cyan-500 text-white font-bold shadow-sm'
+                              : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] bg-slate-50 dark:bg-zinc-800/40'
+                              }`}
                           >
                             <span className="block truncate">{f.label}</span>
                           </button>
@@ -1880,11 +1868,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => setEnableLogo(!enableLogo)}
-                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
-                        enableLogo
-                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
-                          : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
+                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${enableLogo
+                        ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
+                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
+                        }`}
                     >
                       {enableLogo ? '✓ ON' : 'OFF'}
                     </button>
@@ -2035,11 +2022,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => setInputMode('upload')}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                        inputMode === 'upload'
-                          ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
-                          : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                      }`}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${inputMode === 'upload'
+                        ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                        }`}
                     >
                       <Upload className="w-3.5 h-3.5 text-indigo-500" />
                       <span>Video File Upload</span>
@@ -2047,11 +2033,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => setInputMode('url')}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                        inputMode === 'url'
-                          ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
-                          : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-                      }`}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${inputMode === 'url'
+                        ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
+                        }`}
                     >
                       <Zap className="w-3.5 h-3.5 text-purple-500" />
                       <span>Link / URL</span>
@@ -2090,11 +2075,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         onDragLeave={() => setIsDragging(false)}
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
-                        className={`rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-all ${
-                          isDragging
-                            ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/10'
-                            : 'border-slate-200 dark:border-zinc-700/80 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-zinc-800/40'
-                        }`}
+                        className={`rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-all ${isDragging
+                          ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/10'
+                          : 'border-slate-200 dark:border-zinc-700/80 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-zinc-800/40'
+                          }`}
                       >
                         <Upload className="w-5 h-5 mx-auto text-indigo-500 mb-1" />
                         <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
@@ -2186,26 +2170,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   </div>
                 </div>
 
-                {/* Direct Shortcut to Advanced Canvas Settings */}
-                <div
-                  onClick={() => setActiveTab('blur')}
-                  className="p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-cyan-500/10 to-indigo-500/10 border border-amber-500/30 hover:border-amber-500 cursor-pointer transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                      🎨
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
-                        Advanced Settings (Blur, စာတန်းထိုး နှင့် Logo ချိန်ရန်)
-                      </p>
-                      <p className="text-[10px] text-slate-400 dark:text-zinc-400">
-                        Video ပေါ်တွင် တိုက်ရိုက်ဆွဲရွှေ့/ချိန်ညှိရန် ဤနေရာကို နှိပ်ပါ
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-amber-500 group-hover:translate-x-1 transition-transform" />
-                </div>
 
                 {/* 2. Voiceover & Speed Selection */}
                 <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-zinc-800">
@@ -2247,11 +2211,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         <div
                           key={v.id}
                           onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
-                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
-                            selectedVoice === v.id
-                              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
-                              : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
-                          }`}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
+                            ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
+                            : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
@@ -2260,11 +2223,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                             <button
                               type="button"
                               onClick={(e) => handlePlayVoiceSample(e, v.id)}
-                              className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 transition-all ${
-                                sampleAudioPlaying === v.id
-                                  ? 'bg-indigo-600 text-white animate-pulse'
-                                  : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white'
-                              }`}
+                              className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 transition-all ${sampleAudioPlaying === v.id
+                                ? 'bg-indigo-600 text-white animate-pulse'
+                                : 'bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white'
+                                }`}
                               title="နမူနာအသံ နားထောင်မည်"
                             >
                               <Volume2 className="w-2.5 h-2.5" />
@@ -2334,11 +2296,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                           key={s.value}
                           type="button"
                           onClick={() => setSelectedSpeed(s.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                            selectedSpeed === s.value
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
-                          }`}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${selectedSpeed === s.value
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+                            }`}
                         >
                           {s.label}
                         </button>
@@ -2346,51 +2307,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     </div>
                   </div>
 
-                  {/* Aspect Ratio Selector */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
-                      ဗီဒီယို အရွယ်အစား (Aspect Ratio):
-                    </label>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {[
-                        { id: 'original', label: 'Original' },
-                        { id: '16:9', label: '16:9 (YT)' },
-                        { id: '9:16', label: '9:16 (TikTok)' },
-                        { id: '1:1', label: '1:1 (Square)' },
-                        { id: '4:5', label: '4:5 (Insta)' },
-                      ].map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => handleRatioSelect(r.id)}
-                          className={`py-1.5 px-1 rounded-xl border text-[11px] font-bold transition-all text-center truncate ${
-                            selectedRatio === r.id
-                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                              : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
-                          }`}
-                        >
-                          {r.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  
 
-                  {/* Original Audio Mix Toggle */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-zinc-800 text-xs">
-                    <div>
-                      <span className="font-bold text-slate-700 dark:text-zinc-300 text-[11px]">မူရင်းဗီဒီယို Background အသံ ရောစပ်မည်:</span>
-                      <p className="text-[10px] text-slate-400 dark:text-zinc-500">မူရင်းအသံကို 20% volume ဖြင့် အနောက်မှ ဖွင့်ထားမည်</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIncludeOriginalAudio(!includeOriginalAudio)}
-                      className={`text-[10px] font-bold px-3 py-1 rounded-lg transition-all ${
-                        includeOriginalAudio ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
-                    >
-                      {includeOriginalAudio ? '✓ ON' : 'OFF'}
-                    </button>
-                  </div>
                 </div>
               </div>
             )}
@@ -2418,8 +2336,8 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   {isFailed
                     ? 'Error'
                     : isUploading
-                    ? `${uploadProgress}%`
-                    : `${Math.max(0, jobStatus?.progress || 0)}%`}
+                      ? `${uploadProgress}%`
+                      : `${Math.max(0, jobStatus?.progress || 0)}%`}
                 </span>
               </div>
 
@@ -2431,15 +2349,14 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
               <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${
-                    isFailed ? 'bg-red-500 w-full' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'
-                  }`}
+                  className={`h-full rounded-full transition-all duration-300 ${isFailed ? 'bg-red-500 w-full' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'
+                    }`}
                   style={{
                     width: isFailed
                       ? '100%'
                       : isUploading
-                      ? `${Math.max(4, uploadProgress)}%`
-                      : `${Math.max(5, Math.min(100, jobStatus?.progress || 0))}%`,
+                        ? `${Math.max(4, uploadProgress)}%`
+                        : `${Math.max(5, Math.min(100, jobStatus?.progress || 0))}%`,
                   }}
                 />
               </div>
@@ -2451,11 +2368,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
             type="button"
             onClick={handleStart}
             disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
-            className={`hidden lg:block w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${
-              !hasVideo || isProcessing || isUploading || !serverStatus?.online
-                ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
-                : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
-            }`}
+            className={`hidden lg:block w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
+              ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
+              : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
+              }`}
           >
             {isUploading ? (
               <span className="flex items-center justify-center gap-2">
@@ -2492,11 +2408,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
             type="button"
             onClick={handleStart}
             disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
-            className={`flex-1 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2 ${
-              !hasVideo || isProcessing || isUploading || !serverStatus?.online
-                ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
-            }`}
+            className={`flex-1 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2 ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
+              ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
+              : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
+              }`}
           >
             {isUploading ? (
               <span className="flex items-center justify-center gap-2">
