@@ -47,7 +47,6 @@ import {
   Shield,
   ArrowRight,
   ChevronLeft,
-  Key,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -1869,61 +1868,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       ))}
                     </div>
                   </div>
-
-                  {/* Gemini Translation API Key Configuration */}
-                  <div className="pt-2.5 border-t border-slate-100 dark:border-zinc-800 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-700 dark:text-zinc-300 text-[11px] flex items-center gap-1.5">
-                        <Key className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Gemini API Key (မြန်မာပြန် AI Key):</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-                        {geminiApiKey ? '✓ Key Active' : 'Vercel / Server Default'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="password"
-                        placeholder="AQ.Ab8RN... သို့မဟုတ် AIzaSy... (Vercel / AWS Key အစား ကိုယ်ပိုင် Key သုံးရန်)"
-                        value={geminiApiKey}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          setGeminiApiKey(val);
-                          if (val) {
-                            try {
-                              localStorage.setItem('VITE_GEMINI_API_KEY', val);
-                            } catch {}
-                          } else {
-                            try {
-                              localStorage.removeItem('VITE_GEMINI_API_KEY');
-                            } catch {}
-                          }
-                        }}
-                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 text-xs font-mono text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder:text-slate-400 dark:placeholder:text-zinc-600"
-                      />
-                      {geminiApiKey && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGeminiApiKey('');
-                            try {
-                              localStorage.removeItem('VITE_GEMINI_API_KEY');
-                            } catch {}
-                            toast('Default Key သို့ ပြန်လည်ပြောင်းလဲလိုက်ပါသည်');
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-zinc-800 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all"
-                          title="Reset Key to default"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400 dark:text-zinc-500 leading-tight">
-                      Vercel သို့မဟုတ် ဤနေရာတွင် ထည့်ထားသော Gemini Key သည် AWS EC2 worker သို့ တိုက်ရိုက်ရောက်ရှိပြီး စာတန်းထိုးမြန်မာပြန်ရန် အသုံးပြုပါမည်။
-                    </p>
-                  </div>
-
-
 
                 </div>
               </div>
