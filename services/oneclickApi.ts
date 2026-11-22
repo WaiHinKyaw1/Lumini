@@ -230,6 +230,7 @@ export interface OneClickJobOptions {
   voiceSamplePreset?: string;
   voiceId?: string;
   elevenlabsApiKey?: string;
+  geminiApiKey?: string;
   enableIntroHook?: boolean;
   introHookText?: string;
   sourceLang?: 'auto' | 'zh' | 'en';
@@ -337,6 +338,15 @@ export async function startOneClickJob(
   }
   if (options.elevenlabsApiKey) {
     formData.append('elevenlabs_api_key', options.elevenlabsApiKey.trim());
+  }
+  const effectiveGeminiKey = (
+    options.geminiApiKey ||
+    localStorage.getItem('VITE_GEMINI_API_KEY') ||
+    (import.meta.env.VITE_GEMINI_API_KEY as string) ||
+    ''
+  ).trim();
+  if (effectiveGeminiKey) {
+    formData.append('gemini_api_key', effectiveGeminiKey);
   }
   if (options.watermarkText) formData.append('watermark_text', options.watermarkText.trim());
   if (options.logoFile) {

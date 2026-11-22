@@ -337,11 +337,12 @@ def translate_with_gemini(
     batch_size: int = 15,
     dubbing_mode: str = "movie_recap",
     source_lang: str = "auto",
+    gemini_api_key: Optional[str] = None,
 ) -> list[dict]:
     """Translate segments to Myanmar Burmese using Gemini (Drama Dubbing or Recap)."""
     update_job(job_id, step="translation", progress=30, message="Gemini translation starting...")
 
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY", "")
+    api_key = (gemini_api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY", "")).strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set. Cannot translate.")
 
@@ -2477,6 +2478,7 @@ def run_oneclick_pipeline(
     voice_sample_path: Optional[Path] = None,
     voice_id: Optional[str] = None,
     elevenlabs_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
     enable_intro_hook: bool = True,
     intro_hook_text: Optional[str] = None,
     source_lang: str = "auto",
@@ -2549,7 +2551,12 @@ def run_oneclick_pipeline(
         chunks = assign_midpoint_boundaries(raw_chunks, video_dur)
 
         # Step 4: Gemini translation (Spoken storytelling or Drama acting style)
-        translated = translate_with_gemini(chunks, job_dir, job_id, dubbing_mode=dubbing_mode, source_lang=source_lang)
+        translated = translate_with_gemini(
+            chunks, job_dir, job_id,
+            dubbing_mode=dubbing_mode,
+            source_lang=source_lang,
+            gemini_api_key=gemini_api_key,
+        )
         hook_title = ""
 
         # Step 5: Voice synthesis (Smart Acoustic Cloned Voice, ElevenLabs, or Natural Edge TTS)
@@ -2761,6 +2768,7 @@ async def start_job(
     voice_sample_preset: Optional[str] = Form(default=None),
     voice_id: Optional[str] = Form(default=None),
     elevenlabs_api_key: Optional[str] = Form(default=None),
+    gemini_api_key: Optional[str] = Form(default=None),
     enable_intro_hook: bool = Form(False),
     intro_hook_text: Optional[str] = Form(default=None),
     source_lang: str = Form("auto"),
@@ -2903,6 +2911,7 @@ async def start_job(
         voice_sample_path=voice_sample_path,
         voice_id=voice_id,
         elevenlabs_api_key=elevenlabs_api_key,
+        gemini_api_key=gemini_api_key,
         enable_intro_hook=enable_intro_hook,
         intro_hook_text=intro_hook_text,
         source_lang=source_lang,
