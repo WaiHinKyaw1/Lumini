@@ -84,15 +84,15 @@ const Profile: React.FC<ProfileProps> = ({
     }
   };
 
-  const handleResetGeminiKey = () => {
-    const defaultEnv = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
-    setGeminiKey('');
-    setGeminiInput(defaultEnv);
-    try {
-      localStorage.removeItem('VITE_GEMINI_API_KEY');
-      toast('Default Key သို့ ပြန်လည်ပြောင်းလဲလိုက်ပါသည်');
-    } catch { }
-  };
+  // const handleResetGeminiKey = () => {
+  //   const defaultEnv = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+  //   setGeminiKey('');
+  //   setGeminiInput(defaultEnv);
+  //   try {
+  //     localStorage.removeItem('VITE_GEMINI_API_KEY');
+  //     toast('Default Key သို့ ပြန်လည်ပြောင်းလဲလိုက်ပါသည်');
+  //   } catch { }
+  // };
 
   const handleSaveElevenKey = () => {
     const trimmed = elevenInput.trim();
@@ -109,6 +109,32 @@ const Profile: React.FC<ProfileProps> = ({
       toast.error('Key သိမ်းဆည်း၍ မရပါ');
     }
   };
+
+  const handleResetGeminiKey = () => {
+    const defaultEnv = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+    setGeminiKey('');
+    setGeminiInput(defaultEnv);
+    try {
+      localStorage.removeItem('VITE_GEMINI_API_KEY');
+      toast('Default Key သို့ ပြန်လည်ပြောင်းလဲလိုက်ပါသည်');
+    } catch { }
+  };
+
+  // const handleSaveElevenKey = () => {
+  //   const trimmed = elevenInput.trim();
+  //   setElevenKey(trimmed);
+  //   try {
+  //     if (trimmed) {
+  //       localStorage.setItem('lumini_elevenlabs_key', trimmed);
+  //       toast.success('ElevenLabs Key အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ');
+  //     } else {
+  //       localStorage.removeItem('lumini_elevenlabs_key');
+  //       toast('ElevenLabs Key ဖျက်လိုက်ပါပြီ');
+  //     }
+  //   } catch {
+  //     toast.error('Key သိမ်းဆည်း၍ မရပါ');
+  //   }
+  // };
 
   return (
     <div className="module-page mx-auto w-full max-w-5xl space-y-4 pb-8 animate-in fade-in duration-300">
@@ -289,6 +315,172 @@ const Profile: React.FC<ProfileProps> = ({
               </div>
 
 
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showElevenKey ? 'text' : 'password'}
+                    placeholder="sk_..."
+                    value={elevenInput}
+                    onChange={(e) => setElevenInput(e.target.value)}
+                    className="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 text-xs font-mono text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowElevenKey(!showElevenKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1"
+                    title={showElevenKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showElevenKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveElevenKey}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    Save Key
+                  </button>
+                  {elevenKey && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setElevenKey('');
+                        setElevenInput('');
+                        try {
+                          localStorage.removeItem('lumini_elevenlabs_key');
+                          toast('ElevenLabs Key ဖျက်လိုက်ပါပြီ');
+                        } catch { }
+                      }}
+                      className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-rose-500 text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Appearance Section */}
+        {/* API Keys & AI Integrations Section */}
+        <section className="rounded-2xl bg-white dark:bg-[#0c0c0e] border border-gray-200 dark:border-white/10 p-4 sm:p-5" aria-labelledby="apikeys-title">
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+              <Key className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 id="apikeys-title" className="!mb-1 text-base font-bold text-slate-900 dark:text-white">API Keys &amp; AI Integrations</h2>
+              <p className="text-xs text-slate-500 dark:text-zinc-300 !mb-0">Gemini AI နှင့် အသံတုပမှုအတွက် ကိုယ်ပိုင် API Key များကို တစ်နေရာတည်းတွင် စီမံပါ။</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* 1. Google Gemini API Key */}
+            <div className="rounded-2xl border border-slate-200/90 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    Google Gemini API Key
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {geminiKey ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                      <CheckCircle2 className="w-3 h-3" /> Custom Key Active
+                    </span>
+                  ) : (import.meta.env.VITE_GEMINI_API_KEY as string) ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
+                      <ShieldCheck className="w-3 h-3" /> Vercel Default Active
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-zinc-500 bg-slate-200/60 dark:bg-zinc-800 px-2.5 py-1 rounded-full">
+                      Not Configured
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                One Click ဗီဒီယို ဘာသာပြန်ခြင်း (AWS EC2 worker သို့ တိုက်ရိုက် ပေးပို့အသုံးပြုမည်)၊ Subtitle Studio၊ Video Insights နှင့် Thumbnail Generator တို့တွင် အသုံးပြုပါမည်။
+              </p>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showGeminiKey ? 'text' : 'password'}
+                    placeholder="AQ.Ab8RN... သို့မဟုတ် AIzaSy..."
+                    value={geminiInput}
+                    onChange={(e) => setGeminiInput(e.target.value)}
+                    className="w-full pr-10 pl-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 text-xs font-mono text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1"
+                    title={showGeminiKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveGeminiKey}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    Save Key
+                  </button>
+                  {geminiKey && (
+                    <button
+                      type="button"
+                      onClick={handleResetGeminiKey}
+                      className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 hover:text-rose-500 text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer"
+                      title="Reset to default"
+                    >
+                      Reset Default
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:underline"
+                >
+                  <span>Google AI Studio မှ အခမဲ့ API Key ရယူရန်</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            {/* 2. ElevenLabs Voice API Key */}
+            <div className="rounded-2xl border border-slate-200/90 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="font-bold text-sm text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
+                  <Key className="w-4 h-4 text-purple-500" />
+                  ElevenLabs API Key (Voice Clone)
+                </span>
+                {elevenKey ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/20">
+                    <CheckCircle2 className="w-3 h-3" /> Key Active
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-slate-400 dark:text-zinc-500 bg-slate-200/60 dark:bg-zinc-800 px-2.5 py-1 rounded-full">
+                    Default / Optional
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                One Click Recap တွင် ကိုယ်ပိုင်အသံနမူနာ (Voice Sample) တင်၍ အသံတူ ကလုန်းလုပ်ရန် အသုံးပြုပါသည်။
+              </p>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <div className="relative flex-1">
