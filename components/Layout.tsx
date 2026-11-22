@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
   }, []);
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-paper dark:bg-obsidian text-slate-800 dark:text-zinc-100 transition-colors duration-300 flex flex-col font-sans">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-paper dark:bg-obsidian text-slate-800 dark:text-zinc-100 transition-colors duration-300 flex flex-col font-sans">
 
       {/* Global Header */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-obsidian/90 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 px-3 sm:px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 flex items-center justify-between">
@@ -272,7 +272,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({ children, credits, currentPa
         </div>
       </aside>
 
-      <section className="flex-1 px-2 sm:px-4 py-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0 transition-all pb-24 lg:pb-6">
+      <section className="flex-1 px-2 sm:px-4 py-4 w-full max-w-7xl mx-auto overflow-x-clip min-w-0 transition-all pb-24 lg:pb-6">
         {children}
       </section>
 

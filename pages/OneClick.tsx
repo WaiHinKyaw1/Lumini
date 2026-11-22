@@ -937,7 +937,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
   };
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden max-w-4xl mx-auto space-y-3 animate-fade-in pb-28 lg:pb-16 px-2 sm:px-4">
+    <div className="w-full max-w-full overflow-x-clip max-w-7xl mx-auto space-y-3 animate-fade-in pb-28 lg:pb-16 px-2 sm:px-4">
       {/* Compact Top Navigation Bar (Back Button on Left, AWS Online on Right) */}
       <div className="flex items-center justify-between gap-2 py-1 px-1">
         <button
@@ -1076,424 +1076,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
       {/* MAIN UNIFIED STUDIO WORKFLOW */}
       {!isCompleted && (
-        <div className="space-y-3">
-          {/* 1. STICKY PREVIEW BOX AT THE TOP (Always pinned, seamless on Mobile & Desktop) */}
-          <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md pt-1 pb-2">
-            <div
-              ref={previewContainerRef}
-              className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 p-2 sm:p-3 shadow-sm space-y-2"
-            >
-              {/* Studio Canvas Title & Timecode */}
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                  Live Preview Studio
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
-                  {formatTimeSimple(previewCurrentTime)} / {formatTimeSimple(previewDuration)}
-                </span>
-              </div>
-
-              {/* Video Screen Container - Responsive Aspect Ratio */}
-              <div
-                className="relative w-full h-[200px] sm:h-[280px] lg:h-[350px] bg-zinc-950 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-1 select-none"
-              >
-                {filePreviewUrl || (inputMode === 'url' && videoUrl.trim()) ? (
-                  <div
-                    ref={previewBoxRef}
-                    style={{
-                      aspectRatio: `${targetRatioValue}`,
-                      maxHeight: '100%',
-                      maxWidth: '100%',
-                      height: targetRatioValue <= 1 ? '100%' : 'auto',
-                      width: targetRatioValue > 1 ? '100%' : 'auto',
-                    }}
-                    className="relative mx-auto flex items-center justify-center overflow-hidden bg-black rounded-lg border border-indigo-500/30 shadow-2xl transition-all duration-200 select-none"
-                  >
-                    {/* Source Player: Upload File, YouTube Embed, TikTok Embed, or Direct Video */}
-                    {filePreviewUrl ? (
-                      <video
-                        ref={previewVideoRef}
-                        src={filePreviewUrl}
-                        preload="metadata"
-                        onTimeUpdate={handleTimeUpdate}
-                        onLoadedMetadata={() => {
-                          const v = previewVideoRef.current;
-                          if (v) {
-                            setPreviewDuration(v.duration || 0);
-                            if (v.videoWidth && v.videoHeight) {
-                              const aspect = v.videoWidth / v.videoHeight;
-                              setNaturalAspect(aspect);
-                              const smart = getSmartBlurForRatio(selectedRatio, aspect);
-                              setBlurPosition(smart.pos);
-                              setBlurThickness(smart.thick);
-                              if (smart.width) setBlurWidth(smart.width);
-                            }
-                          }
-                        }}
-                        onEnded={() => setPreviewIsPlaying(false)}
-                        onPause={() => {
-                          setPreviewIsPlaying(false);
-                          if (previewVideoRef.current) setPreviewCurrentTime(previewVideoRef.current.currentTime);
-                        }}
-                        onPlay={() => setPreviewIsPlaying(true)}
-                        className="w-full h-full object-contain pointer-events-none"
-                        playsInline
-                      />
-                    ) : youtubeId ? (
-                      <iframe
-                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&controls=1&modestbranding=1&rel=0`}
-                        title="YouTube Preview"
-                        className="w-full h-full object-contain border-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    ) : tiktokId ? (
-                      <iframe
-                        src={`https://www.tiktok.com/player/v1/${tiktokId}?autoplay=0&music_info=0&description=0`}
-                        title="TikTok Preview"
-                        className="w-full h-full object-contain border-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    ) : isTikTokUrl ? (
-                      <iframe
-                        src={`https://www.tiktok.com/embed/v2/?url=${encodeURIComponent(videoUrl.trim())}`}
-                        title="TikTok Preview"
-                        className="w-full h-full object-contain border-0"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <video
-                        ref={previewVideoRef}
-                        src={videoUrl.trim()}
-                        preload="metadata"
-                        controls
-                        playsInline
-                        className="w-full h-full object-contain"
-                      />
-                    )}
-
-                    {/* 1. LIVE FROSTED GLASS BLUR BOX (Pure Frosted Glass - Always beneath Subtitles) */}
-                    {enableBlur && (
-                      <div
-                        style={{
-                          top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
-                          height: `${blurThickness}%`,
-                          left: blurWidth >= 100 ? '0%' : `${Math.max(0, Math.min(100 - blurWidth, (100 - blurWidth) / 2))}%`,
-                          width: `${Math.min(100, Math.max(20, blurWidth))}%`,
-                          transform: 'translateZ(0)',
-                          willChange: 'transform',
-                        }}
-                        onClick={() => setActiveTab('blur')}
-                        onPointerDown={(e) => handlePointerDown('blur-move', e)}
-                        className={`absolute flex items-center justify-center overflow-visible transition-shadow ${
-                          activeTab === 'blur'
-                            ? 'z-10 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
-                            : 'z-10 border border-transparent'
-                        } ${activeDrag === 'blur-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                        title="Click to select Blur & drag to reposition"
-                      >
-                        {/* Pure Frosted Glass Background */}
-                        <div
-                          style={{
-                            backdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
-                            WebkitBackdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
-                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.60, Math.max(0.12, (blurIntensity / 100) * 0.60))})`,
-                            transform: 'translateZ(0)',
-                            willChange: 'transform',
-                          }}
-                          className="absolute inset-0 pointer-events-none rounded-none"
-                        />
-
-                        {/* Handles visible ONLY when Blur tab is active and not playing */}
-                        {activeTab === 'blur' && !previewIsPlaying && (
-                          <>
-                            {/* 4 Corner Handles for 2D independent resizing */}
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-nw', e)}
-                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-20 hover:scale-125 transition-transform"
-                              title="Resize Top-Left"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-ne', e)}
-                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-20 hover:scale-125 transition-transform"
-                              title="Resize Top-Right"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-sw', e)}
-                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-20 hover:scale-125 transition-transform"
-                              title="Resize Bottom-Left"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-se', e)}
-                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-20 hover:scale-125 transition-transform"
-                              title="Resize Bottom-Right"
-                            />
-
-                            {/* 4 Edge Handles */}
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-n', e)}
-                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-20 hover:scale-125 transition-transform"
-                              title="Adjust Height"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-s', e)}
-                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-20 hover:scale-125 transition-transform"
-                              title="Adjust Height"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-w', e)}
-                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-20 hover:scale-125 transition-transform"
-                              title="Adjust Width"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('blur-resize-e', e)}
-                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-20 hover:scale-125 transition-transform"
-                              title="Adjust Width"
-                            />
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 2. BURMESE SUBTITLE BOX (Always on top of Blur: z-30) */}
-                    {enableSubtitles && (
-                      <div
-                        style={{
-                          top: `${Math.max(0, Math.min(100 - subtitleHeight, subtitleY - subtitleHeight / 2))}%`,
-                          left: `${Math.max(0, Math.min(100 - subtitleWidth, subtitleX - subtitleWidth / 2))}%`,
-                          width: `${subtitleWidth}%`,
-                          height: `${subtitleHeight}%`,
-                          transform: 'translateZ(0)',
-                          willChange: 'transform',
-                        }}
-                        onClick={() => setActiveTab('text')}
-                        onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
-                        className={`absolute flex items-center justify-center px-2 transition-shadow select-none ${
-                          activeTab === 'text'
-                            ? 'z-30 border-2 border-cyan-400 bg-black/40 rounded-xl shadow-[0_0_12px_rgba(34,211,238,0.7)] backdrop-blur-[1px]'
-                            : 'z-30 border border-transparent'
-                        } ${activeDrag === 'subtitle-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                        title="Click to select Text & drag to position"
-                      >
-                        <p
-                          style={{
-                            fontFamily: getSubtitleFontFamily(subtitleStyle),
-                          }}
-                          className="pointer-events-none text-center text-[clamp(11px,1.9vw,17px)] font-black leading-snug text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] max-w-full truncate px-1 tracking-wide"
-                        >
-                          {previewSubtitleText}
-                        </p>
-
-                        {/* Handles visible ONLY when Text tab is active and not playing */}
-                        {activeTab === 'text' && !previewIsPlaying && (
-                          <>
-                            {/* 4 Corner Handles for 2D independent resizing */}
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-nw', e)}
-                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Top-Left"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-ne', e)}
-                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Top-Right"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-sw', e)}
-                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Bottom-Left"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-se', e)}
-                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Bottom-Right"
-                            />
-
-                            {/* 4 Edge Handles */}
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-n', e)}
-                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-cyan-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
-                              title="Adjust Height"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-s', e)}
-                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-cyan-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
-                              title="Adjust Height"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-w', e)}
-                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-cyan-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
-                              title="Adjust Width"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('subtitle-resize-e', e)}
-                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-cyan-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
-                              title="Adjust Width"
-                            />
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 3. CHANNEL LOGO / WATERMARK OVERLAY (Top layer: z-40) */}
-                    {enableLogo && (logoUrl || watermarkText.trim()) && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: `${logoY}%`,
-                          left: `${logoX}%`,
-                          width: `${logoScale}%`,
-                          transform: 'translateZ(0)',
-                          willChange: 'transform',
-                        }}
-                        onClick={() => setActiveTab('logo')}
-                        onPointerDown={(e) => handlePointerDown('logo-move', e)}
-                        className={`max-h-[35%] transition-shadow select-none ${
-                          activeTab === 'logo'
-                            ? 'z-40 border-2 border-indigo-400 p-0.5 rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.6)] cursor-grabbing'
-                            : 'z-40 border border-transparent cursor-pointer'
-                        }`}
-                        title="Click to select Logo & drag"
-                      >
-                        {logoUrl ? (
-                          <img
-                            src={logoUrl}
-                            alt="Watermark"
-                            style={{ opacity: logoOpacity / 100 }}
-                            className="w-full h-auto object-contain pointer-events-none select-none rounded drop-shadow-md"
-                          />
-                        ) : (
-                          <span
-                            style={{ opacity: logoOpacity / 100 }}
-                            className="text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded whitespace-nowrap block drop-shadow"
-                          >
-                            {watermarkText}
-                          </span>
-                        )}
-
-                        {/* Handles visible ONLY when Logo tab is active and not playing */}
-                        {activeTab === 'logo' && !previewIsPlaying && (
-                          <>
-                            <div
-                              onPointerDown={(e) => handlePointerDown('logo-resize-nw', e)}
-                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nwse-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Corner"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('logo-resize-ne', e)}
-                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nesw-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Corner"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('logo-resize-sw', e)}
-                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nesw-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Corner"
-                            />
-                            <div
-                              onPointerDown={(e) => handlePointerDown('logo-resize-se', e)}
-                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nwse-resize z-30 hover:scale-125 transition-transform"
-                              title="Resize Corner"
-                            />
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Centered Big Play/Pause Toggle Overlay (when paused) */}
-                    {filePreviewUrl && !previewIsPlaying && (
-                      <button
-                        type="button"
-                        onClick={togglePreviewPlay}
-                        className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white flex items-center justify-center shadow-2xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-95 z-20 pointer-events-auto"
-                        title="Play"
-                      >
-                        <Play className="w-5 h-5 ml-0.5" />
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center p-5 space-y-2 text-zinc-500">
-                    <Video className="w-7 h-7 mx-auto text-zinc-600 animate-pulse" />
-                    <p className="text-xs font-medium">
-                      {inputMode === 'url'
-                        ? 'YouTube Shorts သို့မဟုတ် Video Link ထည့်သွင်းပြီးပါက Live Video Preview ပေါ်လာပါမည်'
-                        : 'ဗီဒီယိုဖိုင် တင်သွင်းပြီးပါက Live Preview ပေါ်လာပါမည်'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Player Toolbar: Seek Scrubber, Volume, Fullscreen */}
-              {filePreviewUrl && (
-                <div className="space-y-1 pt-1">
-                  {/* Timeline Scrubber */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={togglePreviewPlay}
-                      className="p-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white transition-colors"
-                      title={previewIsPlaying ? 'Pause' : 'Play'}
-                    >
-                      {previewIsPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                    </button>
-                    <input
-                      type="range"
-                      min={0}
-                      max={previewDuration || 1}
-                      step={0.05}
-                      value={previewCurrentTime}
-                      onChange={handlePreviewSeek}
-                      className="flex-1 accent-indigo-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg"
-                    />
-                    <span className="text-[10px] font-mono text-zinc-500 shrink-0">
-                      {formatTimeSimple(previewCurrentTime)}
-                    </span>
-                  </div>
-
-                  {/* Volume Control & Fullscreen Row */}
-                  <div className="flex items-center justify-between text-xs pt-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={handleToggleMute}
-                        className="text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                        title={previewIsMuted ? 'Unmute' : 'Mute'}
-                      >
-                        {previewIsMuted || previewVolume === 0 ? (
-                          <VolumeX className="w-3.5 h-3.5 text-rose-500" />
-                        ) : (
-                          <Volume2 className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={previewIsMuted ? 0 : previewVolume}
-                        onChange={handleVolumeChange}
-                        className="w-16 sm:w-20 accent-indigo-500 h-1 bg-slate-200 dark:bg-zinc-700 rounded"
-                        title="Volume"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleToggleFullscreen}
-                      className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                    >
-                      {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* UNIFIED 4 TABS DIRECTLY UNDER PREVIEW (Zero section clutter) */}
-            <div className="grid grid-cols-4 gap-1 p-1 mt-2 rounded-2xl bg-slate-100 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700/60 shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 items-start">
+          {/* LEFT COLUMN (ON PC: Left side | ON MOBILE: Below Preview) */}
+          <div className="order-2 lg:order-1 w-full lg:col-span-7 space-y-3 min-w-0">
+            <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700/60 shadow-sm">
               <button
                 type="button"
                 onClick={() => setActiveTab('setup')}
@@ -1542,10 +1128,9 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 <span className="truncate">Logo</span>
               </button>
             </div>
-          </div>
 
-          {/* 2. THE SINGLE DEDICATED SETTINGS CARD (Everything else hidden based on activeTab) */}
-          <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm">
+            {/* 2. THE SINGLE DEDICATED SETTINGS CARD (Everything else hidden based on activeTab) */}
+          <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 shadow-sm">
             {/* TAB 1: BLUR ONLY (When blur is clicked, preview + blur settings only, everything else hidden) */}
             {activeTab === 'blur' && (
               <div className="space-y-4 animate-fade-in">
@@ -1555,7 +1140,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       <SlidersHorizontal className="w-3.5 h-3.5" />
                     </span>
                     <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                      Frosted Glass Blur Settings (Mask ချိန်ညှိမှု)
+                      Blur Settings
                     </h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1583,37 +1168,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
                 {enableBlur ? (
                   <div className="space-y-3.5">
-                    {/* Quick Presets */}
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
-                        အသင့်သုံး Preset များ:
-                      </label>
-                      <div className="grid grid-cols-5 gap-1.5 text-[10px]">
-                        {[
-                          { label: 'Bottom', pos: 82, thick: 14, width: 100 },
-                          { label: 'Movie', pos: 66, thick: 15, width: 100 },
-                          { label: 'Center', pos: 60, thick: 16, width: 100 },
-                          { label: 'Full', pos: 82, thick: 14, width: 100 },
-                          { label: 'Narrow', pos: 80, thick: 14, width: 65 },
-                        ].map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setBlurPosition(preset.pos);
-                              setBlurThickness(preset.thick);
-                              setBlurWidth(preset.width);
-                            }}
-                            className={`py-1.5 px-1 rounded-lg border text-center transition-all ${blurPosition === preset.pos && blurWidth === preset.width
-                              ? 'border-amber-500 bg-amber-500 text-white font-bold shadow-sm'
-                              : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
-                              }`}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+
 
                     {/* 4 Interactive Sliders */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[11px]">
@@ -1678,9 +1233,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       </div>
                     </div>
 
-                    <div className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 text-amber-700 dark:text-amber-300 text-[11px] flex items-center justify-between">
-                      <span>💡 အပေါ်ရှိ Video Preview ပေါ်တွင်လည်း လက်ဖြင့်/Mouse ဖြင့် တိုက်ရိုက်ဆွဲရွှေ့/ချုံ့ချဲ့နိုင်ပါသည်။</span>
-                    </div>
+
                   </div>
                 ) : (
                   <div className="py-8 text-center text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800">
@@ -1699,7 +1252,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       <Type className="w-3.5 h-3.5" />
                     </span>
                     <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                      မြန်မာစာတန်းထိုး Settings (Subtitles & Font)
+                      Subtitles Settings
                     </h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1730,25 +1283,25 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     {/* Subtitle Preview Text Input */}
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
-                        နမူနာ စာတန်းထိုး စာသား (Preview Text):
+                        Preview Text:
                       </label>
                       <input
                         type="text"
                         value={previewSubtitleText}
                         onChange={(e) => setPreviewSubtitleText(e.target.value)}
                         placeholder="နမူနာ စာတန်းထိုး စာသား ရိုက်ထည့်ပါ..."
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white"
+                        className="w-full px-2 py-1 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white"
                       />
                     </div>
 
                     {/* Font Family Selector */}
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
-                        မြန်မာစာလုံး ဖောင့် (Font Style):
+                        Font Style:
                       </label>
                       <div className="grid grid-cols-4 gap-1.5">
                         {[
-                          { id: 'font-akkhayar', label: 'Akkhayar 21 ✨' },
+                          { id: 'font-akkhayar', label: 'Akkhayar 21' },
                           { id: 'font-kunheing', label: 'AJ Kunheing' },
                           { id: 'font-jojar', label: 'Myanmar Jojar' },
                           { id: 'font-padauk', label: 'Padauk White' },
@@ -1757,7 +1310,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                             key={f.id}
                             type="button"
                             onClick={() => setSubtitleStyle(f.id)}
-                            className={`py-2 px-1 rounded-lg border text-center transition-all ${subtitleStyle === f.id
+                            className={`py-1 px-1 rounded-lg border text-center transition-all ${subtitleStyle === f.id
                               ? 'border-cyan-500 bg-cyan-500 text-white font-bold shadow-sm'
                               : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 text-[11px] bg-slate-50 dark:bg-zinc-800/40'
                               }`}
@@ -1772,7 +1325,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[11px]">
                       <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
                         <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1.5">
-                          <span>နေရာ အလျား (Position X):</span>
+                          <span>Position X:</span>
                           <span className="text-cyan-500 font-mono font-bold">{subtitleX}%</span>
                         </div>
                         <input
@@ -1787,7 +1340,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
                       <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
                         <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1.5">
-                          <span>နေရာ အမြင့် (Position Y):</span>
+                          <span>Position Y:</span>
                           <span className="text-cyan-500 font-mono font-bold">{subtitleY}%</span>
                         </div>
                         <input
@@ -1830,10 +1383,6 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         />
                       </div>
                     </div>
-
-                    <div className="p-2.5 rounded-xl bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200/50 text-cyan-700 dark:text-cyan-300 text-[11px] flex items-center justify-between">
-                      <span>💡 အပေါ်ရှိ Video Preview ပေါ်တွင်လည်း လက်ဖြင့်/Mouse ဖြင့် စာတန်းကို တိုက်ရိုက်ဆွဲရွှေ့/ချိန်နိုင်ပါသည်။</span>
-                    </div>
                   </div>
                 ) : (
                   <div className="py-8 text-center text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800">
@@ -1852,7 +1401,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       <Shield className="w-3.5 h-3.5" />
                     </span>
                     <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                      Channel Logo / Watermark Settings
+                      Logo Settings
                     </h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1879,7 +1428,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                 </div>
 
                 {enableLogo ? (
-                  <div className="space-y-3.5">
+                  <div className="space-y-2">
                     {/* Logo Image Upload / Preview */}
                     {logoUrl ? (
                       <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700">
@@ -1902,7 +1451,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       <button
                         type="button"
                         onClick={() => logoInputRef.current?.click()}
-                        className="w-full py-3.5 border border-dashed border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2 border border-dashed border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-all flex items-center justify-center gap-2"
                       >
                         <ImageIcon className="w-4 h-4 text-indigo-500" />
                         <span>+ Channel Logo ပုံတင်ရန် (.png, .jpg, .webp)</span>
@@ -1919,19 +1468,19 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     {/* Text Watermark alternative */}
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
-                        သို့မဟုတ် Channel နာမည် စာသား (Watermark Text):
+                        Watermark:
                       </label>
                       <input
                         type="text"
                         value={watermarkText}
                         onChange={(e) => setWatermarkText(e.target.value)}
                         placeholder="ဥပမာ - Movie Recap / K Recap"
-                        className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white"
+                        className="w-full px-1 py-1 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-white"
                       />
                     </div>
 
                     {/* 4 Interactive Logo Sliders */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[11px]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[10px]">
                       <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-700/60">
                         <div className="flex justify-between font-bold text-slate-700 dark:text-zinc-300 mb-1.5">
                           <span>နေရာ အလျား (Position X):</span>
@@ -2143,29 +1692,32 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
 
                   {/* Quick Preset Buttons */}
                   <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400">စတိုင် Presets:</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => applyPreset('alpha')}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold transition-all"
-                      >
-                        ✨ Team Alpha (9:16)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyPreset('tiktok')}
-                        className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 text-[10px] font-bold transition-all"
-                      >
-                        📱 TikTok (9:16)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyPreset('youtube')}
-                        className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 text-[10px] font-bold transition-all"
-                      >
-                        📺 YouTube (Original)
-                      </button>
+                    {/* Aspect Ratio Selector */}
+                    <div className="space-y-1.5 pt-2  dark:border-zinc-800">
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
+                        ဗီဒီယို အရွယ်အစား (Aspect Ratio):
+                      </label>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[
+                          { id: 'original', label: 'Original' },
+                          { id: '16:9', label: 'YouTube' },
+                          { id: '9:16', label: 'TikTok' },
+                          { id: '1:1', label: 'Square' },
+
+                        ].map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => handleRatioSelect(r.id)}
+                            className={`py-1.5 px-1 rounded-xl border text-[11px] font-bold transition-all text-center truncate ${selectedRatio === r.id
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                              : 'border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 bg-slate-50 dark:bg-zinc-800/40'
+                              }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2198,7 +1750,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                   {voiceMode === 'preset' ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {[
-                        { id: 'my-MM-KingBurma', name: 'King Burma', mmName: 'မင်းမြန်မာ', tag: 'TikTok Pro' },
+                        { id: 'my-MM-KingBurma', name: 'Kyaw Kyaw', mmName: 'ကျော်ကျော်', tag: 'TikTok Pro' },
                         { id: 'my-MM-ThihaNeural', name: 'Thiha', mmName: 'သီဟ', tag: 'Classic Narrator' },
                         { id: 'my-MM-ZawNeural', name: 'Zaw', mmName: 'ဇော်', tag: 'Baritone' },
                         { id: 'my-MM-WunnaNeural', name: 'Min Khant', mmName: 'မင်းခန့်', tag: 'Youth' },
@@ -2211,7 +1763,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                         <div
                           key={v.id}
                           onClick={() => !isProcessing && !isUploading && setSelectedVoice(v.id)}
-                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
+                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer relative ${selectedVoice === v.id
                             ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-sm'
                             : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-slate-50/40 dark:bg-zinc-800/20'
                             }`}
@@ -2233,7 +1785,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                               <span>{sampleAudioPlaying === v.id ? 'Stop' : sampleAudioLoading === v.id ? '...' : 'Play'}</span>
                             </button>
                           </div>
-                          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
+                          <p className="text-[6px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 truncate">{v.tag}</p>
                         </div>
                       ))}
                     </div>
@@ -2260,10 +1812,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                       ) : (
                         <div
                           onClick={() => voiceSampleInputRef.current?.click()}
-                          className="border border-dashed border-purple-300 dark:border-purple-800 rounded-xl p-3.5 text-center cursor-pointer hover:bg-purple-100/40 dark:hover:bg-purple-900/20 transition-all"
+                          className="border border-dashed border-purple-300 dark:border-purple-800 rounded-xl p-2 text-center cursor-pointer hover:bg-purple-100/40 dark:hover:bg-purple-900/20 transition-all"
                         >
                           <p className="text-xs font-bold text-purple-900 dark:text-purple-200">
-                            🎧 နမူနာ အသံဖိုင် (MP3/WAV) ထည့်သွင်းပါ
+                            🎧(MP3/WAV) ထည့်သွင်းပါ
                           </p>
                           <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">
                             ၅ စက္ကန့်မှ ၁ မိနစ်အတွင်း ကြည်လင်သော အသံဖိုင်
@@ -2287,10 +1839,10 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     <span className="font-bold text-slate-600 dark:text-zinc-400 text-[11px]">အမြန်နှုန်း:</span>
                     <div className="flex items-center gap-1">
                       {[
-                        { value: '+0%', label: '1.0x ပုံမှန်' },
-                        { value: '+25%', label: '1.25x သွက်သွက်' },
-                        { value: '+35%', label: '1.35x Recap ✨' },
-                        { value: '+55%', label: '1.55x TikTok 🔥' },
+                        { value: '+0%', label: '1.0x' },
+                        { value: '+25%', label: '1.25x' },
+                        { value: '+35%', label: '1.35x' },
+                        { value: '+55%', label: '1.55x' },
                       ].map((s) => (
                         <button
                           key={s.value}
@@ -2307,14 +1859,452 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
                     </div>
                   </div>
 
-                  
+
 
                 </div>
               </div>
             )}
           </div>
 
-          {/* In-Progress Notification & Progress Bar */}
+            {/* ACTION GENERATE BUTTON (Desktop) */}
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
+            className={`hidden lg:block w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
+              ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
+              : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
+              }`}
+          >
+            {isUploading ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner size="sm" showLabel={false} />
+                {uploadProgress >= 100 ? 'Starting Pipeline...' : `Uploading Video (${uploadProgress}%)...`}
+              </span>
+            ) : isProcessing ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner size="sm" showLabel={false} />
+                Generating Recap Video...
+              </span>
+            ) : (
+              'Generate One Click Recap (15 CR)'
+            )}
+          </button>
+          </div>
+
+          {/* RIGHT COLUMN (ON PC: Right side sticky | ON MOBILE: At the very top sticky) */}
+          <div className="order-1 lg:order-2 w-full lg:col-span-5 sticky top-[calc(3.25rem+env(safe-area-inset-top,0px))] lg:top-20 z-30 lg:z-20 self-start space-y-3 min-w-0">
+            <div
+              ref={previewContainerRef}
+              className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-2.5 sm:p-3 shadow-md space-y-2"
+            >
+              {/* Studio Canvas Title & Timecode */}
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                  Live Preview Studio
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                  {formatTimeSimple(previewCurrentTime)} / {formatTimeSimple(previewDuration)}
+                </span>
+              </div>
+
+              {/* Video Screen Container - Responsive Aspect Ratio */}
+              <div
+                className="relative w-full h-[200px] sm:h-[280px] lg:h-[350px] bg-zinc-950 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border border-slate-200 dark:border-zinc-800 p-1 select-none"
+              >
+                {filePreviewUrl || (inputMode === 'url' && videoUrl.trim()) ? (
+                  <div
+                    ref={previewBoxRef}
+                    style={{
+                      aspectRatio: `${targetRatioValue}`,
+                      maxHeight: '100%',
+                      maxWidth: '100%',
+                      height: targetRatioValue <= 1 ? '100%' : 'auto',
+                      width: targetRatioValue > 1 ? '100%' : 'auto',
+                    }}
+                    className="relative mx-auto flex items-center justify-center overflow-hidden bg-black rounded-lg border border-indigo-500/30 shadow-2xl transition-all duration-200 select-none"
+                  >
+                    {/* Source Player: Upload File, YouTube Embed, TikTok Embed, or Direct Video */}
+                    {filePreviewUrl ? (
+                      <video
+                        ref={previewVideoRef}
+                        src={filePreviewUrl}
+                        preload="metadata"
+                        onTimeUpdate={handleTimeUpdate}
+                        onLoadedMetadata={() => {
+                          const v = previewVideoRef.current;
+                          if (v) {
+                            setPreviewDuration(v.duration || 0);
+                            if (v.videoWidth && v.videoHeight) {
+                              const aspect = v.videoWidth / v.videoHeight;
+                              setNaturalAspect(aspect);
+                              const smart = getSmartBlurForRatio(selectedRatio, aspect);
+                              setBlurPosition(smart.pos);
+                              setBlurThickness(smart.thick);
+                              if (smart.width) setBlurWidth(smart.width);
+                            }
+                          }
+                        }}
+                        onEnded={() => setPreviewIsPlaying(false)}
+                        onPause={() => {
+                          setPreviewIsPlaying(false);
+                          if (previewVideoRef.current) setPreviewCurrentTime(previewVideoRef.current.currentTime);
+                        }}
+                        onPlay={() => setPreviewIsPlaying(true)}
+                        className="w-full h-full object-contain pointer-events-none"
+                        playsInline
+                      />
+                    ) : youtubeId ? (
+                      <iframe
+                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&controls=1&modestbranding=1&rel=0`}
+                        title="YouTube Preview"
+                        className="w-full h-full object-contain border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : tiktokId ? (
+                      <iframe
+                        src={`https://www.tiktok.com/player/v1/${tiktokId}?autoplay=0&music_info=0&description=0`}
+                        title="TikTok Preview"
+                        className="w-full h-full object-contain border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : isTikTokUrl ? (
+                      <iframe
+                        src={`https://www.tiktok.com/embed/v2/?url=${encodeURIComponent(videoUrl.trim())}`}
+                        title="TikTok Preview"
+                        className="w-full h-full object-contain border-0"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        ref={previewVideoRef}
+                        src={videoUrl.trim()}
+                        preload="metadata"
+                        controls
+                        playsInline
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+
+                    {/* 1. LIVE FROSTED GLASS BLUR BOX (Pure Frosted Glass - Always beneath Subtitles) */}
+                    {enableBlur && (
+                      <div
+                        style={{
+                          top: `${Math.max(0, Math.min(100 - blurThickness, blurPosition - blurThickness / 2))}%`,
+                          height: `${blurThickness}%`,
+                          left: blurWidth >= 100 ? '0%' : `${Math.max(0, Math.min(100 - blurWidth, (100 - blurWidth) / 2))}%`,
+                          width: `${Math.min(100, Math.max(20, blurWidth))}%`,
+                          transform: 'translateZ(0)',
+                          willChange: 'transform',
+                        }}
+                        onClick={() => setActiveTab('blur')}
+                        onPointerDown={(e) => handlePointerDown('blur-move', e)}
+                        className={`absolute flex items-center justify-center overflow-visible transition-shadow ${activeTab === 'blur'
+                          ? 'z-10 border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
+                          : 'z-10 border border-transparent'
+                          } ${activeDrag === 'blur-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        title="Click to select Blur & drag to reposition"
+                      >
+                        {/* Pure Frosted Glass Background */}
+                        <div
+                          style={{
+                            backdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
+                            WebkitBackdropFilter: `blur(${Math.max(2, Math.round(blurIntensity * 0.35))}px)`,
+                            backgroundColor: `rgba(0, 0, 0, ${Math.min(0.60, Math.max(0.12, (blurIntensity / 100) * 0.60))})`,
+                            transform: 'translateZ(0)',
+                            willChange: 'transform',
+                          }}
+                          className="absolute inset-0 pointer-events-none rounded-none"
+                        />
+
+                        {/* Handles visible ONLY when Blur tab is active and not playing */}
+                        {activeTab === 'blur' && !previewIsPlaying && (
+                          <>
+                            {/* 4 Corner Handles for 2D independent resizing */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-nw', e)}
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-20 hover:scale-125 transition-transform"
+                              title="Resize Top-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-ne', e)}
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-20 hover:scale-125 transition-transform"
+                              title="Resize Top-Right"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-sw', e)}
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nesw-resize z-20 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-se', e)}
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-amber-500 shadow-md cursor-nwse-resize z-20 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Right"
+                            />
+
+                            {/* 4 Edge Handles */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-n', e)}
+                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-20 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-s', e)}
+                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-amber-500 shadow cursor-ns-resize z-20 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-w', e)}
+                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-20 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('blur-resize-e', e)}
+                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-amber-500 shadow cursor-ew-resize z-20 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 2. BURMESE SUBTITLE BOX (Always on top of Blur: z-30) */}
+                    {enableSubtitles && (
+                      <div
+                        style={{
+                          top: `${Math.max(0, Math.min(100 - subtitleHeight, subtitleY - subtitleHeight / 2))}%`,
+                          left: `${Math.max(0, Math.min(100 - subtitleWidth, subtitleX - subtitleWidth / 2))}%`,
+                          width: `${subtitleWidth}%`,
+                          height: `${subtitleHeight}%`,
+                          transform: 'translateZ(0)',
+                          willChange: 'transform',
+                        }}
+                        onClick={() => setActiveTab('text')}
+                        onPointerDown={(e) => handlePointerDown('subtitle-move', e)}
+                        className={`absolute flex items-center justify-center px-2 transition-shadow select-none ${activeTab === 'text'
+                          ? 'z-30 border-2 border-cyan-400 bg-black/40 rounded-xl shadow-[0_0_12px_rgba(34,211,238,0.7)] backdrop-blur-[1px]'
+                          : 'z-30 border border-transparent'
+                          } ${activeDrag === 'subtitle-move' ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        title="Click to select Text & drag to position"
+                      >
+                        <p
+                          style={{
+                            fontFamily: getSubtitleFontFamily(subtitleStyle),
+                          }}
+                          className="pointer-events-none text-center text-[clamp(11px,1.9vw,17px)] font-black leading-snug text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] max-w-full truncate px-1 tracking-wide"
+                        >
+                          {previewSubtitleText}
+                        </p>
+
+                        {/* Handles visible ONLY when Text tab is active and not playing */}
+                        {activeTab === 'text' && !previewIsPlaying && (
+                          <>
+                            {/* 4 Corner Handles for 2D independent resizing */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-nw', e)}
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Top-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-ne', e)}
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Top-Right"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-sw', e)}
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Left"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-se', e)}
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-cyan-500 shadow-md cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Bottom-Right"
+                            />
+
+                            {/* 4 Edge Handles */}
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-n', e)}
+                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-cyan-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-s', e)}
+                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 rounded-full bg-white border border-cyan-500 shadow cursor-ns-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Height"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-w', e)}
+                              className="absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-cyan-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('subtitle-resize-e', e)}
+                              className="absolute -right-1 top-1/2 -translate-y-1/2 h-6 w-2 rounded-full bg-white border border-cyan-500 shadow cursor-ew-resize z-30 hover:scale-125 transition-transform"
+                              title="Adjust Width"
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 3. CHANNEL LOGO / WATERMARK OVERLAY (Top layer: z-40) */}
+                    {enableLogo && (logoUrl || watermarkText.trim()) && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: `${logoY}%`,
+                          left: `${logoX}%`,
+                          width: `${logoScale}%`,
+                          transform: 'translateZ(0)',
+                          willChange: 'transform',
+                        }}
+                        onClick={() => setActiveTab('logo')}
+                        onPointerDown={(e) => handlePointerDown('logo-move', e)}
+                        className={`max-h-[35%] transition-shadow select-none ${activeTab === 'logo'
+                          ? 'z-40 border-2 border-indigo-400 p-0.5 rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.6)] cursor-grabbing'
+                          : 'z-40 border border-transparent cursor-pointer'
+                          }`}
+                        title="Click to select Logo & drag"
+                      >
+                        {logoUrl ? (
+                          <img
+                            src={logoUrl}
+                            alt="Watermark"
+                            style={{ opacity: logoOpacity / 100 }}
+                            className="w-full h-auto object-contain pointer-events-none select-none rounded drop-shadow-md"
+                          />
+                        ) : (
+                          <span
+                            style={{ opacity: logoOpacity / 100 }}
+                            className="text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded whitespace-nowrap block drop-shadow"
+                          >
+                            {watermarkText}
+                          </span>
+                        )}
+
+                        {/* Handles visible ONLY when Logo tab is active and not playing */}
+                        {activeTab === 'logo' && !previewIsPlaying && (
+                          <>
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-nw', e)}
+                              className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-ne', e)}
+                              className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-sw', e)}
+                              className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nesw-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                            <div
+                              onPointerDown={(e) => handlePointerDown('logo-resize-se', e)}
+                              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow cursor-nwse-resize z-30 hover:scale-125 transition-transform"
+                              title="Resize Corner"
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Centered Big Play/Pause Toggle Overlay (when paused) */}
+                    {filePreviewUrl && !previewIsPlaying && (
+                      <button
+                        type="button"
+                        onClick={togglePreviewPlay}
+                        className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white flex items-center justify-center shadow-2xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-95 z-20 pointer-events-auto"
+                        title="Play"
+                      >
+                        <Play className="w-5 h-5 ml-0.5" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center p-5 space-y-2 text-zinc-500">
+                    <Video className="w-7 h-7 mx-auto text-zinc-600 animate-pulse" />
+                    <p className="text-xs font-medium">
+                      {inputMode === 'url'
+                        ? 'YouTube Shorts သို့မဟုတ် Video Link ထည့်သွင်းပြီးပါက Live Video Preview ပေါ်လာပါမည်'
+                        : 'ဗီဒီယိုဖိုင် တင်သွင်းပြီးပါက Live Preview ပေါ်လာပါမည်'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Player Toolbar: Seek Scrubber, Volume, Fullscreen */}
+              {filePreviewUrl && (
+                <div className="space-y-1 pt-1">
+                  {/* Timeline Scrubber */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={togglePreviewPlay}
+                      className="p-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-indigo-600 hover:text-white transition-colors"
+                      title={previewIsPlaying ? 'Pause' : 'Play'}
+                    >
+                      {previewIsPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={previewDuration || 1}
+                      step={0.05}
+                      value={previewCurrentTime}
+                      onChange={handlePreviewSeek}
+                      className="flex-1 accent-indigo-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg"
+                    />
+                    <span className="text-[10px] font-mono text-zinc-500 shrink-0">
+                      {formatTimeSimple(previewCurrentTime)}
+                    </span>
+                  </div>
+
+                  {/* Volume Control & Fullscreen Row */}
+                  <div className="flex items-center justify-between text-xs pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleToggleMute}
+                        className="text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                        title={previewIsMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {previewIsMuted || previewVolume === 0 ? (
+                          <VolumeX className="w-3.5 h-3.5 text-rose-500" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={previewIsMuted ? 0 : previewVolume}
+                        onChange={handleVolumeChange}
+                        className="w-16 sm:w-20 accent-indigo-500 h-1 bg-slate-200 dark:bg-zinc-700 rounded"
+                        title="Volume"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleFullscreen}
+                      className="p-1 rounded text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                    >
+                      {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* In-Progress Notification & Progress Bar */}
           {(isUploading || isProcessing || isFailed) && (
             <div className="p-3.5 rounded-xl border border-indigo-500/20 bg-slate-50 dark:bg-zinc-800/80 shadow-md space-y-2">
               <div className="flex items-center justify-between text-xs font-bold">
@@ -2362,31 +2352,7 @@ const OneClick: React.FC<OneClickProps> = ({ onSpendCredits, onNavigate }) => {
               </div>
             </div>
           )}
-
-          {/* ACTION GENERATE BUTTON (Desktop) */}
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={!hasVideo || isProcessing || isUploading || !serverStatus?.online}
-            className={`hidden lg:block w-full py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-xl ${!hasVideo || isProcessing || isUploading || !serverStatus?.online
-              ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed shadow-none'
-              : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/30 active:scale-[0.99]'
-              }`}
-          >
-            {isUploading ? (
-              <span className="flex items-center justify-center gap-2">
-                <LoadingSpinner size="sm" showLabel={false} />
-                {uploadProgress >= 100 ? 'Starting Pipeline...' : `Uploading Video (${uploadProgress}%)...`}
-              </span>
-            ) : isProcessing ? (
-              <span className="flex items-center justify-center gap-2">
-                <LoadingSpinner size="sm" showLabel={false} />
-                Generating Recap Video...
-              </span>
-            ) : (
-              'Generate One Click Recap (15 CR)'
-            )}
-          </button>
+          </div>
         </div>
       )}
 
